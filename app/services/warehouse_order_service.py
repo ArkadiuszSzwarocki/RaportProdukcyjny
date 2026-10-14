@@ -1,3 +1,4 @@
+# cspell:words pozostale
 """
 Serwis zamówień magazynowych.
 
@@ -5,6 +6,7 @@ Odpowiedzialność: Logika biznesowa zamówień surowców z magazynu.
 Walidacja danych, orkiestracja operacji.
 """
 import json
+import math
 from app.repositories.warehouse_order_repository import WarehouseOrderRepository
 from app.utils.surowiec_validator import validate_surowiec_name
 
@@ -15,7 +17,7 @@ class WarehouseOrderService:
     def __init__(self):
         self._repository = WarehouseOrderRepository()
 
-    def create_order(self, items, operator_login, komentarz=None):
+    def create_order(self, items, operator_login, komentarz=None, linia='AGRO'):
         """Tworzy nowe zamówienie na surowce.
 
         Args:
@@ -38,7 +40,8 @@ class WarehouseOrderService:
                 return False, error, None
             cleaned_items.append({
                 'surowiec_nazwa': nazwa,
-                'ilosc_kg': float(item['ilosc_kg'])
+                'ilosc_kg': float(item['ilosc_kg']),
+                'linia': linia
             })
 
         order_id = self._repository.create(
@@ -76,6 +79,12 @@ class WarehouseOrderService:
             elif isinstance(order.get('items'), list):
                 raw_items = order['items']
             order['items'] = self._clean_order_items(raw_items)
+            for item in order['items']:
+                assigned = sum(float(allocation['kg']) for allocation in item.get('transfer_allocations',[]))
+                item['przypisane_kg'] = assigned
+                item['pozostale_kg'] = max(0,float(item['ilosc_kg'])-assigned)
+                item['realizacja_status'] = ('ZAMKNIETE' if order['status'] == 'ZAMKNIETE' or
+                    item['pozostale_kg'] <= 0.0001 else 'CZESCIOWE' if assigned else 'NOWE')
 
         return orders
 
@@ -119,11 +128,7 @@ class WarehouseOrderService:
         if order['status'] == 'ZAMKNIETE':
             return False, "Zamówienie jest już zamknięte."
 
-        rows_updated = self._repository.confirm(order_id, magazynier_login)
-        if rows_updated == 0:
-            return False, "Nie udało się potwierdzić zamówienia."
-
-        return True, f"Zamówienie #{order_id} potwierdzone i zamknięte."
+        return False, "Zamówienie jest rozliczane automatycznie po zeskanowaniu właściwych palet do transferu."
 
     def delete_order(self, order_id, user_role):
         """Usuwa zamówienie z magazynu (uprawnienia dla masteradmin, admin, zarzad).
@@ -179,7 +184,7 @@ class WarehouseOrderService:
             
             try:
                 ilosc = float(item.get('ilosc_kg', 0))
-                if ilosc <= 0:
+                if not math.isfinite(ilosc) or ilosc <= 0:
                     return f"Ilość dla surowca {nazwa} musi być większa od zera."
             except (TypeError, ValueError):
                 return f"Ilość dla surowca {nazwa} musi być prawidłową liczbą."

@@ -1,4 +1,10 @@
 
+    window.agroEscapeHtml = function(value) {
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[character]));
+    };
+
     // ---- ALERT HELPER (używa toast jeśli dostępny, fallback na alert) ----
     window.showAlert = function(msg) {
         if (typeof window.showToast === 'function') {

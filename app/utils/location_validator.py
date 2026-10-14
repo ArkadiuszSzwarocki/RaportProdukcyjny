@@ -239,7 +239,7 @@ def is_rack_level_1(location_code):
         return m.group(3) == '01'
     return False
 
-def check_rack_location_availability(location_code, current_nr_palety=None, product_name=None):
+def check_rack_location_availability(location_code, current_nr_palety=None, product_name=None, cursor=None):
     """
     Sprawdza czy miejsce paletowe na regale jest wolne (nie zajęte przez inną paletę).
     Zwraca (is_valid, error_msg).
@@ -254,9 +254,14 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
         return True, None
         
     from app.core.database import get_db_connection
-    conn = get_db_connection()
+    conn = None if cursor is not None else get_db_connection()
     try:
-        cur = conn.cursor(dictionary=True)
+        cur = cursor if cursor is not None else conn.cursor(dictionary=True)
+        # Serialize checks and writes through the shared location dictionary.
+        # The caller holds these row locks until its pallet transaction commits.
+        if cursor is not None:
+            cur.execute("SELECT nazwa FROM magazyn_dozwolone_lokalizacje ORDER BY nazwa FOR UPDATE")
+            cur.fetchall()
 
         # Jeśli nie podano nazwy produktu, ale podano nr_palety, sprawdź czy to surowiec Hydro
         if not product_name and current_nr_palety:
@@ -267,8 +272,9 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
                     if r_p and r_p.get('nazwa'):
                         product_name = r_p['nazwa']
                         break
-            except Exception:
-                pass
+            except Exception as error:
+                if getattr(error, 'errno', None) != 1146:
+                    raise
 
         is_lvl1 = is_rack_level_1(normalized)
         is_target_hydro = str(product_name or '').strip().lower() == 'hydro'
@@ -279,8 +285,9 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
             ('magazyn_opakowania', 'stan_magazynowy', 'nazwa'),
             ('magazyn_agro_opakowania', 'stan_magazynowy', 'nazwa'),
             ('magazyn_dodatki', 'stan_magazynowy', 'nazwa'),
-            ('magazyn_palety', 'waga_netto', 'produkt'),
-            ('magazyn_palety_agro', 'waga_netto', 'produkt')
+            # The former AGRO table is now a view of this canonical register.
+            # Looking at both would count each finished pallet twice.
+            ('magazyn_palety', 'waga_netto', 'produkt')
         ]
         
         existing_pallets = []
@@ -291,13 +298,16 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
                 if current_nr_palety:
                     query += " AND (nr_palety IS NULL OR nr_palety != %s)"
                     params.append(str(current_nr_palety).strip())
+                if cursor is not None:
+                    query += ' FOR UPDATE'
                     
                 cur.execute(query, tuple(params))
                 rows = cur.fetchall()
                 if rows:
                     existing_pallets.extend(rows)
-            except Exception:
-                pass
+            except Exception as error:
+                if getattr(error, 'errno', None) != 1146:
+                    raise
 
         if not existing_pallets:
             return True, None
@@ -334,7 +344,8 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
     except Exception as e:
         return False, f"Błąd podczas sprawdzania dostępności lokalizacji: {e}"
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
 
 
 def is_osip_location(location_code):
@@ -391,7 +402,7 @@ def validate_centrala_osip_move(source_location, target_location, pallet_id=None
             SELECT t.id, t.transfer_code, t.status, ti.status as item_status
             FROM osip_transfers t
             JOIN osip_transfer_items ti ON t.id = ti.transfer_id
-            WHERE t.status IN ('PLANNED', 'IN_TRANSIT')
+            WHERE t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
               AND ti.status != 'RECEIVED'
               AND (ti.pallet_id = %s OR (ti.nr_palety IS NOT NULL AND ti.nr_palety != '' AND UPPER(ti.nr_palety) = UPPER(%s)))
             LIMIT 1
@@ -413,41 +424,38 @@ def validate_centrala_osip_move(source_location, target_location, pallet_id=None
 
 def is_mp01_warehouse_location(location_code: str) -> bool:
     """
-    Sprawdza czy lokalizacja należy do Magazynu MP01 / strefy AGRO:
+    Sprawdza czy lokalizacja należy do Magazynu MP01:
     - MP01, BF_MP01, BFMP01
     - Wszystkie regały wysokiego składowania i półkowe: R01..R99 (np. R010101, R020302 itp.)
-    - MDO01 (oraz warianty MD01, MDM01)
-    - MOP01 (oraz warianty MO01)
     """
     if not location_code:
         return False
     loc = str(location_code).strip().upper()
     loc_clean = loc.replace(' ', '').replace('-', '').replace('_', '')
-    if loc_clean in ('MP01', 'MPO1', 'BFMP01', 'MDO01', 'MD01', 'MDM01', 'MOP01', 'MO01'):
+    if loc_clean in ('MP01', 'BFMP01'):
         return True
-    if loc.startswith(('MP01', 'BF_MP01', 'BFMP01', 'MDO01', 'MOP01', 'MD01', 'MO01')):
+    if loc.startswith(('MP01', 'BF_MP01', 'BFMP01')):
         return True
-    if re.match(r'^R\d{2}', loc) or re.match(r'^(?:R|RR)?0[1-9]\d{4}', loc) or re.match(r'^0[1-9]\d{4}', loc) or is_rack_location(loc):
+    if re.match(r'^R\d{2}', loc) or is_rack_location(loc):
         return True
     return False
 
 
 def is_ms01_warehouse_location(location_code: str) -> bool:
     """
-    Sprawdza czy lokalizacja należy do Magazynu MS01 / strefy PSD:
+    Sprawdza czy lokalizacja należy do Magazynu MS01:
     - MS01, BF_MS01, BFMS01
     - PSD, PSD01
-    - MGW01, MGW02
     """
     if not location_code:
         return False
     loc = str(location_code).strip().upper()
     loc_clean = loc.replace(' ', '').replace('-', '').replace('_', '')
-    if loc_clean in ('MS01', 'MSO1', 'BFMS01', 'PSD', 'PSD01', 'MGW01', 'MGW02'):
+    if loc_clean in ('MS01', 'BFMS01', 'PSD', 'PSD01'):
         return True
-    if loc in ('MS01', 'MSO1', 'BF_MS01', 'BFMS01', 'PSD', 'PSD01', 'MGW01', 'MGW02'):
+    if loc in ('MS01', 'BF_MS01', 'BFMS01', 'PSD', 'PSD01'):
         return True
-    if loc.startswith(('BF_MS01', 'BFMS01', 'MS01', 'MGW01', 'MGW02', 'PSD01')):
+    if loc.startswith(('BF_MS01', 'BFMS01', 'MS01')):
         return True
     return False
 
@@ -468,47 +476,15 @@ def get_warehouse_zone(location_code: str) -> str:
     return 'OTHER'
 
 
-def _resolve_pallet_location(pallet_id=None, nr_palety=None):
-    if not pallet_id and not nr_palety:
-        return None
-    try:
-        from app.db import get_db_connection
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        tables = ['magazyn_surowce', 'magazyn_palety', 'magazyn_palety_agro', 'magazyn_opakowania', 'magazyn_dodatki']
-        for tbl in tables:
-            if nr_palety:
-                cursor.execute(f"SELECT lokalizacja FROM {tbl} WHERE nr_palety = %s LIMIT 1", (str(nr_palety).strip().upper(),))
-                r = cursor.fetchone()
-                if r and r[0]:
-                    cursor.close()
-                    conn.close()
-                    return str(r[0]).strip().upper()
-            if pallet_id:
-                cursor.execute(f"SELECT lokalizacja FROM {tbl} WHERE id = %s LIMIT 1", (pallet_id,))
-                r = cursor.fetchone()
-                if r and r[0]:
-                    cursor.close()
-                    conn.close()
-                    return str(r[0]).strip().upper()
-        cursor.close()
-        conn.close()
-    except Exception:
-        pass
-    return None
-
-
 def validate_inter_warehouse_move(source_location: str, target_location: str, pallet_id=None, nr_palety=None) -> tuple[bool, str | None]:
     """
     Weryfikuje regułę rozdziału magazynów:
-    1. Magazyn MP01 (MP01, BF_MP01, regały R01..R99, MDO01, MOP01) to JEDNA strefa (AGRO).
-    2. Magazyn MS01 (MS01, bufor BF_MS01, PSD, PSD01, MGW01, MGW02) to DRUGA strefa (PSD).
-    3. Przesunięcia między tymi strefami nie mogą odbywać się "ot tak" (bezpośrednio).
-       Mogą odbywać się TYLKO I WYŁĄCZNIE poprzez formalną logikę zlecenia przesunięcia magazynowego.
+    1. Magazyn MP01 (MP01, BF_MP01 oraz regały i lokalizacje R01..R99) to JEDEN magazyn.
+    2. Magazyn MS01 (MS01, bufor BF_MS01, PSD, PSD01) to DRUGI magazyn.
+    3. Przesunięcia między Magazynem MS01 a Magazynem MP01 mogą odbywać się
+       TYLKO I WYŁĄCZNIE poprzez formalne przesunięcia magazynowe (magazyn_dostawy).
+    Bezpośrednie przenoszenie palet bez aktywnego zlecenia przesunięcia jest blokowane.
     """
-    if not source_location and (pallet_id or nr_palety):
-        source_location = _resolve_pallet_location(pallet_id=pallet_id, nr_palety=nr_palety)
-
     if not source_location or not target_location:
         return True, None
 
@@ -527,7 +503,7 @@ def validate_inter_warehouse_move(source_location: str, target_location: str, pa
     if src_zone == 'OSIP' or tgt_zone == 'OSIP':
         return validate_centrala_osip_move(source_location, target_location, pallet_id=pallet_id, nr_palety=nr_palety)
 
-    # Granica MS01/PSD/MGW <-> MP01/regały/MDO/MOP
+    # Granica MS01 <-> MP01 (MS01, BF_MS01, PSD, PSD01 <-> MP01, BF_MP01, regały R01..R99)
     if (src_zone == 'MS01' and tgt_zone == 'MP01') or (src_zone == 'MP01' and tgt_zone == 'MS01'):
         from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
         in_transfer, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=pallet_id, nr_palety=nr_palety)
@@ -535,15 +511,15 @@ def validate_inter_warehouse_move(source_location: str, target_location: str, pa
             return True, None
 
         if src_zone == 'MS01' and tgt_zone == 'MP01':
-            dir_str = f"ze strefy PSD/MS01 ({source_location}) do strefy AGRO/MP01 ({target_location})"
+            dir_str = f"z Magazynu MS01 ({source_location}) do Magazynu MP01 / regałów ({target_location})"
         else:
-            dir_str = f"ze strefy AGRO/MP01 ({source_location}) do strefy PSD/MS01 ({target_location})"
+            dir_str = f"z Magazynu MP01 / regałów ({source_location}) do Magazynu MS01 ({target_location})"
 
         return False, (
             f"BŁĄD: Bezpośrednie przesunięcie palety {dir_str} jest zablokowane! "
-            f"Magazyny MP01, BFMP01, regały, MDO01, MOP01 oraz PSD, MS01, BFMS01, PSD01, MGW01, MGW02 "
-            f"to odrębne strefy magazynowe. Przenoszenie palet między nimi nie może odbywać się 'ot tak' "
-            f"i jest dozwolone wyłącznie poprzez utworzone i aktywne Zlecenie Przesunięcia Magazynowego."
+            f"Magazyn MP01 (wraz z regałami) oraz Magazyn MS01 (MS01, bufor BF_MS01, PSD, PSD01) "
+            f"to odrębne magazyny. Przesunięcie między nimi wymaga utworzenia i zrealizowania "
+            f"systemowego Przesunięcia Magazynowego."
         )
 
     return True, None

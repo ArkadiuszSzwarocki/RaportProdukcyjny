@@ -1,7 +1,12 @@
+# cspell:words pytestmark
+# These integration checks create and remove rows in a real test database.
+import pytest
 import unittest
 from app.core.factory import create_app
 from app.db import get_db_connection
 from app.services.production_consumption_service import ProductionConsumptionService
+
+pytestmark = pytest.mark.require_db
 
 
 class TestProductionConsumptionService(unittest.TestCase):

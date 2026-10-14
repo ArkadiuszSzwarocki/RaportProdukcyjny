@@ -1,7 +1,7 @@
 import glob
 import logging
 import os
-from flask import current_app, flash, jsonify, redirect, render_template, request, send_file, session, url_for
+from flask import current_app, flash, g, jsonify, redirect, render_template, request, send_file, session, url_for
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required
@@ -39,6 +39,9 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         conn = get_db_connection()
         try:
             role_lc = str(session.get('rola') or '').strip().lower()
+            override_start_rule = request.form.get('override_start_rule') == '1'
+            if override_start_rule and role_lc != 'masteradmin':
+                return jsonify(success=False, message='Pominięcie blokady jest dostępne tylko dla MasterAdmina.'), 403
             if role_lc in ['laborant', 'laboratorium']:
                 flash('❌ Brak uprawnień: laborant nie może uruchamiać zleceń.', 'warning')
                 return redirect(bezpieczny_powrot())
@@ -83,6 +86,13 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     typ_opakowania = ''
 
                 is_czyszczenie = (sekcja == 'Czyszczenie') or (produkt and 'czyszczenie' in produkt.lower())
+                if override_start_rule and sekcja not in ('Zasyp', 'Workowanie'):
+                    return jsonify(success=False, message='Pominięcie blokady jest dostępne na Zasypie i Workowaniu.'), 400
+                from app.services.planning.start_guard import guard_section_start
+                blocked = guard_section_start(cursor, table_plan, id, sekcja, override=override_start_rule)
+                if blocked:
+                    flash(blocked, 'error')
+                    return redirect(bezpieczny_powrot())
                 is_big_bag = (
                     str(typ_opakowania or '').strip().lower() in ('bigbag', 'big_bag', 'big-bag', 'big bag') or
                     str(typ or '').strip().lower() in ('bigbag', 'big_bag', 'big-bag', 'big bag') or
@@ -270,7 +280,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                                 pass
 
                     # Ensure only one active plan per section in this hall
-                    cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
+                    if not override_start_rule:
+                        cursor.execute(f"UPDATE {table_plan} SET status='zaplanowane', real_stop=NULL WHERE sekcja=%s AND status='w toku'", (sekcja,))
                     if sekcja == 'Workowanie' and linia == 'AGRO':
                         operator_login = str(session.get('login') or '').strip()
                         cursor.execute(
@@ -315,6 +326,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     current_app.logger.info('Uruchomiono zlecenie ID=%s, produkt=%s przez %s', id, produkt, session.get('login'))
 
                     audit_details = f'ID={id}, produkt={produkt}, sekcja={sekcja}'
+                    if override_start_rule:
+                        audit_details += ', pominięto blokadę jednego aktywnego zlecenia (MasterAdmin)'
                     if sekcja == 'Workowanie' and linia == 'AGRO':
                         audit_details += (
                             f', operator={session.get("login")}, checklist=OK, nr_partii={nr_partii_cleaned}'
@@ -435,13 +448,32 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             final_tonaz = request.form.get('final_tonaz')
             wyjasnienie = request.form.get('wyjasnienie')
             uszkodzone_worki = request.form.get('uszkodzone_worki')
-            sekcja = request.form.get('sekcja')
+            odrzuty_przesiewacz = request.form.get('odrzuty_przesiewacz')
+            sekcja = getattr(g, 'production_section', None) or request.form.get('sekcja')
             linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
             table_plan = get_table_name('plan_produkcji', linia)
 
             cursor.execute(f"SELECT produkt, data_planu FROM {table_plan} WHERE id=%s", (id,))
             plan_meta = cursor.fetchone() or (None, None)
             produkt, data_planu = plan_meta[0], plan_meta[1]
+
+            if sekcja == 'Zasyp' and str(linia).upper() == 'AGRO':
+                if odrzuty_przesiewacz is None or str(odrzuty_przesiewacz).strip() == '':
+                    msg = 'Podaj odrzuty na przesiewaczu przed zamknięciem zlecenia.'
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify(success=False, message=msg), 400
+                    flash(msg, 'error')
+                    return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
+                try:
+                    odrzuty_przesiewacz = float(str(odrzuty_przesiewacz).replace(',', '.'))
+                    if not (0 <= odrzuty_przesiewacz < float('inf')):
+                        raise ValueError
+                except (TypeError, ValueError):
+                    msg = 'Odrzuty muszą być liczbą większą lub równą 0.'
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify(success=False, message=msg), 400
+                    flash(msg, 'error')
+                    return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
 
             rzeczywista_waga = 0
             if final_tonaz:
@@ -458,6 +490,9 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             if wyjasnienie:
                 sql += ', wyjasnienie_rozbieznosci=%s'
                 params.append(wyjasnienie)
+            if sekcja == 'Zasyp' and str(linia).upper() == 'AGRO':
+                sql += ', odrzuty_przesiewacz=%s'
+                params.append(odrzuty_przesiewacz)
             if uszkodzone_worki and sekcja in ('Workowanie', 'Czyszczenie'):
                 try:
                     uszkodzone_count = int(uszkodzone_worki)
@@ -666,7 +701,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         """Zapisz wyjaśnienie rozbieżności"""
         conn = get_db_connection()
         try:
-            linia = request.args.get('linia') or request.form.get('linia', 'PSD')
+            linia = getattr(g, 'production_line', None) or request.args.get('linia') or request.form.get('linia', 'PSD')
             table_plan = get_table_name('plan_produkcji', linia)
             cursor = conn.cursor()
             cursor.execute(f"UPDATE {table_plan} SET wyjasnienie_rozbieznosci=%s WHERE id=%s", (request.form.get('wyjasnienie'), id))

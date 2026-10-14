@@ -52,23 +52,46 @@ def _normalize_role_name(raw_role):
 def _compute_static_version():
     try:
         candidates = [
-            os.path.join(current_app.root_path, 'static', 'css', 'style.css'),
-            os.path.join(current_app.root_path, 'static', 'css', 'sidebar.css'),
-            os.path.join(current_app.root_path, 'static', 'css', 'inline-styles.css'),
-            os.path.join(current_app.root_path, 'static', 'css', 'dashboard.css'),
-            os.path.join(current_app.root_path, 'static', 'scripts.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'sidebar.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'agro_warehouse.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_templates.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'modals.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'sorting.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'rendering_logic.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'zasyp_calculator.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'picking_view.js'),
-            os.path.join(current_app.root_path, 'static', 'js', 'dashboard', 'picking_3d_rack_view.js'),
-            os.path.join(current_app.root_path, 'static', 'css', 'picking_3d.css'),
-            os.path.join(current_app.root_path, 'static', 'js', 'warehouse_v2', 'operations_history.js'),
+            os.path.join(current_app.static_folder, 'css', 'pallet-workflow.css'),
+            os.path.join(current_app.static_folder, 'css', 'cleaning-notifications.css'),
+            os.path.join(current_app.static_folder, 'js', 'osip', 'osip_transfers.js'),
+            os.path.join(current_app.static_folder, 'css', 'style.css'),
+            os.path.join(current_app.static_folder, 'css', 'sidebar.css'),
+            os.path.join(current_app.static_folder, 'css', 'planista_mobile.css'),
+            os.path.join(current_app.static_folder, 'js', 'common', 'touch-scroll.js'),
+            os.path.join(current_app.static_folder, 'js', 'common', 'order-resume.js'),
+            os.path.join(current_app.static_folder, 'js', 'scanner', 'keyboard-blocker.js'),
+            os.path.join(current_app.static_folder, 'css', 'inline-styles.css'),
+            os.path.join(current_app.static_folder, 'css', 'dashboard.css'),
+            os.path.join(current_app.static_folder, 'scripts.js'),
+            os.path.join(current_app.static_folder, 'js', 'sidebar.js'),
+            os.path.join(current_app.static_folder, 'js', 'pwa_init.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'api.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'state.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'render.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'events.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'przyjecie_ruchu.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'oczekujace', 'wg_acceptance.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'oczekujace', 'scanner_logic.js'),
+            os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'oczekujace', 'transfers_logic.js'),
+            os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_modals.js'),
+            os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_ui.js'),
+            os.path.join(current_app.static_folder, 'js', 'scanner', 'modules', 'scanner_flow.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2.js'),
+            os.path.join(current_app.static_folder, 'js', 'agro_warehouse.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'rendering_templates.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'modals.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'sorting.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'rendering_logic.js'),
+            os.path.join(current_app.static_folder, 'js', 'dashboard', 'zasyp_calculator.js'),
+            os.path.join(current_app.static_folder, 'js', 'dashboard', 'agro-banners.js'),
+            os.path.join(current_app.static_folder, 'js', 'dashboard', 'etapy.js'),
+            os.path.join(current_app.static_folder, 'js', 'dosypki.js'),
+            os.path.join(current_app.static_folder, 'js', 'dashboard', 'picking_view.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'operations_history.js'),
+            os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'orders.js'),
+            os.path.join(current_app.static_folder, 'js', 'dashboard', 'picking_3d_rack_view.js'),
+            os.path.join(current_app.static_folder, 'css', 'picking_3d.css'),
         ]
         mtimes = []
         for p in candidates:
@@ -106,11 +129,12 @@ def _get_role_permissions(cfg_path):
 
         if os.path.exists(target_path):
             mtime = os.path.getmtime(target_path)
-            if _PERMS_CACHE['mtime'] == mtime and _PERMS_CACHE['data']:
+            if _PERMS_CACHE.get('path') == target_path and _PERMS_CACHE['mtime'] == mtime and _PERMS_CACHE['data']:
                 return _PERMS_CACHE['data']
             with open(target_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 _PERMS_CACHE['mtime'] = mtime
+                _PERMS_CACHE['path'] = target_path
                 _PERMS_CACHE['data'] = data
                 return data
     except Exception:
@@ -123,6 +147,8 @@ def inject_role_permissions():
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     cfg_path = os.path.join(project_root, 'config', 'role_permissions.json')
     page_aliases = {
+        # Existing shared warehouse grants remain valid until OSIP is configured explicitly.
+        'osip.magazyn': 'psd.magazyn',
         'podsumowanie_zasypow': 'podsumowanie_szarz',
         'errors': 'ustawienia.errors',
         'logs': 'ustawienia.logs',
@@ -130,6 +156,11 @@ def inject_role_permissions():
     }
 
     def _resolve_page_key(page, perms):
+        if page in {'zasyp', 'workowanie', 'magazyn', 'bufor'}:
+            line = str(request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or session.get('grupa') or 'PSD').lower()
+            namespaced = f'{line}.{page}'
+            if namespaced in perms:
+                return namespaced
         if page in perms:
             return page
         legacy = page_aliases.get(page)
@@ -408,9 +439,7 @@ def inject_globals():
     except Exception:
         app_version = 'N/A'
 
-    # Increase this number to force browser to reload static files (css/js)
-    static_version = 61
-    return dict(static_version=static_version, app_version=app_version, db_name=active_db)
+    return dict(app_version=app_version, db_name=active_db)
 
 
 def inject_app_into_templates():
@@ -467,6 +496,7 @@ def _fetch_delivery_counters():
         counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         transfer_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
+        open_transfer_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         transfer_pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         external_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
         external_pallet_counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
@@ -486,26 +516,27 @@ def _fetch_delivery_counters():
         )
         for row in cursor.fetchall():
             l = (row[0] or '').upper()
-            qty = 1
-            total_pending += qty
-            if l in counts:
-                counts[l] += qty
-            else:
-                counts[l] = qty
-                
             items_json = row[1]
             source_location = str(row[2] or '').strip()
+            if source_location:
+                open_transfer_counts[l] = open_transfer_counts.get(l, 0) + 1
+                open_transfer_counts['ALL'] += 1 if l != 'ALL' else 0
             pallets_in_order = 0
             if items_json:
                 try:
                     items_arr = json.loads(items_json)
                     pallets_in_order = sum(
                         1 for item in items_arr
-                        if not item.get('rejected') and (not item.get('accepted') or not item.get('putaway_confirmed_at'))
+                        if not item.get('rejected') and (not item.get('accepted') or
+                            (not source_location and not item.get('putaway_confirmed_at')))
                     )
                 except Exception:
                     pass
             
+            if not pallets_in_order:
+                continue
+            total_pending += 1
+            counts[l] = counts.get(l, 0) + 1
             total_pallets += pallets_in_order
             if l in pallet_counts:
                 pallet_counts[l] += pallets_in_order
@@ -543,6 +574,7 @@ def _fetch_delivery_counters():
             pending_deliveries=counts,
             pending_pallets=pallet_counts,
             pending_transfer_orders=transfer_counts,
+            open_transfer_orders=open_transfer_counts,
             pending_transfer_pallets=transfer_pallet_counts,
             pending_external_orders=external_counts,
             pending_external_pallets=external_pallet_counts
@@ -686,17 +718,21 @@ def _fetch_osip_transfers_count():
         cursor = conn.cursor(dictionary=True)
         try:
             cursor.execute("""
-                SELECT t.id, 
+                SELECT t.id, t.destination_warehouse,
                        (SELECT COUNT(*) FROM osip_transfer_items ti WHERE ti.transfer_id = t.id AND ti.status != 'RECEIVED') as unreceived_count
                 FROM osip_transfers t
-                WHERE t.status IN ('PLANNED', 'IN_TRANSIT')
+                WHERE t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
             """)
             rows = cursor.fetchall()
             transfers_count = len(rows)
             unreceived_pallets_count = sum(int(r['unreceived_count'] or 0) for r in rows)
+            incoming = {'centrala': [r for r in rows if str(r.get('destination_warehouse') or '').upper() != 'OSIP'],
+                        'osip': [r for r in rows if str(r.get('destination_warehouse') or '').upper() == 'OSIP']}
             return dict(
                 osip_transfers_count=transfers_count,
-                osip_unreceived_pallets_count=unreceived_pallets_count
+                osip_unreceived_pallets_count=unreceived_pallets_count,
+                incoming_transfer_counts={key: dict(documents=len(group), pallets=sum(
+                    int(r['unreceived_count'] or 0) for r in group)) for key, group in incoming.items()}
             )
         finally:
             cursor.close()

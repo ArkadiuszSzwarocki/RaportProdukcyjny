@@ -1,4 +1,11 @@
+// cspell:words naważanie
 /* ─── Scanner UI Card Views (Pallet Card & Station Card) ─────── */
+
+function scannerEscapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
 
 function showStation(station) {
   hidePallet();
@@ -18,11 +25,11 @@ function showStation(station) {
       itemEl.onclick = () => showPallet(item);
       
       itemEl.innerHTML = `
-        <div class="station-item-name">${item.nazwa}</div>
+        <div class="station-item-name">${scannerEscapeHtml(item.nazwa)}</div>
         <div class="station-item-details">
           <span><strong>Ilość:</strong> ${parseFloat(item.stan_magazynowy).toFixed(1)} kg</span>
-          <span><strong>ID:</strong> ${item.inventory_code}</span>
-          ${item.nr_partii ? `<span><strong>Partia:</strong> ${item.nr_partii}</span>` : ''}
+          <span><strong>ID:</strong> ${scannerEscapeHtml(item.inventory_code)}</span>
+          ${item.nr_partii ? `<span><strong>Partia:</strong> ${scannerEscapeHtml(item.nr_partii)}</span>` : ''}
         </div>
       `;
       itemsListEl.appendChild(itemEl);
@@ -47,6 +54,16 @@ function hideStation() {
 }
 
 function showPallet(p) {
+  if (p.is_bucket && p.is_free) {
+    hidePallet();
+    showToast(`Wiadro W${String(p.kod_wiadra || '').padStart(2, '0')} jest wolne. Można rozpocząć nowe naważanie.`, 'info');
+    return;
+  }
+  if (p.is_bucket && (p.is_used_up || p.status === 'wrzucone_do_mieszalnika')) {
+    hidePallet();
+    showToast(`Wiadro W${String(p.kod_wiadra || '').padStart(2, '0')} zostało już zużyte. Zeskanuj etykietę kolejnego napełnienia.`, 'warning');
+    return;
+  }
   if (p.is_unconfirmed_wg) {
     openWgAcceptModal(p);
     return;
@@ -55,7 +72,7 @@ function showPallet(p) {
   const palletLocEl = document.getElementById('palletLoc');
   if (palletLocEl) {
     if (p.lokalizacja === 'OCZEKUJĄCE' && p.source_location) {
-      palletLocEl.innerHTML = `<span style="color: #d97706; font-weight: bold;">OCZEKUJĄCE</span> <span style="font-size: 11px; font-weight: normal; color: #64748b;">(z: ${p.source_location})</span>`;
+      palletLocEl.innerHTML = `<span style="color: #d97706; font-weight: bold;">OCZEKUJĄCE</span> <span style="font-size: 11px; font-weight: normal; color: #64748b;">(z: ${scannerEscapeHtml(p.source_location)})</span>`;
     } else {
       palletLocEl.textContent = p.lokalizacja || '—';
     }
@@ -73,13 +90,13 @@ function showPallet(p) {
   const qtyContainer = document.querySelector('.pallet-qty');
   if (qtyContainer) {
     if (p.is_bucket) {
-      qtyContainer.innerHTML = `<span id="palletQty">${parseInt(p.stan_magazynowy, 10)}</span> ${p.jednostka || 'składniki'}`;
+      qtyContainer.innerHTML = `<span id="palletQty">${parseInt(p.stan_magazynowy, 10)}</span> ${scannerEscapeHtml(p.jednostka || 'składniki')}`;
     } else if (p.unit === 'szt.' || p.unit === 'szt' || p.inventory_type === 'Opakowanie' || p.is_pkg) {
       const rawVal = parseFloat(p.stan_magazynowy || 0);
       const qtyFormatted = Number.isInteger(rawVal) ? String(parseInt(rawVal, 10)) : rawVal.toFixed(1);
-      qtyContainer.innerHTML = `<span id="palletQty">${qtyFormatted}</span> ${p.unit || 'szt.'}`;
+      qtyContainer.innerHTML = `<span id="palletQty">${qtyFormatted}</span> ${scannerEscapeHtml(p.unit || 'szt.')}`;
     } else {
-      qtyContainer.innerHTML = `<span id="palletQty">${parseFloat(p.stan_magazynowy || 0).toFixed(1)}</span> ${p.unit || 'kg'}`;
+      qtyContainer.innerHTML = `<span id="palletQty">${parseFloat(p.stan_magazynowy || 0).toFixed(1)}</span> ${scannerEscapeHtml(p.unit || 'kg')}`;
     }
   }
   
@@ -102,7 +119,7 @@ function showPallet(p) {
       typePill.style.background = '#dc2626';
       typePill.style.color = '#fff';
     } else if (isUsedUp) {
-      typePill.textContent = 'Zużyta / Rozchodowana';
+      typePill.textContent = p.is_bucket ? 'WIADRO JUŻ ZUŻYTE' : 'Zużyta / Rozchodowana';
       typePill.className = 'pill';
       typePill.style.background = '#ef4444';
       typePill.style.color = '#fff';
@@ -162,13 +179,13 @@ function showPallet(p) {
 
   const restoreBtn = document.getElementById('scannerRestoreBtnContainer');
   if (restoreBtn) {
-    const canRestore = Boolean((typeof CAN_RESTORE_PALLET !== 'undefined' ? CAN_RESTORE_PALLET : window.CAN_RESTORE_PALLET) && isUsedUp);
+    const canRestore = Boolean(!p.is_bucket && (typeof CAN_RESTORE_PALLET !== 'undefined' ? CAN_RESTORE_PALLET : window.CAN_RESTORE_PALLET) && isUsedUp);
     restoreBtn.style.display = canRestore ? 'block' : 'none';
   }
 
   const splitBtn = document.getElementById('scannerSplitBtnContainer');
   if (splitBtn) {
-    const canSplit = !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0;
+    const canSplit = !isTransferOrder && !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0;
     splitBtn.style.display = canSplit ? 'block' : 'none';
   }
 
@@ -197,6 +214,13 @@ function showPallet(p) {
       scanInput.style.borderColor = '#16a34a';
       scanInput.style.borderWidth = '2px';
       if (iconEl) iconEl.style.color = '#16a34a';
+    } else if (p.receiving_required) {
+      if (mainTitle) mainTitle.textContent = 'Najpierw kliknij Odbierz / Przyjmij na stronie transferów';
+      if (titleIcon) { titleIcon.textContent = 'warning'; titleIcon.style.color = '#d97706'; }
+      scanInput.placeholder = 'Po rozpoczęciu odbioru zeskanuj paletę ponownie...';
+      scanInput.style.borderColor = '#d97706';
+      scanInput.style.borderWidth = '2px';
+      if (iconEl) iconEl.style.color = '#d97706';
     } else if (isTransferOrder) {
       if (mainTitle) mainTitle.textContent = 'Zeskanuj regał docelowy (przyjęcie w locie)';
       if (titleIcon) {
@@ -218,12 +242,12 @@ function showPallet(p) {
       scanInput.style.borderWidth = '2px';
       if (iconEl) iconEl.style.color = '#dc2626';
     } else if (isUsedUp) {
-      if (mainTitle) mainTitle.textContent = 'Paleta zużyta (0 kg) — zeskanuj nową paletę';
+      if (mainTitle) mainTitle.textContent = p.is_bucket ? 'Wiadro już zużyte — zeskanuj kolejne' : 'Paleta zużyta (0 kg) — zeskanuj nową paletę';
       if (titleIcon) {
         titleIcon.textContent = 'block';
         titleIcon.style.color = '#ef4444';
       }
-      scanInput.placeholder = 'Paleta zużyta (0 kg) — zeskanuj inny kod...';
+      scanInput.placeholder = p.is_bucket ? 'Zeskanuj etykietę kolejnego napełnienia...' : 'Paleta zużyta (0 kg) — zeskanuj inny kod...';
       scanInput.style.borderColor = '#ef4444';
       scanInput.style.borderWidth = '2px';
       if (iconEl) iconEl.style.color = '#ef4444';

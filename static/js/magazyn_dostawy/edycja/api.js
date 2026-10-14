@@ -53,7 +53,7 @@ async function fetchLocationSuggestions(prefix) {
 
         locationSuggestAbortController = new AbortController();
         const query = new URLSearchParams({
-            linia: '${window.EdycjaConfig.linia}',
+            linia: window.EdycjaConfig.linia,
             prefix: prefix,
             only_free_for_racks: '1',
             limit: '50',
@@ -176,6 +176,7 @@ async function savePrzesuniecie() {
         }
 
         let printerId = null;
+        if (isInitializingLiveTransfer) await liveTransferInitialization;
         try {
             printerId = localStorage.getItem('selected_warehouse_printer') || null;
         } catch (e) {}
@@ -191,6 +192,7 @@ async function savePrzesuniecie() {
             status: "OCZEKUJE"
         };
 
+        try {
         const res = await fetch("/magazyn-dostawy/api/zapisz", {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -198,7 +200,7 @@ async function savePrzesuniecie() {
         });
         const data = await res.json();
         if (data.success) {
-            clearDraftState();
+            saveDraftState();
             showToast('Zlecenie otwarte w Oczekujących! Magazynier 2 może już przyjmować palety skanerem.', 'success');
             if (typeof window.refreshSidebarBadges === 'function') {
                 window.refreshSidebarBadges();
@@ -208,7 +210,10 @@ async function savePrzesuniecie() {
                 window.location.href = targetUrl;
             }, 600);
         } else {
-            showToast('Błąd: ' + data.error, 'danger');
+            showToast('Błąd: ' + (data.message || data.error || `Nie udało się zapisać przesunięcia (${res.status}).`), 'danger');
+        }
+        } catch (_) {
+            showToast('Brak połączenia z serwerem. Formularz został zachowany; spróbuj ponownie po odzyskaniu połączenia.', 'danger');
         }
     }
 
@@ -268,6 +273,7 @@ async function unlockDraftPallets(pallets) {
 async function syncDraftPallets() {
     if (!items || items.length === 0) return;
     try {
+        if (window.EdycjaConfig?.dostawaId) await pollLiveTransferStatus();
         const res = await fetch('/magazyn-dostawy/api/draft/sync', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -278,7 +284,7 @@ async function syncDraftPallets() {
         });
         const data = await res.json();
         if (data.success && data.result) {
-            if (Array.isArray(data.result.items) && data.result.items.length > 0) {
+            if (Array.isArray(data.result.items)) {
                 items = data.result.items;
                 saveDraftState();
                 renderItems();
@@ -299,16 +305,17 @@ async function syncDraftPallets() {
 
 let liveTransferPollTimer = null;
 let isInitializingLiveTransfer = false;
+let liveTransferInitialization = null;
 
 async function ensureLiveTransferInitialized() {
     if (window.EdycjaConfig && window.EdycjaConfig.dostawaId) {
         return window.EdycjaConfig.dostawaId;
     }
     if (isInitializingLiveTransfer) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        return window.EdycjaConfig ? window.EdycjaConfig.dostawaId : null;
+        return liveTransferInitialization;
     }
     isInitializingLiveTransfer = true;
+    liveTransferInitialization = (async () => {
     try {
         const orderRefElem = document.getElementById('order_ref');
         const orderRef = orderRefElem ? orderRefElem.value.trim() : '';
@@ -324,6 +331,7 @@ async function ensureLiveTransferInitialized() {
         if (data.success && data.result && data.result.dostawa_id) {
             if (!window.EdycjaConfig) window.EdycjaConfig = {};
             window.EdycjaConfig.dostawaId = String(data.result.dostawa_id);
+            saveDraftState();
             if (orderRefElem && data.result.order_ref) {
                 orderRefElem.value = data.result.order_ref;
             }
@@ -345,6 +353,8 @@ async function ensureLiveTransferInitialized() {
         isInitializingLiveTransfer = false;
     }
     return window.EdycjaConfig ? window.EdycjaConfig.dostawaId : null;
+    })();
+    return liveTransferInitialization;
 }
 
 async function addLiveTransferItem(item) {
@@ -366,6 +376,8 @@ async function addLiveTransferItem(item) {
         if (data.success && data.result && data.result.item_id) {
             item.id = data.result.item_id;
             saveDraftState();
+        } else {
+            showToast(data.error || data.message || 'Paleta nie została dopisana do przesunięcia. Zapisz formularz ponownie.', 'danger');
         }
     } catch (e) {
         console.warn('Error adding live transfer item:', e);
@@ -397,6 +409,12 @@ async function pollLiveTransferStatus() {
         const data = await res.json();
         if (data.success && data.result) {
             const statusInfo = data.result;
+            if (['COMPLETED', 'CANCELLED'].includes(statusInfo.status)) {
+                clearDraftState();
+                clearInterval(liveTransferPollTimer);
+                showToast('Przesunięcie zostało zamknięte. Otwórz nowe zlecenie, aby dodać palety.', 'info');
+                return;
+            }
             let updated = false;
 
             if (Array.isArray(statusInfo.items)) {
@@ -406,8 +424,10 @@ async function pollLiveTransferStatus() {
                         (remoteItem.id && i.id === remoteItem.id)
                     );
                     if (localItem) {
-                        if (remoteItem.accepted !== localItem.accepted || remoteItem.lokalizacja_przyjecia !== localItem.lokalizacja_przyjecia) {
+                        if (remoteItem.accepted !== localItem.accepted || remoteItem.rejected !== localItem.rejected || remoteItem.lokalizacja_przyjecia !== localItem.lokalizacja_przyjecia) {
                             localItem.accepted = remoteItem.accepted;
+                            localItem.rejected = remoteItem.rejected;
+                            localItem.rejected_reason = remoteItem.rejected_reason;
                             localItem.lokalizacja_przyjecia = remoteItem.lokalizacja_przyjecia;
                             updated = true;
                         }
@@ -423,6 +443,7 @@ async function pollLiveTransferStatus() {
                 saveDraftState();
                 renderItems();
                 updateSaveButtonState();
+                if (typeof window.refreshSidebarBadges === 'function') window.refreshSidebarBadges();
             }
         }
     } catch (e) {

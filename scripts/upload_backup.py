@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Upload backup file to S3 or FTP depending on environment variables.
+Upload backup file to S3 or TLS-protected FTP depending on environment variables.
 Environment variables supported:
 - S3_BUCKET (optional) -- upload to AWS S3; AWS credentials can be provided via env/AWS profile/instance role
 - S3_KEY_PREFIX (optional) -- prefix/path in bucket (default: '')
 
 OR
-- FTP_HOST, FTP_USER, FTP_PASS, FTP_PATH (optional) -- upload to FTP server
+- FTP_HOST, FTP_USER, FTP_PASS, FTP_PATH (optional) -- upload to an FTPS server
 
 Usage: python scripts/upload_backup.py /path/to/db-backup-xxxx.sql
 """
@@ -47,18 +47,21 @@ def upload_s3(file_path, bucket, prefix=''):
 
 
 def upload_ftp(file_path, host, user, password, path='/'):
-    from ftplib import FTP
-    logging.info('Uploading %s to FTP %s/%s', file_path, host, path)
+    from ftplib import FTP_TLS
+    import ssl
+    logging.info('Uploading %s to FTPS %s/%s', file_path, host, path)
+    ftp = None
     try:
-        ftp = FTP(host)
+        ftp = FTP_TLS(context=ssl.create_default_context(), timeout=30)
+        ftp.connect(host)
         ftp.login(user, password)
+        ftp.prot_p()
         # ensure path exists - try CWD
         try:
             ftp.cwd(path)
         except Exception:
             # try to create path components
             parts = [p for p in path.split('/') if p]
-            cur = '/'
             for p in parts:
                 try:
                     ftp.mkd(p)
@@ -68,11 +71,14 @@ def upload_ftp(file_path, host, user, password, path='/'):
         with open(file_path, 'rb') as fh:
             ftp.storbinary('STOR ' + os.path.basename(file_path), fh)
         ftp.quit()
-        logging.info('FTP upload finished')
+        logging.info('FTPS upload finished')
         return True
     except Exception as e:
-        logging.error('FTP upload failed: %s', e)
+        logging.error('FTPS upload failed: %s', e)
         return False
+    finally:
+        if ftp is not None:
+            ftp.close()
 
 
 def main():

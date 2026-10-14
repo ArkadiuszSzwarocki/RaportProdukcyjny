@@ -190,4 +190,4 @@ class OsipWarehouseService:
     def dispatch_osip_pallet(self, pallet_id: int, pallet_type: str, worker_login: str, customer_name: str = "", notes: str = "", linia: str = "PSD"):
         """Wydanie zewnętrzne palety bezpośrednio z Magazynu OSIP (EXPEDITION)."""
         from app.services.warehouse_v2_service import WarehouseV2Service
-        return WarehouseV2Service.dispatch_pallet(pallet_id, pallet_type, worker_login, linia)
+        return WarehouseV2Service.dispatch_pallet(pallet_id, pallet_type, worker_login, 'OSIP')

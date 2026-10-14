@@ -62,9 +62,11 @@ class TestPalletSplitServiceHistoryInheritance(unittest.TestCase):
         mock_cursor.execute.side_effect = capture_execute
 
         new_generated_sscc = 'SUR_CHILD_2026_000202'
+        mock_cursor.fetchone.side_effect = [mother_pallet, None]
         with patch.object(PalletSplitService, 'find_by_id', return_value=(mother_pallet, 'AGRO')), \
              patch('app.services.magazyn_dostawy.pallet_split_service.get_db_connection', return_value=mock_conn), \
-             patch('app.services.magazyn_dostawy.pallet_split_service.generate_pallet_id', return_value=new_generated_sscc):
+             patch('app.services.magazyn_dostawy.pallet_split_service.generate_pallet_id', return_value=new_generated_sscc), \
+             patch('app.services.magazyn_dostawy.commands.pallet_lock_manager.PalletLockManager.has_protected_block', return_value=False):
 
             ok, msg, res = PalletSplitService.split_pallet(
                 101,
@@ -148,7 +150,9 @@ class TestWarehouseV2PartialMove(unittest.TestCase):
         def cursor_factory(dictionary=False):
             if dictionary:
                 cur = MagicMock()
-                cur.fetchone.return_value = mother_row
+                cur.fetchone.side_effect = lambda: (
+                    mother_row if 'SELECT * FROM' in cur.execute.call_args.args[0] else None
+                )
                 cur.fetchall.return_value = list(mother_history_records)
                 return cur
             return mock_cursor
@@ -163,7 +167,8 @@ class TestWarehouseV2PartialMove(unittest.TestCase):
 
         new_sscc_gen = 'SUR_POTOMEK_88'
 
-        with patch('app.services.warehouse_v2_service.get_db_connection', return_value=mock_conn), \
+        with patch('app.services.osip_transfer_service.OsipTransferService.require_receiving', return_value=False), \
+             patch('app.services.warehouse_v2_service.get_db_connection', return_value=mock_conn), \
              patch('app.utils.pallet_id.generate_pallet_id', return_value=new_sscc_gen), \
              patch('app.services.magazyn_dostawy.delivery_queries.DeliveryQueries.is_pallet_in_pending_transfer', return_value=(False, None)), \
              patch('app.utils.location_validator.check_rack_location_availability', return_value=(True, '')):

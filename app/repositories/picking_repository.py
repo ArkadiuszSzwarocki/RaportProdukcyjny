@@ -370,16 +370,17 @@ class PickingRepository:
             conn.close()
 
     @staticmethod
-    def auto_complete_pallet_if_pending(pallet_id=None, nr_palety=None, user_login='SYSTEM'):
+    def auto_complete_pallet_if_pending(pallet_id=None, nr_palety=None, user_login='SYSTEM', external_conn=None):
         """If a pallet belongs to an active picking order and was relocated to MP01 or production, mark it completed."""
         if not pallet_id and not nr_palety:
             return 0
-        conn = get_db_connection()
+        conn = external_conn if external_conn is not None else get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             clauses = []
             params = []
-            if pallet_id:
+            # IDs overlap between stock tables; SSCC is authoritative when available.
+            if pallet_id and not (nr_palety and str(nr_palety).strip()):
                 clauses.append("paleta_id = %s")
                 params.append(pallet_id)
             if nr_palety and str(nr_palety).strip():
@@ -398,12 +399,17 @@ class PickingRepository:
                   AND status = 'OCZEKUJE'
             """
             cursor.execute(sql, (user_login, datetime.now(), *params))
-            conn.commit()
+            if external_conn is None:
+                conn.commit()
             return cursor.rowcount
         except Exception:
+            if external_conn is not None:
+                raise
+            conn.rollback()
             return 0
         finally:
-            conn.close()
+            if external_conn is None:
+                conn.close()
 
     @staticmethod
     def get_next_order_sequence():

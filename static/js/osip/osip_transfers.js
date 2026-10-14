@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     prodDate = p.data_produkcji || p.data_przydatnosci || '';
                     qty = parseFloat(p.stan_magazynowy || p.ilosc_kg || p.amount || p.waga_netto || p.ilosc || p.weight || 1000);
                     palletId = p.id || p.pallet_id || null;
-                    if (p.is_transfer && p.transfer && (p.transfer.status === 'PLANNED' || p.transfer.status === 'IN_TRANSIT')) {
+                    if (p.is_transfer && p.transfer && (p.transfer.status === 'PLANNED' || p.transfer.status === 'IN_TRANSIT' || p.transfer.status === 'RECEIVING')) {
                         alert(`Paleta ${code} bierze już udział w aktywnym zleceniu transferu ${p.transfer.transfer_code}!`);
                         _isProcessingScan = false;
                         return;
@@ -412,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let planned = 0, transit = 0, completed = 0, cancelled = 0;
         transfers.forEach(t => {
             if (t.status === 'PLANNED') planned++;
-            else if (t.status === 'IN_TRANSIT') transit++;
+            else if ((t.status === 'IN_TRANSIT' || t.status === 'RECEIVING')) transit++;
             else if (t.status === 'COMPLETED') completed++;
             else if (t.status === 'CANCELLED') cancelled++;
         });
@@ -464,6 +464,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let statusBadge = '';
             if (t.status === 'PLANNED') {
                 statusBadge = '<span class="status-pill" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;"><i class="fas fa-clock mr-1"></i> Zaplanowano</span>';
+            } else if (t.status === 'RECEIVING') {
+                statusBadge = '<span class="status-pill">W odbiorze</span>';
             } else if (t.status === 'IN_TRANSIT') {
                 statusBadge = '<span class="status-pill" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;"><i class="fas fa-truck-loading mr-1"></i> W Tranzycie</span>';
             } else if (t.status === 'COMPLETED') {
@@ -518,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </button>
                     <button class="btn btn-sm btn-outline-danger font-weight-bold action-cancel-btn" data-id="${t.id}">Anuluj</button>
                 `;
-            } else if (t.status === 'IN_TRANSIT') {
+            } else if ((t.status === 'IN_TRANSIT' || t.status === 'RECEIVING')) {
                 actionsHtml = `
                     <button class="btn btn-sm btn-outline-info font-weight-bold action-view-btn mr-1" data-id="${t.id}">
                         <i class="fas fa-eye mr-1"></i> Podgląd
@@ -597,9 +599,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.querySelectorAll('.action-receive-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', async () => {
                 const id = btn.getAttribute('data-id');
-                openReceiveTransferModal(id);
+                btn.disabled = true;
+                try { await openReceiveTransferModal(id); }
+                catch (_) { alert('Nie udało się otworzyć odbioru. Sprawdź połączenie i spróbuj ponownie.'); }
+                finally { btn.disabled = false; }
             });
         });
 
@@ -643,7 +648,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const startResponse = await fetch(`/osip/api/transfers/${transfer.id}/begin_receive`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+        });
+        const startResult = await startResponse.json();
+        if (!startResponse.ok || !startResult.success) {
+            alert(startResult.message || 'Nie można rozpocząć odbioru.');
+            return;
+        }
+        transfer.status = startResult.status;
         currentReceivingTransfer = transfer;
+        const scannerLink = document.getElementById('receive-main-scanner');
+        if (scannerLink) scannerLink.href = '/agro/scanner/ui?linia=' + (transfer.destination_warehouse === 'OSIP' ? 'OSIP' : 'AGRO');
+        if (typeof window.refreshSidebarBadges === 'function') window.refreshSidebarBadges();
         scannedItemsState = {};
         (transfer.items || []).forEach(it => {
             if (it.status === 'RECEIVED') {
@@ -693,6 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.closeReceiveModal = function() {
+        currentReceivingTransfer = null;
         const receiveModalEl = document.getElementById('modal-receive-transfer');
         if (receiveModalEl) {
             try {
@@ -715,12 +733,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const items = currentReceivingTransfer.items || [];
         if (items.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted p-4">Brak pozycji w tym zleceniu transferu.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted p-4">Brak pozycji w tym zleceniu transferu.</td></tr>`;
             updateReceiveProgress();
             return;
         }
 
         tbody.innerHTML = items.map((it, idx) => {
+            const esc = value => String(value == null ? '—' : value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
             const code = it.nr_palety || `PAL-${it.pallet_id || it.id}`;
             const isScanned = !!scannedItemsState[code] || it.status === 'RECEIVED';
             const statusBadge = isScanned 
@@ -733,9 +752,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr style="${rowStyle}" id="receive-row-${idx}">
                     <td class="text-center">${statusBadge}</td>
-                    <td><strong class="text-dark">${code}</strong></td>
-                    <td>${it.product_name}</td>
+                    <td><strong class="text-dark">${esc(code)}</strong></td>
+                    <td>${esc(it.product_name)}</td>
                     <td><span class="badge badge-secondary px-2 py-1 font-weight-bold">${it.requested_qty} ${it.unit || 'kg'}</span></td>
+                    <td>${esc(it.nr_partii)}</td>
+                    <td>${esc(it.data_produkcji)}</td>
+                    <td>${esc(it.data_przydatnosci)}</td>
                     <td><span class="badge badge-light border text-dark font-weight-bold px-2 py-1">${defaultLoc}</span></td>
                 </tr>
             `;
@@ -1037,6 +1059,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     loadTransfers();
+    setInterval(() => {
+        if (!document.hidden && !currentReceivingTransfer &&
+            !document.querySelector('#modal-new-transfer.show, #modal-view-transfer.show')) loadTransfers();
+    }, 10000);
     checkAndRestoreDraft();
 
     // ─── POWIADOMIENIA O TRANSFERACH IN_TRANSIT na stronie transferów ───
@@ -1045,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/osip/api/transfers');
             const json = await res.json();
             if (!json.success) return;
-            const inTransit = (json.transfers || []).filter(t => t.status === 'IN_TRANSIT');
+            const inTransit = (json.transfers || []).filter(t => (t.status === 'IN_TRANSIT' || t.status === 'RECEIVING'));
             const banner = document.getElementById('transfers-inbound-banner');
             const bannerText = document.getElementById('transfers-inbound-text');
             if (!banner) return;
@@ -1099,6 +1125,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let statusBadge = '';
         if (transfer.status === 'PLANNED') statusBadge = '<span class="badge badge-warning px-3 py-1 font-weight-bold"><i class="fas fa-clock mr-1"></i> Zaplanowano</span>';
+        else if (transfer.status === 'RECEIVING') statusBadge = '<span class="badge badge-warning">W odbiorze</span>';
         else if (transfer.status === 'IN_TRANSIT') statusBadge = '<span class="badge badge-primary px-3 py-1 font-weight-bold"><i class="fas fa-truck-loading mr-1"></i> W Tranzycie</span>';
         else if (transfer.status === 'COMPLETED') statusBadge = '<span class="badge badge-success px-3 py-1 font-weight-bold"><i class="fas fa-check-circle mr-1"></i> Zakończono</span>';
         else if (transfer.status === 'CANCELLED') statusBadge = '<span class="badge badge-danger px-3 py-1 font-weight-bold"><i class="fas fa-times-circle mr-1"></i> Anulowano</span>';

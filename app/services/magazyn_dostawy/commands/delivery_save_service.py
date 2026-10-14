@@ -1,3 +1,4 @@
+# cspell:words sscc
 import json
 import uuid
 from datetime import datetime
@@ -53,10 +54,39 @@ class DeliverySaveService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT status, items, lokalizacja_z FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+            cursor.execute("SELECT status, items, lokalizacja_z, supplier, linia FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
             old_data = cursor.fetchone()
             old_status = old_data['status'] if old_data else None
+            if old_status in ('COMPLETED', 'CANCELLED'):
+                return False, "Nie można edytować zamkniętego przesunięcia"
             old_items = json.loads(old_data['items']) if old_data and old_data.get('items') else []
+            if not is_external:
+                old_by_id = {str(item.get('id')): item for item in old_items}
+                old_by_code = {str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper(): item
+                               for item in old_items if item.get('nr_palety') or item.get('sourcePalletNo')}
+                refreshed = []
+                included = set()
+                for item in items:
+                    code = str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper()
+                    old_item = old_by_code.get(code) if code else old_by_id.get(str(item.get('id')))
+                    if old_item and (old_item.get('accepted') or old_item.get('rejected')):
+                        old_code = old_item.get('sourcePalletNo') or old_item.get('nr_palety')
+                        new_code = item.get('sourcePalletNo') or item.get('nr_palety')
+                        if old_code != new_code:
+                            return False, 'Nie można zmienić palety rozliczonej pozycji przesunięcia.'
+                        item = old_item
+                    elif item.get('accepted') or item.get('rejected'):
+                        return False, 'Status przyjęcia palety musi być potwierdzony w odbiorze.'
+                    refreshed.append(item)
+                    included.add(str(item.get('id')))
+                refreshed.extend(item for item in old_items if str(item.get('id')) not in included
+                                 and (item.get('accepted') or item.get('rejected')))
+                items = refreshed
+            if old_data and (bool(old_data.get('supplier')) != is_external or str(old_data.get('linia') or linia).upper() != linia):
+                return False, 'Nie można zmienić rodzaju dostawy ani magazynu przez edycję dokumentu.'
+            if is_external and old_data and old_status not in ('SZKIC','OCZEKUJE'):
+                return False, 'Dostawa jest już w odbiorze; edytuj ją przed awizacją.'
+
 
             # Step 1.5: Walidacja produktów z listy słownikowej
             from app.db import get_table_name
@@ -94,7 +124,7 @@ class DeliverySaveService:
                     it['productName'] = canonical
 
             # Step 2: Restore removed items if editing a pending order
-            if old_status == 'OCZEKUJE' and items is not None:
+            if not is_external and old_status == 'OCZEKUJE' and items is not None:
                 new_ids = {str(it.get('id')) for it in items}
                 removed_items = [
                     old_it for old_it in old_items
@@ -117,7 +147,7 @@ class DeliverySaveService:
                     connection=conn, delivery_id=dostawa_id,
                 )
 
-            # Step 4: Deduplicate items by ID
+            # A row ID is local to a stock table; distinct SSCC must survive save.
             if items:
                 seen_ids = set()
                 deduped = []
@@ -128,12 +158,18 @@ class DeliverySaveService:
                         deduped.append(it)
                     elif not it_id:
                         deduped.append(it)
+                    elif (it.get('nr_palety') or it.get('sourcePalletNo')) not in {
+                        row.get('nr_palety') or row.get('sourcePalletNo') for row in deduped
+                    }:
+                        it['id'] = str(uuid.uuid4())
+                        seen_ids.add(it['id'])
+                        deduped.append(it)
                 items = deduped
 
             # Step 5: Toggle locks for internal transfers
             if not is_external:
                 if old_items:
-                    PalletLockManager.set_pallets_blocked(cursor, old_items, 0)
+                    PalletLockManager.set_pallets_blocked(cursor, old_items, 0, exclude_delivery_id=dostawa_id)
                 if status not in ['ZAKONCZONE', 'ZAKOŃCZONE', 'ANULOWANE']:
                     PalletLockManager.set_pallets_blocked(cursor, items, 1)
 
@@ -148,16 +184,16 @@ class DeliverySaveService:
                 # Re-apply pallet blocks to resolved items
                 PalletLockManager.set_pallets_blocked(cursor, items, 1)
 
-            has_pending = any(not it.get('accepted') for it in items)
+            has_pending = any(not (it.get('accepted') or it.get('rejected')) for it in items)
             if has_pending:
                 # New external deliveries use WMS 4-step workflow (SZKIC).
                 # Internal transfers and updates to existing orders keep OCZEKUJE.
-                if is_external and not old_data:
-                    final_status = 'SZKIC'
+                if is_external:
+                    final_status = old_status or 'SZKIC'
                 else:
                     final_status = 'OCZEKUJE'
             else:
-                final_status = 'COMPLETED'
+                final_status = 'COMPLETED' if is_external else 'OCZEKUJE'
 
             if old_data:
                 cursor.execute("""
@@ -178,9 +214,18 @@ class DeliverySaveService:
                       json.dumps(items), login, datetime.now(), 0, linia,
                       lokalizacja_z, lokalizacja_do))
 
+            if not is_external:
+                from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
+                WarehouseOrderFulfillment.sync_transfer(cursor,dostawa_id,items,linia,login)
             conn.commit()
             return True, dostawa_id
-        except Exception as e:
+        except ValueError as e:
+            conn.rollback()
             return False, str(e)
+        except Exception:
+            conn.rollback()
+            from flask import current_app
+            current_app.logger.exception('Cannot save warehouse movement')
+            return False, 'Nie udało się zapisać przesunięcia. Zachowano formularz; sprawdź zgłoszenie błędu w systemie.'
         finally:
             conn.close()

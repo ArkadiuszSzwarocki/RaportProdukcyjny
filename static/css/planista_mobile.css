@@ -1,0 +1,75 @@
+/* Compact cards keep the current PSD and AGRO table columns readable. */
+@media (max-width: 800px) {
+    .planista-viewport { min-width: 0; width: 100%; }
+    .planista-viewport .planner-controls {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px !important;
+        padding: 8px 0;
+    }
+    .planner-controls > div:first-child { grid-column: 1 / -1; }
+    .planner-controls .header-title { font-size: 18px; }
+    .planner-controls > div:first-child > p { display: none; }
+    .planista-viewport .planner-controls form { width: auto; min-width: 0; }
+    .planista-viewport .planner-controls #btnRaportDniaMain {
+        width: auto; margin: 0 !important; min-height: 42px;
+    }
+    .planista-viewport .stat-grid {
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px; overflow: visible; margin-bottom: 8px;
+    }
+    .planista-viewport .stat-card {
+        min-width: 0; padding: 8px; margin: 0;
+    }
+    .planista-viewport .stat-card h3 { font-size: 16px; margin: 4px 0; }
+    .planista-viewport .stat-card p { font-size: 11px; margin: 0; }
+    .planista-viewport .section-box { padding: 8px; overflow: visible; }
+    .planista-viewport .planista-main-table,
+    .planista-viewport .planista-main-table > tbody { display: block; width: 100%; }
+    .planista-viewport .planista-main-table > thead { display: none; }
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px 10px; padding: 10px; margin-bottom: 8px;
+        background: white; border: 1px solid var(--border-color); border-radius: 10px;
+    }
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] > td {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start;
+        gap: 3px 6px; min-width: 0; width: auto !important; min-height: 0;
+        padding: 3px 0 !important; border: 0; font-size: 12px;
+        text-align: left; overflow-wrap: anywhere;
+    }
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] > td::before {
+        content: attr(data-label); flex: 0 0 auto; min-width: 0;
+        font-size: 11px; color: var(--text-muted); font-weight: 500;
+    }
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] > td.planner-product {
+        grid-column: 1 / -1; grid-row: 1; display: block; font-size: 14px;
+    }
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] > td.planner-product::before,
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] > td.planner-actions::before,
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] > td.planner-order::before { content: none; }
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] > td.planner-actions {
+        grid-column: 1 / -1; justify-content: flex-end; border-top: 1px solid #eef2f6;
+    }
+    .planista-viewport .planista-main-table tbody > tr[data-plan-id] > td.planner-actions .d-flex {
+        flex-wrap: wrap; gap: 6px; justify-content: flex-end;
+    }
+    .planista-viewport .planista-main-table .btn-icon-move { min-width: 32px; min-height: 32px; }
+    .planista-viewport .planner-summary-table,
+    .planista-viewport .planner-summary-table tbody { display: block; width: 100%; }
+    .planista-viewport .planner-summary-table thead { display: none; }
+    .planista-viewport .planner-summary-table tbody > tr {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px; padding: 10px; margin-bottom: 8px;
+        border: 1px solid var(--border-color); border-radius: 10px;
+    }
+    .planista-viewport .planner-summary-table td {
+        display: block; min-width: 0; padding: 0; border: 0; font-size: 12px; overflow-wrap: anywhere;
+    }
+    .planista-viewport .planner-summary-table td:first-child,
+    .planista-viewport .planner-summary-table td[colspan] { grid-column: 1 / -1; }
+    .planista-viewport .planner-summary-table td[data-label]::before {
+        content: attr(data-label); display: block; color: var(--text-muted); font-size: 11px;
+    }
+    .planista-viewport .planista-main-table tr.details-row > td { display: block; padding: 0; }
+}

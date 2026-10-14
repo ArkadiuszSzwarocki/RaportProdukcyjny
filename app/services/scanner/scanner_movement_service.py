@@ -1,4 +1,6 @@
 from datetime import datetime
+from flask import g, has_request_context
+import math
 from app.db import get_db_connection as _core_get_db_connection, get_table_name as _core_get_table_name
 
 
@@ -40,7 +42,7 @@ class ScannerMovementService:
         pallet_type: str = 'Surowiec',
     ) -> tuple[bool, str, dict | None]:
         """Pobiera `ilosc` kg z palety na stację produkcyjną / do zbiornika."""
-        if ilosc <= 0:
+        if not math.isfinite(ilosc) or ilosc <= 0:
             return False, "Ilość musi być > 0", None
 
         if pallet_type == 'Opakowanie':
@@ -55,15 +57,19 @@ class ScannerMovementService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {table_surowce} WHERE id = %s FOR UPDATE",
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
-            if not pallet and pallet_type != 'Dodatek':
+            verified = getattr(g, 'warehouse_resource', None) if has_request_context() else None
+            if verified and (verified['table'] != table_surowce or not pallet or
+                             str(pallet.get('nr_palety')) != str(verified.get('nr_palety'))):
+                return False, 'Paleta zmieniła się po sprawdzeniu uprawnień.', None
+            if not pallet and pallet_type != 'Dodatek' and not verified:
                 alt_linia = 'PSD' if str(linia).upper() == 'AGRO' else 'AGRO'
                 alt_table = get_table_name('magazyn_opakowania', alt_linia) if pallet_type == 'Opakowanie' else get_table_name('magazyn_surowce', alt_linia)
                 cur.execute(
-                    f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {alt_table} WHERE id = %s",
+                    f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked, nr_partii, data_produkcji, data_przydatnosci FROM {alt_table} WHERE id = %s FOR UPDATE",
                     (surowiec_id,)
                 )
                 alt_pallet = cur.fetchone()
@@ -75,6 +81,12 @@ class ScannerMovementService:
 
             if not pallet:
                 return False, f"Paleta #{surowiec_id} nie istnieje", None
+
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            if PalletLockManager.has_quality_or_manual_block(cur, pallet.get('nr_palety')):
+                return False, 'Paleta posiada blokadę LAB lub ręczną.', None
+            if 'TRANZYCIE' in str(pallet.get('lokalizacja') or '').upper():
+                return False, 'Paleta jest w tranzycie. Najpierw odbierz transfer i odstaw ją na magazyn.', None
 
             if pallet_type == 'Surowiec':
                 from app.utils.surowiec_validator import is_valid_surowiec
@@ -160,18 +172,11 @@ class ScannerMovementService:
             if not history_saved:
                 raise RuntimeError("Nie udało się zapisać historii wydania na produkcję")
 
+            from app.repositories.picking_repository import PickingRepository
+            PickingRepository.auto_complete_pallet_if_pending(
+                pallet_id=surowiec_id, nr_palety=pallet_sscc,
+                user_login=worker_login, external_conn=conn)
             conn.commit()
-
-            # Auto-complete in pending picking orders (Kompletacja) when dispatched to production
-            try:
-                from app.repositories.picking_repository import PickingRepository
-                PickingRepository.auto_complete_pallet_if_pending(
-                    pallet_id=surowiec_id,
-                    nr_palety=pallet_sscc,
-                    user_login=worker_login
-                )
-            except Exception:
-                pass
 
             extra_data = {
                 'is_partial': is_partial,
@@ -222,7 +227,7 @@ class ScannerMovementService:
         try:
             cur = conn.cursor(dictionary=True)
             cur.execute(
-                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s",
+                f"SELECT id, nr_palety, nazwa, stan_magazynowy, lokalizacja, is_blocked FROM {table_surowce} WHERE id = %s FOR UPDATE",
                 (surowiec_id,)
             )
             pallet = cur.fetchone()
@@ -234,10 +239,16 @@ class ScannerMovementService:
                 return False, f"BŁĄD: Surowiec '{pallet.get('nazwa')}' nie istnieje w słowniku surowców. Przesunięcie zablokowane."
 
             nr_p = pallet.get('nr_palety')
+            from app.services.osip_transfer_service import OsipTransferService
+            OsipTransferService.require_receiving(cur, nr_p, nowa_lokalizacja)
             from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
             in_trf, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=surowiec_id, nr_palety=nr_p)
             is_in_transfer_acceptance = bool(in_trf)
             trf_order_ref = trf_ref or ''
+
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            if PalletLockManager.has_quality_or_manual_block(cur, nr_p):
+                return False, 'Paleta posiada blokadę LAB lub ręczną.'
 
             if pallet.get('is_blocked') and not is_in_transfer_acceptance:
                 return False, f"BŁĄD: Paleta {nr_p or surowiec_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesunięta."
@@ -268,7 +279,7 @@ class ScannerMovementService:
             is_loc_available, error_msg = check_rack_location_availability(
                 nowa_lokalizacja,
                 current_nr_palety=pallet.get('nr_palety'),
-                product_name=pallet.get('nazwa')
+                product_name=pallet.get('nazwa'), cursor=cur
             )
             if not is_loc_available:
                 return False, error_msg
@@ -277,7 +288,7 @@ class ScannerMovementService:
             stan = float(pallet['stan_magazynowy'] or 0)
 
             cur.execute(
-                f"UPDATE {table_surowce} SET lokalizacja = %s, is_blocked = 0 WHERE id = %s",
+                f"UPDATE {table_surowce} SET lokalizacja = %s WHERE id = %s",
                 (nowa_lokalizacja, surowiec_id)
             )
 
@@ -309,26 +320,19 @@ class ScannerMovementService:
             )
             if not history_saved:
                 raise RuntimeError("Nie udało się zapisać historii przesunięcia")
+            from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+            AcceptanceService.confirm_moved_pallet(cur, conn, pallet.get('nr_palety'), nowa_lokalizacja, worker_login)
+            from app.services.osip_transfer_service import OsipTransferService
+            OsipTransferService.auto_receive_pallet_by_code(pallet.get('nr_palety') or str(surowiec_id),
+                                                          nowa_lokalizacja, worker_login, external_conn=conn)
+            from app.utils.location_validator import is_production_tank_code
+            if nowa_lokalizacja == 'MP01' or is_production_tank_code(nowa_lokalizacja):
+                from app.repositories.picking_repository import PickingRepository
+                PickingRepository.auto_complete_pallet_if_pending(
+                    pallet_id=surowiec_id, nr_palety=pallet.get('nr_palety'),
+                    user_login=worker_login, external_conn=conn)
+
             conn.commit()
-
-            try:
-                from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
-                AcceptanceService.auto_accept_by_pallet_no(pallet.get('nr_palety'), nowa_lokalizacja, worker_login)
-                
-                from app.services.osip_transfer_service import OsipTransferService
-                OsipTransferService.auto_receive_pallet_by_code(pallet.get('nr_palety') or str(surowiec_id), nowa_lokalizacja, worker_login)
-
-                from app.utils.location_validator import is_production_tank_code
-                if nowa_lokalizacja == 'MP01' or is_production_tank_code(nowa_lokalizacja):
-                    from app.repositories.picking_repository import PickingRepository
-                    PickingRepository.auto_complete_pallet_if_pending(
-                        pallet_id=surowiec_id,
-                        nr_palety=pallet.get('nr_palety'),
-                        user_login=worker_login
-                    )
-            except Exception as ex:
-                import logging
-                logging.error(f"Błąd powiadamiania dostaw/transferów/kompletacji o przeniesieniu: {ex}")
 
             if is_in_transfer_acceptance:
                 return True, f"✅ Przyjęto w zleceniu {trf_order_ref} na regał: {nowa_lokalizacja}"

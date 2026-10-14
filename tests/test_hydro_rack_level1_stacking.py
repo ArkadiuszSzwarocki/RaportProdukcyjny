@@ -164,7 +164,7 @@ def test_acceptance_service_allows_second_hydro_pallet_on_level_1():
     }]
     mock_cursor.fetchone.side_effect = [
         # SELECT id, type, items, status, linia FROM magazyn_dostawy WHERE id = %s
-        {'id': 1, 'type': 'RAW_MATERIAL', 'status': 'OCZEKUJE', 'items': json.dumps(order_items), 'linia': 'PSD'},
+        {'id': 1, 'type': 'RAW_MATERIAL', 'status': 'OCZEKUJE', 'items': json.dumps(order_items), 'linia': 'PSD', 'supplier': 'Test', 'lokalizacja_z': 'DOSTAWA'},
         # exist check for nr_palety in magazyn_surowce
         None, None, None, None, None, None
     ]
@@ -190,12 +190,14 @@ def test_dostawa_fallback_redirect(authenticated_client):
 
     mock_cursor.fetchone.return_value = {
         'id': '563d2bcb-955e-4d51-b007-665aa35a9d60',
+        'linia': 'PSD',
         'status': 'OCZEKUJE',
         'supplier': '',
         'lokalizacja_z': 'MP01'
     }
 
-    with patch('app.blueprints.magazyn_dostawy.routes.transfer.get_db_connection', return_value=mock_conn):
+    with patch('app.blueprints.magazyn_dostawy.routes.transfer.get_db_connection', return_value=mock_conn), patch(
+            'app.core.logistics_permissions.get_db_connection', return_value=mock_conn):
         res = authenticated_client.get('/magazyn-dostawy/563d2bcb-955e-4d51-b007-665aa35a9d60?linia=ALL')
     
     assert res.status_code == 302

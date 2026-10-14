@@ -1,5 +1,7 @@
+# cspell:words naważanie
 """Coordinator for resolving scanned codes and ranking match results."""
 from __future__ import annotations
+import re
 
 from app.services.scanner.scanner_code_normalizer import ScannerCodeNormalizer
 from app.services.scanner.scanner_lookup_service import ScannerLookupService
@@ -17,14 +19,26 @@ class ScannerResolutionService:
             norm_bucket = BucketMaluchService.normalize_bucket_code(location_code)
             if not norm_bucket:
                 return None
-            bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, linia)
-            if not bucket:
+            exact_label = str(location_code or '').strip().upper().startswith('MAL')
+            bucket = (BucketMaluchRepository.find_by_sscc(str(location_code).strip().upper())
+                      if exact_label else BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, linia))
+            if not bucket and not exact_label:
                 alt_linia = 'AGRO' if str(linia).upper() == 'PSD' else 'PSD'
                 bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_bucket, alt_linia)
-            if not bucket:
-                bucket = BucketMaluchRepository.find_latest_by_code(norm_bucket)
+            if not bucket and not exact_label:
+                return {
+                    'id': None, 'nazwa': f'Wiadro W{norm_bucket} — wolne',
+                    'typ': 'Wiaderko', 'inventory_type': 'Wiaderko', 'is_bucket': True,
+                    'is_free': True, 'is_used_up': False, 'can_dispatch': False,
+                    'kod_wiadra': norm_bucket, 'status': 'wolne',
+                    'status_pl': 'Wolne — można rozpocząć nowe naważanie',
+                    'stan_magazynowy': 0.0, 'pozycje': [], 'plan_id': None,
+                    'nr_palety': str(location_code).strip().upper(), 'bucket_label': None,
+                    'linia': str(linia).upper(),
+                }
 
             if bucket:
+                consumed = bucket.get('status') == 'wrzucone_do_mieszalnika'
                 pozycje = bucket.get('pozycje') or []
                 pozycje_txt = ", ".join([f"[{p['stacja_kod']}] {p['surowiec_nazwa']}" for p in pozycje]) or "Brak pozycji"
                 status_pl = {
@@ -41,14 +55,17 @@ class ScannerResolutionService:
 
                 return {
                     'id': bucket['id'],
-                    'nazwa': f"Wiadro {norm_bucket} ({pozycje_txt})",
+                    'nazwa': f"Wiadro W{norm_bucket} ({pozycje_txt})",
                     'typ': 'Wiaderko',
                     'inventory_type': 'Wiaderko',
                     'is_bucket': True,
+                    'bucket_label': bucket.get('nr_sscc'),
+                    'is_used_up': consumed,
+                    'can_dispatch': not consumed,
                     'kod_wiadra': norm_bucket,
                     'status': bucket.get('status'),
                     'status_pl': status_pl,
-                    'stan_magazynowy': float(len(pozycje)),
+                    'stan_magazynowy': 0.0 if consumed else float(len(pozycje)),
                     'jednostka': 'skł.',
                     'lokalizacja': 'Naważanie Maluchów' if bucket.get('status') != 'wrzucone_do_mieszalnika' else (bucket.get('mieszalnik_kod') or 'MI01'),
                     'nr_palety': sscc,
@@ -66,6 +83,9 @@ class ScannerResolutionService:
 
     @staticmethod
     def lookup_by_location(location_code: str, linia: str = 'Agro', try_all_lines: bool = True) -> dict | None:
+        scan = str(location_code or '').strip().upper()
+        if scan.startswith('MAL') or re.fullmatch(r'(?:WIADRO|W|V)[-_\s]*\d{1,2}', scan):
+            return ScannerResolutionService._check_bucket(location_code, linia)
         normalized_scan_code = ScannerCodeNormalizer.normalize_scanned_code(location_code) or str(location_code or '').strip()
         results = []
         res_list = ScannerLocationQueryService.lookup_by_location_internal(location_code, linia)
@@ -137,11 +157,15 @@ class ScannerResolutionService:
                 final_res['transfer'] = transfer_info
                 final_res['can_dispatch'] = False
                 final_res['status_pl'] = 'Oczekuje na przyjęcie'
+                if not transfer_info.get('is_magazyn_dostawy'):
+                    final_res['receiving_required'] = transfer_info.get('status') != 'RECEIVING'
+                    final_res['status_info'] = ('Najpierw kliknij Odbierz / Przyjmij na stronie transferów.'
+                                              if final_res['receiving_required'] else 'Odbiór rozpoczęty — zeskanuj regał docelowy.')
                 db_loc = str(final_res.get('lokalizacja') or '').strip()
                 if db_loc == 'W_TRANZYCIE_OSIP':
                     code_tr = transfer_info.get('transfer_code', '')
                     final_res['lokalizacja'] = f"W TRANZYCIE ({code_tr})"
-                    final_res['status_pl'] = 'W tranzycie'
+                    final_res['status_pl'] = 'W odbiorze' if transfer_info.get('status') == 'RECEIVING' else 'W tranzycie'
                 elif transfer_info.get('is_magazyn_dostawy'):
                     src = transfer_info.get('source_warehouse', '')
                     dst = transfer_info.get('destination_warehouse', '')
@@ -202,6 +226,7 @@ class ScannerResolutionService:
                 "item_id": it.get('id'),
                 "dostawa_id": transfer_info.get('id'),
                 "is_transfer": True,
+                "receiving_required": not transfer_info.get('is_magazyn_dostawy') and transfer_info.get('status') != 'RECEIVING',
                 "transfer": transfer_info,
                 "nazwa": p_name,
                 "stan_magazynowy": qty,
@@ -219,7 +244,9 @@ class ScannerResolutionService:
                 "is_used_up": False,
                 "can_dispatch": False,
                 "status_pl": "Oczekuje na przyjęcie",
-                "status_info": f"Przesunięcie: {src} ➔ {dst or 'PRZYJĘCIE'}" if transfer_info.get('is_magazyn_dostawy') else f"Transfer {transfer_info.get('transfer_code')}: {src} ➔ {dst}"
+                "status_info": f"Przesunięcie: {src} ➔ {dst or 'PRZYJĘCIE'}" if transfer_info.get('is_magazyn_dostawy') else
+                    ('Odbiór rozpoczęty — zeskanuj regał docelowy.' if transfer_info.get('status') == 'RECEIVING' else
+                     'Najpierw kliknij Odbierz / Przyjmij na stronie transferów.')
             }
 
         bucket_res = ScannerResolutionService._check_bucket(location_code, linia)

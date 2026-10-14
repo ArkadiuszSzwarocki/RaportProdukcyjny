@@ -73,7 +73,7 @@ class ScannerLookupService:
         sql = (
             f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, COALESCE(lokalizacja, '') AS lokalizacja, "
             f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-            f"data_produkcji, data_przydatnosci, '{linia}' AS linia "
+            f"data_produkcji, data_przydatnosci, COALESCE(NULLIF(linia, ''), '{linia}') AS linia "
             f"FROM {table_name} WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT 1"
         )
         try:
@@ -101,7 +101,7 @@ class ScannerLookupService:
                 sql_unbound = (
                     f"SELECT id, {name_col} AS nazwa, {qty_col} AS ilosc, COALESCE(lokalizacja, '') AS lokalizacja, "
                     f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
-                    f"data_produkcji, data_przydatnosci, '{linia}' AS linia "
+                    f"data_produkcji, data_przydatnosci, COALESCE(NULLIF(linia, ''), '{linia}') AS linia "
                     f"FROM {table_name} WHERE {' AND '.join(where_unbound)} ORDER BY id DESC LIMIT 1"
                 )
                 try:
@@ -136,9 +136,9 @@ class ScannerLookupService:
             f"SELECT m.id, COALESCE(plan.produkt, m.produkt) AS nazwa, m.waga_netto AS ilosc, COALESCE(m.lokalizacja, 'MGW01') AS lokalizacja, "
             f"COALESCE(m.nr_palety, '') AS nr_palety, COALESCE(m.nr_partii, plan.nr_partii, '') AS nr_partii, "
             f"COALESCE(m.data_produkcji, plan.data_produkcji) AS data_produkcji, COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci, "
-            f"COALESCE(m.is_blocked, 0) AS is_blocked, '{linia}' AS linia "
+            "COALESCE(m.is_blocked, 0) AS is_blocked, m.linia AS linia "
             f"FROM {table_name} m "
-            f"LEFT JOIN {table_plan} plan ON m.plan_id = plan.id "
+            f"LEFT JOIN {table_plan} plan ON m.plan_id = plan.id AND m.linia = '{linia}' "
         )
 
         if item_id is not None:
@@ -190,7 +190,7 @@ class ScannerLookupService:
             cursor.execute("""
                 SELECT t.id, t.transfer_code, t.source_warehouse, t.destination_warehouse, t.status, t.created_by, t.created_at
                 FROM osip_transfers t
-                WHERE t.transfer_code = %s AND t.status IN ('PLANNED', 'IN_TRANSIT')
+                WHERE t.transfer_code = %s AND t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
             """, (code_clean,))
             transfer = cursor.fetchone()
 
@@ -199,7 +199,7 @@ class ScannerLookupService:
                     SELECT t.id, t.transfer_code, t.source_warehouse, t.destination_warehouse, t.status, t.created_by, t.created_at
                     FROM osip_transfer_items ti
                     JOIN osip_transfers t ON ti.transfer_id = t.id
-                    WHERE (ti.nr_palety = %s OR (ti.pallet_id = %s AND %s != '0')) AND t.status IN ('PLANNED', 'IN_TRANSIT')
+                    WHERE (ti.nr_palety = %s OR (ti.pallet_id = %s AND %s != '0')) AND ti.status!='RECEIVED' AND t.status IN ('PLANNED', 'IN_TRANSIT', 'RECEIVING')
                     LIMIT 1
                 """, (code_clean, code_clean if code_clean.isdigit() else 0, code_clean if code_clean.isdigit() else '0'))
                 transfer = cursor.fetchone()

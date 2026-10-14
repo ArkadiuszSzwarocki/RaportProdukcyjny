@@ -315,8 +315,8 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         has_termin_przydatnosci = False
     
     # 1. First attempt: Find in confirmed warehouse table
-    params = []
-    where_parts = []
+    params = [linia]
+    where_parts = ["mp.linia = %s"]
 
     if is_code:
         where_parts.append("(mp.nr_palety = %s OR pw.nr_palety = %s)")
@@ -501,7 +501,7 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         SELECT pw.plan_id, pw.waga, pp.produkt, pw.data_dodania, pw.nr_palety, pp.data_produkcji, {lp_select}, pw.nr_plomby, {partia_select_pw}, COALESCE(mp.data_przydatnosci, {przyd_plan_select}) AS data_przydatnosci
         FROM {table_pal} pw
         JOIN {table_plan} pp ON pw.plan_id = pp.id
-        LEFT JOIN {table_mag} mp ON pw.plan_id = mp.plan_id
+        LEFT JOIN {table_mag} mp ON pw.plan_id = mp.plan_id AND mp.linia = '{linia}'
         {where_pw}
         ORDER BY pw.id DESC LIMIT 1
     """, (paleta_id,))

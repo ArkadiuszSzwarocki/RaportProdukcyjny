@@ -1,6 +1,5 @@
 from app.core.daemon import (
     _get_auto_pallet_max_catchup,
-    _is_rising_edge,
     _is_transient_db_connectivity_error,
     _resolve_pallet_counter_action,
     _resolve_pallet_counter_registrations,
@@ -42,16 +41,6 @@ def test_counter_registrations_jump_within_limit():
 
 def test_counter_registrations_jump_over_limit_is_capped_to_limit():
     assert _resolve_pallet_counter_registrations(100, 110, 4) == 4
-
-
-def test_wrap_rising_edge_triggers_once():
-    assert _is_rising_edge(False, True) is True
-
-
-def test_wrap_non_rising_edges_do_not_trigger():
-    assert _is_rising_edge(False, False) is False
-    assert _is_rising_edge(True, True) is False
-    assert _is_rising_edge(True, False) is False
 
 
 def test_transient_db_connectivity_error_detects_unknown_host_dns():

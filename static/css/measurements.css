@@ -1,0 +1,15 @@
+.measurement-grid { display:flex; flex-wrap:wrap; gap:8px; padding:8px; }
+#dashboard-config .measurement-grid { padding:0; margin:0; background:transparent; border:0; box-shadow:none; }
+#mainContent #dashboard-config[data-sekcja="Zasyp"] .header-stats { overflow:visible !important; flex-wrap:wrap !important; align-items:center !important; }
+.measurement-device { position:relative; min-width:140px; border:1px solid #dce4ec; border-radius:8px; background:#f8fafc; }
+.measurement-device > summary { display:flex; flex-direction:column; gap:4px; padding:7px 10px; cursor:pointer; list-style:none; }
+.measurement-device > summary::-webkit-details-marker { display:none; }
+.measurement-device > summary:focus-visible { outline:2px solid #2563eb; border-radius:8px; }
+.measurement-name { font-size:11px; font-weight:700; color:#475569; }
+.measurement-numbers { display:flex; gap:14px; color:#0f172a; font-size:18px; }
+.measurement-numbers > strong { display:inline-flex; align-items:baseline; gap:2px; white-space:nowrap; flex-shrink:0; }
+.measurement-numbers small { font-size:11px; font-weight:500; }
+.measurement-detail { display:flex; flex-direction:column; gap:8px; padding:12px; border-top:1px solid #dce4ec; font-size:12px; }
+#dashboard-config .measurement-detail { position:absolute; top:calc(100% + 6px); right:0; width:min(340px,80vw); box-sizing:border-box; background:white; border:1px solid #dce4ec; border-radius:8px; box-shadow:0 8px 24px #0002; z-index:1045; }
+.measurement-device .text-warning { color:#995b00 !important; }
+@media (max-width:600px) { #dashboard-config .measurement-detail { left:0; right:auto; } }

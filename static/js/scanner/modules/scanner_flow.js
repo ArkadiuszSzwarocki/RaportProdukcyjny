@@ -50,6 +50,7 @@ function resetScanner() {
 
   hidePallet();
   hideStation();
+  if (typeof clearPalletSuggestions === 'function') clearPalletSuggestions();
   resetLocationInputDetection();
 
   const scanInput = getScanInput();
@@ -57,7 +58,7 @@ function resetScanner() {
     scanInput.value = '';
     scanInput.style.borderColor = '';
     scanInput.style.borderWidth = '';
-    scanInput.placeholder = 'Wpisz lub zeskanuj kod (np. R030101, SSCC, PAL-15)';
+    scanInput.placeholder = 'Zeskanuj kod lub wpisz ostatnie 6 cyfr numeru palety';
     scanInput.disabled = false;
     scanInput.focus();
   }
@@ -113,6 +114,11 @@ function triggerScan() {
     scanInput.value = code;
   }
 
+  if (/^[0-9]{6}$/.test(code) && typeof requestPalletSuggestions === 'function') {
+    requestPalletSuggestions(code);
+    return;
+  }
+
   if (!code) {
     const started = requestHardwareScanTrigger();
     if (started) {
@@ -130,6 +136,11 @@ function triggerScan() {
   }
   lastScannedCode = code;
   lastScannedTime = now;
+
+  if (!navigator.onLine) {
+    void saveOfflineLookup(code);
+    return;
+  }
 
   if (currentPallet) {
     if (isPalletCode(code)) {
@@ -169,6 +180,12 @@ async function doMoveFromMainInput(loc) {
     && currentPallet.transfer
     && currentPallet.transfer.is_magazyn_dostawy
   );
+
+  if (currentPallet && currentPallet.receiving_required) {
+    setProcessingState(false);
+    showToast(currentPallet.status_info || 'Najpierw kliknij Odbierz / Przyjmij na stronie transferów.', 'warning');
+    return;
+  }
 
   if (isDeliveryTransfer) {
     const dostawaId = currentPallet.dostawa_id || (currentPallet.transfer && currentPallet.transfer.id);
@@ -219,7 +236,7 @@ async function doMoveFromMainInput(loc) {
       clearTimeout(timeoutId);
 
       const d = await res.json();
-      showToast(d.message || d.error || (d.success ? 'Pozycja przyjęta.' : 'Błąd operacji.'), d.success ? 'success' : 'danger');
+      showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
       if (d.success) {
         hidePallet();
         refreshSidebarBadgesSilently();
@@ -238,7 +255,9 @@ async function doMoveFromMainInput(loc) {
 
   if (currentPallet && !currentPallet.is_transfer && (currentPallet.is_used_up || parseFloat(currentPallet.stan_magazynowy || 0) <= 0)) {
     setProcessingState(false);
-    showToast('❌ Ta paleta została już zużyta do 0 kg i zarchiwizowana. Nie można jej przenieść.', 'danger');
+    showToast(currentPallet.is_bucket
+      ? 'To wiadro zostało już zużyte. Zeskanuj etykietę kolejnego napełnienia.'
+      : '❌ Ta paleta została już zużyta do 0 kg i zarchiwizowana. Nie można jej przenieść.', 'danger');
     if (scanInput) {
       scanInput.value = '';
       scanInput.focus();
@@ -265,7 +284,7 @@ async function doMoveFromMainInput(loc) {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
         body: JSON.stringify({
-          kod_wiadra: currentPallet.kod_wiadra,
+          kod_wiadra: currentPallet.bucket_label || currentPallet.kod_wiadra,
           plan_id: currentPallet.plan_id,
           mieszalnik_kod: 'MI01',
           linia: currentPallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'AGRO')
@@ -274,7 +293,7 @@ async function doMoveFromMainInput(loc) {
       });
       clearTimeout(timeoutId);
       const d = await res.json();
-      showToast(d.message, d.success ? 'success' : 'danger');
+      showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
       if (d.success) {
         hidePallet();
         refreshSidebarBadgesSilently();
@@ -381,14 +400,14 @@ async function doMoveFromMainInput(loc) {
           nr_palety: currentPallet.nr_palety || currentPallet.sscc,
           type: currentPallet.inventory_type,
           lokalizacja: loc,
-          linia: (typeof LINIA !== 'undefined' ? LINIA : 'AGRO'),
+          linia: currentPallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'AGRO'),
           amount_to_move: null
         }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
       const d = await res.json();
-      showToast(d.message, d.success ? 'success' : 'danger');
+      showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
 
       if (d.success) {
         const isPkg = currentPallet && (
@@ -446,7 +465,7 @@ function doFinalDispatch() {
   })
   .then(r => r.json())
   .then(d => {
-    showToast(d.message, d.success ? 'success' : 'danger');
+    showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
     if (d.success) {
       closeDispatchModal();
       hidePallet();
@@ -470,10 +489,43 @@ function closeDispatchModal() {
   }
 }
 
+async function saveOfflineLookup(code) {
+  setProcessingState(true);
+  hidePallet();
+  hideStation();
+  try {
+    const store = window.RPOfflineStore;
+    const buffer = window.offlineScanBuffer;
+    if (!store || !store.ownerUserId || !buffer) {
+      throw new Error('Brak bezpiecznego magazynu lokalnego');
+    }
+    const event = buffer.enqueueScan(code, 'LOOKUP');
+    await buffer.persistQueue();
+    const saved = await store.getQueue('rp_offline_scan_buffer');
+    if (!saved.some(item => item.client_uuid === event.client_uuid)) {
+      throw new Error('Nie potwierdzono zapisu lokalnego');
+    }
+    showToast('Brak sieci. Kod zapisany do synchronizacji. Przyjęcie lub przesunięcie wymaga ponownego skanu online.', 'warn');
+    const input = getScanInput();
+    if (input) input.value = '';
+  } catch (error) {
+    showToast('Nie udało się zapisać kodu offline. Zachowaj kod i spróbuj po odzyskaniu połączenia.', 'danger');
+  } finally {
+    setProcessingState(false);
+    const input = getScanInput();
+    if (input) input.focus();
+  }
+}
+
 async function lookupPallet(code) {
   if (!code) return;
   code = String(code).trim();
   if (!code) return;
+
+  if (!navigator.onLine) {
+    await saveOfflineLookup(code);
+    return;
+  }
 
   setProcessingState(true);
 
@@ -499,7 +551,12 @@ async function lookupPallet(code) {
         showToast(`✅ Znaleziono stację: ${d.pallet.station_code}`, 'success');
       } else {
         showPallet(d.pallet);
-        showToast('✅ Znaleziono: ' + (d.pallet.nazwa || d.pallet.nr_palety || code), 'success');
+        if (d.pallet.receiving_required) {
+          showToast(d.pallet.status_info, 'warn');
+        }
+        if (!d.pallet.receiving_required && !(d.pallet.is_bucket && (d.pallet.is_free || d.pallet.is_used_up || d.pallet.status === 'wrzucone_do_mieszalnika'))) {
+          showToast('✅ Znaleziono: ' + (d.pallet.nazwa || d.pallet.nr_palety || code), 'success');
+        }
       }
     } else {
       hidePallet();
@@ -523,17 +580,16 @@ async function lookupPallet(code) {
   }
 }
 
-let lastCharInputTime = 0;
-let isHardwareBurst = false;
-
 function initScanInputListeners() {
-  const input = getScanInput();
-  if (!input) return;
-  if (input.dataset.scannerAttached === 'true') return;
-  input.dataset.scannerAttached = 'true';
-
+  const scanInput = getScanInput();
+  if (!scanInput || scanInput.dataset.scannerAttached === 'true') return;
+  scanInput.dataset.scannerAttached = 'true';
+  let previousInputTime = 0;
+  let previousInputLength = 0;
+  let fastInputIntervals = 0;
+  let manualInput = false;
   // Keydown listener: on Enter immediate trigger
-  input.addEventListener('keydown', function(e) {
+  scanInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
       e.preventDefault();
       clearTimeout(scanTimeout);
@@ -542,19 +598,8 @@ function initScanInputListeners() {
     }
   });
 
-  // Input listener: adaptive debounce ensures all hardware scanners trigger fast while manual typing isn't interrupted
-  input.addEventListener('input', function() {
-    const now = performance.now();
-    const interval = now - lastCharInputTime;
-    lastCharInputTime = now;
-
-    // Fast typing (< 50ms interval) indicates a hardware barcode scanner burst
-    if (interval < 50 && interval > 0) {
-      isHardwareBurst = true;
-    } else if (interval > 80) {
-      isHardwareBurst = false;
-    }
-
+  // Only a fast reader burst may submit automatically. Typing waits for Enter/button.
+  scanInput.addEventListener('input', function() {
     const raw = this.value;
     const cleaned = extractSSCCFromScan(raw);
     if (cleaned !== raw) {
@@ -563,44 +608,45 @@ function initScanInputListeners() {
     clearTimeout(scanTimeout);
 
     const code = (this.value || '').trim();
+    if (typeof schedulePalletSuggestions === 'function') schedulePalletSuggestions(code);
     if (!code) {
-      isHardwareBurst = false;
+      previousInputLength = 0;
+      fastInputIntervals = 0;
+      manualInput = false;
       return;
     }
 
-    // Determine debounce delay:
-    // If hardware scanner burst: fast auto-submit (120ms).
-    // If manual typing: give 650ms so user can finish typing or press Enter.
-    const delay = isHardwareBurst ? 120 : 650;
+    const now = performance.now();
+    if (!previousInputLength || code.length === 1) {
+      fastInputIntervals = 0;
+      manualInput = false;
+    } else if (code.length <= previousInputLength) {
+      fastInputIntervals = 0;
+      manualInput = true;
+    } else if (now - previousInputTime <= 45) {
+      fastInputIntervals += 1;
+    } else {
+      manualInput = true;
+    }
+    previousInputTime = now;
+    previousInputLength = code.length;
 
-    if (code.length >= 3) {
+    if (code.length >= 3 && fastInputIntervals >= 2 && !manualInput) {
       scanTimeout = setTimeout(() => {
-        isHardwareBurst = false;
         const currInput = getScanInput();
         const currVal = (currInput ? currInput.value : '').trim();
-        if (currVal.length >= 3 && !isProcessingScan) {
+        if (currVal.length >= 3 && !/^[0-9]{6}$/.test(currVal) && !isProcessingScan) {
           triggerScan();
         }
-      }, delay);
+      }, 150);
     }
   });
 
-  // Paste listener: fast auto-submit on paste
-  input.addEventListener('paste', function() {
+  // Pasting is a manual action and waits for explicit confirmation.
+  scanInput.addEventListener('paste', function() {
     clearTimeout(scanTimeout);
-    setTimeout(() => {
-      const currInput = getScanInput();
-      if (currInput) {
-        const cleaned = extractSSCCFromScan(currInput.value);
-        if (cleaned !== currInput.value) {
-          currInput.value = cleaned;
-        }
-        const code = currInput.value.trim();
-        if (code.length >= 3) {
-          triggerScan();
-        }
-      }
-    }, 20);
+    manualInput = true;
+    fastInputIntervals = 0;
   });
 }
 
@@ -608,6 +654,7 @@ function initScanInputListeners() {
 // If the user scans with a barcode reader while scanInput is accidentally unfocused
 // (e.g. after tapping the screen or clicking outside inputs), redirect focus and typing to scanInput.
 window.addEventListener('keydown', function(e) {
+  if (document.body.classList.contains('sidebar-open')) return;
   const activeEl = document.activeElement;
   const isInputActive = activeEl && (
     activeEl.tagName === 'INPUT' || 

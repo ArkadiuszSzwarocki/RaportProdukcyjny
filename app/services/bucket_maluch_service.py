@@ -1,3 +1,4 @@
+# cspell:words naważanie nawazania
 import random
 import re
 from datetime import datetime, timedelta
@@ -44,7 +45,7 @@ class BucketMaluchService:
             return ""
 
         # Match "04", "4", "W04", "WIADRO_04", "WIADRO 04"
-        match = re.search(r'(?:WIADRO|W)?[-_\s]*(\d+)', clean)
+        match = re.fullmatch(r'(?:WIADRO|W|V)?[-_\s]*(\d{1,2})', clean)
         if match:
             num = int(match.group(1))
             if 1 <= num <= 99:
@@ -86,6 +87,13 @@ class BucketMaluchService:
         operator_login: Optional[str] = None
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Starts a new bucket or re-opens an existing active bucket for a plan."""
+        filling = None
+        if str(kod_wiadra or '').strip().upper().startswith('MAL'):
+            filling = BucketMaluchRepository.find_by_sscc(str(kod_wiadra).strip().upper())
+            if not filling or filling.get('status') not in {'w_trakcie_nawazania', 'skompletowane'}:
+                return False, 'Ta etykieta nie wskazuje aktywnego napełnienia. Zeskanuj kod wolnego wiadra, aby rozpocząć naważanie.', None
+            if str(filling.get('plan_id')) != str(plan_id) or str(filling.get('linia') or '').upper() != str(linia).upper():
+                return False, 'Ta etykieta jest przypisana do innego zlecenia lub hali.', None
         norm_code = cls.normalize_bucket_code(kod_wiadra)
         if not norm_code:
             return False, "Nieprawidłowy kod wiadra (np. W04, Wiadro 04)", None
@@ -117,6 +125,8 @@ class BucketMaluchService:
 
             # Check if bucket is already currently active (not yet dumped to mixer)
             existing = BucketMaluchRepository.find_active_or_completed_by_code(norm_code, linia)
+            if filling and (not existing or existing.get('id') != filling.get('id')):
+                return False, 'To napełnienie nie jest już aktywne. Zeskanuj kod wiadra, aby rozpocząć nowe naważanie.', None
             if existing:
                 if existing['plan_id'] != plan_id:
                     return False, f"Wiadro {norm_code} jest już przypisane do innego aktywnego zlecenia #{existing['plan_id']}", None
@@ -141,91 +151,42 @@ class BucketMaluchService:
             conn.close()
 
     @classmethod
-    def get_all_station_materials(cls, linia: str = 'PSD') -> Dict[str, str]:
-        """Resolves material names currently in KO stations KO01-KO40."""
+    def get_assigned_station_materials(cls, linia: str = 'PSD') -> Dict[str, str]:
+        """Resolve configured assignments and current stock, never historical names."""
+        line = str(linia or '').strip().upper()
+        if line not in {'PSD', 'AGRO'}:
+            return {}
+        materials = {}
         conn = get_db_connection()
-        materials: Dict[str, str] = {}
         try:
             cur = conn.cursor(dictionary=True)
-            # 1. From active tank configuration (konfiguracja_zbiornikow)
-            try:
-                cur.execute("""
-                    SELECT kod_zbiornika, nazwa_surowca 
-                    FROM konfiguracja_zbiornikow 
-                    WHERE kod_zbiornika LIKE 'KO%' AND is_active = 1 AND nazwa_surowca IS NOT NULL AND TRIM(nazwa_surowca) != ''
-                """)
-                for r in cur.fetchall():
-                    k = cls.normalize_station_code(r['kod_zbiornika'])
-                    if k and r['nazwa_surowca']:
-                        materials[k] = r['nazwa_surowca'].strip()
-            except Exception:
-                pass
-
-            # 2. Check active stock in magazyn_surowce for current line
-            try:
-                table_sur = get_table_name('magazyn_surowce', linia)
-                cur.execute(f"""
-                    SELECT lokalizacja, nazwa 
-                    FROM {table_sur} 
-                    WHERE lokalizacja LIKE 'KO%' AND (stan_magazynowy > 0 OR stan_magazynowy IS NULL) AND nazwa IS NOT NULL AND TRIM(nazwa) != ''
-                    ORDER BY updated_at DESC, id DESC
-                """)
-                for r in cur.fetchall():
-                    k = cls.normalize_station_code(r['lokalizacja'])
-                    if k and (k not in materials or not materials[k]):
-                        materials[k] = r['nazwa'].strip()
-            except Exception:
-                pass
-
-            # 3. Check movements in magazyn_agro_ruch and magazyn_ruch
-            for table_name in ['magazyn_agro_ruch', 'magazyn_ruch']:
-                try:
-                    cur.execute(f"""
-                        SELECT zbiornik, surowiec_nazwa 
-                        FROM {table_name} 
-                        WHERE zbiornik LIKE 'KO%' AND surowiec_nazwa IS NOT NULL AND TRIM(surowiec_nazwa) != ''
-                        ORDER BY id DESC
-                    """)
-                    for r in cur.fetchall():
-                        k = cls.normalize_station_code(r['zbiornik'])
-                        if k and (k not in materials or not materials[k]):
-                            materials[k] = r['surowiec_nazwa'].strip()
-                except Exception:
-                    pass
-
-            # 4. Check wiaderka_maluchy_pozycje history
-            try:
-                cur.execute("""
-                    SELECT stacja_kod, surowiec_nazwa 
-                    FROM wiaderka_maluchy_pozycje 
-                    WHERE stacja_kod LIKE 'KO%' AND surowiec_nazwa IS NOT NULL AND surowiec_nazwa NOT LIKE 'Surowiec ze stacji%' AND TRIM(surowiec_nazwa) != ''
-                    ORDER BY id DESC
-                """)
-                for r in cur.fetchall():
-                    k = cls.normalize_station_code(r['stacja_kod'])
-                    if k and (k not in materials or not materials[k]):
-                        materials[k] = r['surowiec_nazwa'].strip()
-            except Exception:
-                pass
-
+            cur.execute("SELECT kod_zbiornika, nazwa_surowca FROM konfiguracja_zbiornikow WHERE is_active=1")
+            assignments = [(row.get('kod_zbiornika'), row.get('nazwa_surowca')) for row in cur.fetchall()]
+            table = get_table_name('magazyn_surowce', line)
+            cur.execute(f"SELECT lokalizacja, nazwa FROM {table} WHERE stan_magazynowy>0 AND UPPER(linia)=%s ORDER BY id DESC", (line,))
+            assignments.extend((row.get('lokalizacja'), row.get('nazwa')) for row in cur.fetchall())
+            from app.services.agro.agro_tanks_service import AgroTanksService
+            snapshot = AgroTanksService.get_production_inventory_snapshot(linia=line, show_empty=False)
+            assignments.extend((row.get('zbiornik'), row.get('surowiec_nazwa') or row.get('nazwa'))
+                               for row in snapshot if float(row.get('stan_systemowy') or 0) > 0)
+            for code, name in assignments:
+                station = cls.normalize_station_code(code)
+                material = str(name or '').strip()
+                if station and cls.VALID_STATION_REGEX.fullmatch(station) and material and material != '-' and not material.lower().startswith('surowiec ze stacji'):
+                    materials.setdefault(station, material)
             return materials
         except Exception:
-            return materials
+            # No verified assignment means no ingredient can be added.
+            return {}
         finally:
             conn.close()
 
     @classmethod
     def get_station_material(cls, stacja_kod: str, linia: str = 'PSD') -> str:
-        """Finds current raw material assigned to the given station (KO01-KO40)."""
-        norm_station = cls.normalize_station_code(stacja_kod)
-        if not norm_station:
-            return ""
-
-        all_materials = cls.get_all_station_materials(linia)
-        if norm_station in all_materials and all_materials[norm_station]:
-            return all_materials[norm_station]
-
-        return f"Surowiec ze stacji {norm_station}"
+        station = cls.normalize_station_code(stacja_kod)
+        if not station:
+            return ''
+        return cls.get_assigned_station_materials(linia).get(station, '')
 
     @classmethod
     def add_item_to_bucket(
@@ -248,10 +209,14 @@ class BucketMaluchService:
         if not norm_station or not cls.VALID_STATION_REGEX.match(norm_station):
             return False, f"Nieprawidłowy kod stacji/zbiornika: {stacja_kod}. Dozwolone: KO01-KO40, BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24", None
 
-        # Automatically resolve raw material name from station if not provided or placeholder
-        if not surowiec_nazwa or not surowiec_nazwa.strip():
-            bucket_linia = bucket.get('linia') or linia
-            surowiec_nazwa = cls.get_station_material(norm_station, bucket_linia)
+        # The browser cannot supply an assignment or override the stored material.
+        bucket_linia = bucket.get('linia') or linia
+        assigned_material = cls.get_station_material(norm_station, bucket_linia)
+        if not assigned_material:
+            return False, f"Stacja {norm_station} nie ma przypisanego surowca. Nie dodano jej do wiadra.", None
+        if surowiec_nazwa and str(surowiec_nazwa).strip() != assigned_material:
+            return False, f"Surowiec nie odpowiada przypisaniu stacji {norm_station}. Zeskanuj stację ponownie.", None
+        surowiec_nazwa = assigned_material
 
         try:
             waga_float = float(str(waga).replace(',', '.')) if waga else 0.0
@@ -320,15 +285,16 @@ class BucketMaluchService:
 
     @classmethod
     def delete_bucket(cls, bucket_id: int, operator_login: Optional[str] = None, force: bool = False) -> Tuple[bool, str]:
-        """Deletes a bucket in progress or completed before dumping, or force deletes if requested."""
+        """Delete unused fillings only; consumed fillings are production history."""
         bucket = BucketMaluchRepository.find_by_id(bucket_id)
         if not bucket:
             return False, "Wiadro nie istnieje"
-        if bucket['status'] == 'wrzucone_do_mieszalnika' and not force:
+        if bucket['status'] == 'wrzucone_do_mieszalnika':
             return False, "Nie można usunąć wiadra, które zostało już wsypane do mieszalnika!"
 
         kod = bucket.get('kod_wiadra', '')
-        BucketMaluchRepository.delete_bucket(bucket_id)
+        if not BucketMaluchRepository.delete_bucket(bucket_id):
+            return False, 'Nie usunięto wiadra. Sprawdź jego aktualny status.'
         return True, f"Usunięto wiadro {kod}"
 
     @classmethod
@@ -353,7 +319,15 @@ class BucketMaluchService:
         if not norm_mixer:
             return False, f"Nieprawidłowy kod '{mieszalnik_kod}'! Wiadra można wrzucić wyłącznie do mieszalnika MI01.", None
 
-        bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_code, linia)
+        exact_label = str(kod_wiadra or '').strip().upper().startswith('MAL')
+        bucket = (BucketMaluchRepository.find_by_sscc(str(kod_wiadra).strip().upper())
+                  if exact_label else BucketMaluchRepository.find_active_or_completed_by_code(norm_code, linia))
+        if exact_label and not bucket:
+            return False, 'Nie znaleziono tego napełnienia wiadra. Zeskanuj aktualną etykietę.', None
+        if exact_label and bucket.get('status') == 'wrzucone_do_mieszalnika':
+            return False, 'To napełnienie wiadra zostało już zużyte. Zeskanuj aktualną etykietę.', None
+        if exact_label:
+            linia = bucket.get('linia') or linia
         if not bucket:
             alt_linia = 'AGRO' if linia.upper() == 'PSD' else 'PSD'
             bucket = BucketMaluchRepository.find_active_or_completed_by_code(norm_code, alt_linia)
@@ -448,7 +422,8 @@ class BucketMaluchService:
                 return False, f"Do tego zasypu (szarża {nr_sz_str}) zostało już wrzucone wiadro {existing_dumped['kod_wiadra']}{czas_str}! Do jednego zasypu można wrzucić tylko jedno wiadro.", None
 
             # Mark bucket dumped to mixer
-            BucketMaluchRepository.dump_bucket_to_mixer(bucket['id'], szarza_id, operator_login, norm_mixer)
+            if not BucketMaluchRepository.dump_bucket_to_mixer(bucket['id'], szarza_id, operator_login, norm_mixer):
+                return False, 'Nie zapisano zużycia wiadra. Sprawdź jego aktualny status i zeskanuj ponownie.', None
 
             updated = BucketMaluchRepository.find_by_id(bucket['id'])
             nr_sz_str = f"#{sz_row.get('nr_szarzy')}" if sz_row.get('nr_szarzy') else f"ID {szarza_id}"

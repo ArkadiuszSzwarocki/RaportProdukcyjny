@@ -1,4 +1,6 @@
+from flask import g, has_request_context
 import re
+import math
 from app.db import get_db_connection, get_table_name
 from datetime import datetime
 from app.utils.location_validator import validate_warehouse_location, is_production_tank_code
@@ -26,6 +28,15 @@ class WarehouseV2Service:
     def move_pallet(pallet_id, pallet_type, new_location, worker_login, linia='PSD', amount_to_move=None):
         """Przenosi paletę na nową lokalizację. Jeśli amount_to_move < ilość systemowa, dzieli paletę."""
         
+        if not str(new_location or '').strip():
+            return False, "Podaj lokalizację docelową.", None
+        if amount_to_move is not None:
+            try:
+                amount_to_move = float(amount_to_move)
+            except (TypeError, ValueError):
+                return False, "Podaj prawidłową ilość do przesunięcia.", None
+            if not math.isfinite(amount_to_move) or amount_to_move <= 0:
+                return False, "Podaj dodatnią, skończoną ilość do przesunięcia.", None
         if new_location:
             new_location = new_location.strip().upper()
             
@@ -115,11 +126,15 @@ class WarehouseV2Service:
             col_qty = 'waga_netto' if pallet_type == 'Wyrób Gotowy' else 'stan_magazynowy'
             row = None
             if isinstance(pallet_id, int) or (isinstance(pallet_id, str) and pallet_id.isdigit()):
-                cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (int(pallet_id),))
+                cursor.execute(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", (int(pallet_id),))
                 row = cursor.fetchone()
             if not row:
-                cursor.execute(f"SELECT * FROM {table} WHERE nr_palety = %s", (str(pallet_id),))
+                cursor.execute(f"SELECT * FROM {table} WHERE nr_palety = %s FOR UPDATE", (str(pallet_id),))
                 row = cursor.fetchone()
+            if not row and has_request_context() and getattr(g, 'warehouse_resource', None):
+                # A verified HTTP resource must never fall back to another warehouse.
+                return False, 'Paleta nie istnieje w zweryfikowanym magazynie.'
+
             if not row and pallet_type != 'Dodatek':
                 alt_linia = 'PSD' if str(linia).upper() == 'AGRO' else 'AGRO'
                 if pallet_type == 'Surowiec':
@@ -129,12 +144,12 @@ class WarehouseV2Service:
                 else:
                     alt_table = get_table_name('magazyn_palety', alt_linia)
                 if isinstance(pallet_id, int) or (isinstance(pallet_id, str) and pallet_id.isdigit()):
-                    cursor.execute(f"SELECT * FROM {alt_table} WHERE id = %s", (int(pallet_id),))
+                    cursor.execute(f"SELECT * FROM {alt_table} WHERE id = %s FOR UPDATE", (int(pallet_id),))
                     alt_row = cursor.fetchone()
                 else:
                     alt_row = None
                 if not alt_row:
-                    cursor.execute(f"SELECT * FROM {alt_table} WHERE nr_palety = %s", (str(pallet_id),))
+                    cursor.execute(f"SELECT * FROM {alt_table} WHERE nr_palety = %s FOR UPDATE", (str(pallet_id),))
                     alt_row = cursor.fetchone()
                 if alt_row:
                     table = alt_table
@@ -184,6 +199,8 @@ class WarehouseV2Service:
             old_loc = row.get('lokalizacja')
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')
+            from app.services.osip_transfer_service import OsipTransferService
+            receiving_transfer = OsipTransferService.require_receiving(cursor, nr_palety, new_location)
             actual_pallet_id = int(row['id'])
             mother_sscc = nr_palety
             
@@ -193,6 +210,10 @@ class WarehouseV2Service:
             is_in_transfer_acceptance = bool(in_transfer)
 
             # Zwykła blokada jakościowa/ręczna (jeśli paleta NIE bierze udziału w otwartym zleceniu przesunięcia)
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            if PalletLockManager.has_quality_or_manual_block(cursor, nr_palety):
+                return False, 'Paleta posiada blokadę LAB lub ręczną.', None
+
             if row.get('is_blocked') and not is_in_transfer_acceptance:
                 return False, f"BŁĄD: Paleta {nr_palety or actual_pallet_id} jest zablokowana ręcznie (blokada magazynowa) i nie może być przesuwana!"
 
@@ -224,17 +245,19 @@ class WarehouseV2Service:
                 is_loc_available, loc_error_msg = check_rack_location_availability(
                     new_location,
                     current_nr_palety=nr_palety,
-                    product_name=p_name_reloc
+                    product_name=p_name_reloc, cursor=cursor
                 )
                 if not is_loc_available:
                     return False, loc_error_msg
             
             amount_to_move = float(amount_to_move) if amount_to_move is not None else qty
             
-            if amount_to_move <= 0:
+            if not math.isfinite(qty) or qty <= 0 or amount_to_move > qty or amount_to_move <= 0:
                 return False, "Ilość do przeniesienia musi być większa od zera."
                 
             from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+            if receiving_transfer and abs(amount_to_move - qty) > 0.001:
+                return False, 'Transfer trzeba przyjąć jako pełną paletę.', None
             is_split = amount_to_move < qty
             if not is_split:
                 # Cała paleta przenoszona
@@ -242,9 +265,9 @@ class WarehouseV2Service:
                 target_pallet_sscc = nr_palety
                 if not target_pallet_sscc or re.match(r'^(SUR|OPK|DOD|PAL)-?\d{1,8}$', str(target_pallet_sscc), re.IGNORECASE):
                     target_pallet_sscc = generate_pallet_id(linia, pallet_type)
-                    cursor.execute(f"UPDATE {table} SET nr_palety = %s, lokalizacja = %s, is_blocked = 0, is_loaded = 0 WHERE id = %s", (target_pallet_sscc, new_location, actual_pallet_id))
+                    cursor.execute(f"UPDATE {table} SET nr_palety = %s, lokalizacja = %s WHERE id = %s", (target_pallet_sscc, new_location, actual_pallet_id))
                 else:
-                    cursor.execute(f"UPDATE {table} SET lokalizacja = %s, is_blocked = 0, is_loaded = 0 WHERE id = %s", (new_location, actual_pallet_id))
+                    cursor.execute(f"UPDATE {table} SET lokalizacja = %s WHERE id = %s", (new_location, actual_pallet_id))
                 new_pallet_id = actual_pallet_id
                 moved_qty = qty
             else:
@@ -376,65 +399,25 @@ class WarehouseV2Service:
                 print("Błąd zapisu ruchu:", e)
             # --- AUTO-AKCEPTACJA DOSTAWY ZEWNĘTRZNEJ ---
             # Jeśli przenoszona paleta wisiała w "Oczekujące na Przyjęcie", zdejmujemy ją stamtąd.
-            if nr_palety:
-                try:
-                    import json
-                    cur_dict = conn.cursor(dictionary=True)
-                    cur_dict.execute("SELECT id, items FROM magazyn_dostawy WHERE status = 'OCZEKUJE'")
-                    pending_deliveries = cur_dict.fetchall()
-                    for d in pending_deliveries:
-                        if not d.get('items'): continue
-                        try:
-                            d_items = json.loads(d['items'])
-                            changed = False
-                            for item in d_items:
-                                if not item.get('accepted') and not item.get('rejected'):
-                                    if item.get('nr_palety') == nr_palety or item.get('sourcePalletNo') == nr_palety:
-                                        item['accepted'] = True
-                                        item['accepted_by'] = worker_login
-                                        item['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                                        item['lokalizacja_przyjecia'] = new_location
-                                        changed = True
-                            if changed:
-                                all_processed = all(i.get('accepted') or i.get('rejected') for i in d_items)
-                                new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
-                                cur_dict.execute(
-                                    """
-                                    UPDATE magazyn_dostawy 
-                                    SET items = %s, status = %s, 
-                                        potwierdzone_przez = IF(%s, COALESCE(potwierdzone_przez, %s), potwierdzone_przez), 
-                                        potwierdzone_at = IF(%s, COALESCE(potwierdzone_at, NOW()), potwierdzone_at) 
-                                    WHERE id = %s
-                                    """,
-                                    (json.dumps(d_items), new_status, 1 if all_processed else 0, worker_login, 1 if all_processed else 0, d['id'])
-                                )
-                        except Exception as inner_e:
-                            print("Błąd podczas przetwarzania pozycji w dostawie:", inner_e)
-                except Exception as e:
-                    print("Błąd podczas automatycznego przyjmowania dostawy ze skanera:", e)
+            if nr_palety and not is_split:
+                from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+                AcceptanceService.confirm_moved_pallet(conn.cursor(dictionary=True), conn, nr_palety, new_location, worker_login)
 
-            # --- AUTO-AKCEPTACJA PRZESUNIĘCIA OSIP ---
             try:
                 from app.services.osip_transfer_service import OsipTransferService
                 code_to_check = nr_palety or str(new_pallet_id)
-                OsipTransferService.auto_receive_pallet_by_code(code_to_check, new_location, worker_login)
-                if new_pallet_id and str(new_pallet_id) != str(code_to_check):
-                    OsipTransferService.auto_receive_pallet_by_code(str(new_pallet_id), new_location, worker_login)
+                if not is_split:
+                    OsipTransferService.auto_receive_pallet_by_code(code_to_check, new_location, worker_login, external_conn=conn)
             except Exception as osip_e:
-                print("Błąd podczas automatycznego przyjmowania transferu OSIP:", osip_e)
+                raise RuntimeError("Błąd potwierdzenia transferu OSIP") from osip_e
 
             # --- AUTO-KOMPLETACJA PRZY PRZESUNIĘCIU NA MP01 LUB PRODUKCJĘ ---
             from app.utils.location_validator import is_production_tank_code
-            if new_location == 'MP01' or is_production_tank_code(new_location):
-                try:
-                    from app.repositories.picking_repository import PickingRepository
-                    PickingRepository.auto_complete_pallet_if_pending(
-                        pallet_id=actual_pallet_id,
-                        nr_palety=target_pallet_sscc or nr_palety,
-                        user_login=worker_login
-                    )
-                except Exception as pick_e:
-                    print("Błąd podczas automatycznego oznaczania kompletacji:", pick_e)
+            if not is_split and (new_location == 'MP01' or is_production_tank_code(new_location)):
+                from app.repositories.picking_repository import PickingRepository
+                PickingRepository.auto_complete_pallet_if_pending(
+                    pallet_id=actual_pallet_id, nr_palety=target_pallet_sscc or nr_palety,
+                    user_login=worker_login, external_conn=conn)
             
             split_info = {
                 'is_split': bool(is_split),
@@ -490,11 +473,21 @@ class WarehouseV2Service:
                 col_qty = 'waga_netto'
 
             # 1. Pobierz dane
-            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", (pallet_id,))
             p = cursor.fetchone()
             if not p:
                 return False, "Paleta nie znaleziona."
             
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            from app.utils.location_validator import is_osip_location
+            if str(linia).upper() == 'OSIP' and not is_osip_location(p.get('lokalizacja')):
+                return False, 'Paleta nie znajduje się w magazynie OSIP.'
+            if str(linia).upper() != 'OSIP' and is_osip_location(p.get('lokalizacja')):
+                return False, 'Wydaj paletę z panelu magazynu OSIP.'
+            if not math.isfinite(float(p.get(col_qty) or 0)) or float(p.get(col_qty) or 0) <= 0 or 'OCZEK' in str(p.get('lokalizacja') or '').upper() or 'TRANZYCIE' in str(p.get('lokalizacja') or '').upper():
+                return False, 'Paleta jest zużyta albo oczekuje na odbiór.'
+            if PalletLockManager.has_protected_block(cursor, p.get('nr_palety')):
+                return False, 'Paleta jest zablokowana albo zarezerwowana w otwartym dokumencie.'
             if p.get('is_blocked'):
                 return False, "NIE MOŻNA WYDAĆ ZABLOKOWANEJ PALETY!"
             
@@ -513,11 +506,14 @@ class WarehouseV2Service:
                     "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'WYDANIE', %s, 'EXPEDITION', %s, %s)",
                     (pallet_id, p.get('nr_palety'), linia, pallet_type.lower(), p.get('lokalizacja'), f"Wydanie palety z {p.get('lokalizacja')}", worker_login)
                 )
-            except Exception as e:
-                print("Błąd zapisu historii:", e)
+            except Exception:
+                raise
 
             conn.commit()
             return True, "Paleta została wydana i zarchiwizowana."
+        except Exception as error:
+            conn.rollback()
+            return False, f'Nie udało się wydać palety: {error}'
         finally:
             conn.close()
 

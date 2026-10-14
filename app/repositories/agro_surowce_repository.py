@@ -1,10 +1,12 @@
 from app.repositories.agro_tanks_repository import AgroTanksRepository
 import logging
 from app.db import get_db_connection, get_table_name
+from app.utils.location_validator import validate_warehouse_location
 import datetime
 import os
 import re
 
+logger = logging.getLogger(__name__)
 _DODATEK_NAME_REGEX = re.compile(r'DODATEK')
 
 def _normalize_tank_code(value):

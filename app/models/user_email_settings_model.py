@@ -10,9 +10,9 @@ from typing import Optional
 class UserEmailSettingsModel:
     id: Optional[int] = None
     user_id: int = 0
-    smtp_server: str = "smtp.wp.pl"
+    smtp_server: str = ""
     smtp_port: int = 465
-    smtp_security: str = "SSL"  # SSL, TLS, NONE
+    smtp_security: str = "SSL"  # SSL, TLS
     smtp_username: str = ""
     smtp_password: str = ""
     sender_name: Optional[str] = None

@@ -54,7 +54,7 @@
     function updateDosypkiBadge(planId, delta) {
         if (!planId) return;
         debugLog('[dosypki.badge] Updating badge for plan:', planId, 'delta:', delta);
-        const triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+        const triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]:not([data-szarza-id])');
         if (!triggers || triggers.length === 0) {
             debugWarn('[dosypki.badge] Trigger button not found for plan:', planId);
             return;
@@ -113,7 +113,7 @@
     function renderActionCell(d, role, initialDisabled = false) {
         if (role === 'masteradmin' || role === 'operator' || role === 'pracownik' || role === 'produkcja' || role === 'lider' || role === 'admin' || role === 'zarzad') {
             const disabledAttr = initialDisabled ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : '';
-            return '<button class="dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm" ' + disabledAttr + '>✓ Potwierdź</button>';
+            return '<button type="button" class="dosypka-confirm-btn" data-id="' + d.id + '" data-action="confirm" ' + disabledAttr + '>✓ Potwierdź</button>';
         }
         return '';
     }
@@ -243,6 +243,21 @@
         }
     }
 
+    function showConfirmMessage(container, message, success) {
+        let feedback = container.querySelector('.dosypki-confirm-message');
+        if (!feedback) {
+            feedback = document.createElement('div');
+            feedback.className = 'dosypki-confirm-message';
+            feedback.setAttribute('role', 'status');
+            container.appendChild(feedback);
+        }
+        feedback.textContent = message;
+        feedback.style.color = success ? '#047857' : '#b91c1c';
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, success ? 'success' : 'danger');
+        }
+    }
+
     async function confirmDosypka(id, btn) {
         let originalText = null;
         const container = btn.closest && btn.closest('.p-15') ? btn.closest('.p-15') : document;
@@ -255,11 +270,7 @@
                 const rawVal = (actualInput.value || '').replace(',', '.').trim();
                 const parsed = parseFloat(rawVal);
                 if (isNaN(parsed) || parsed <= 0) {
-                    if (typeof AppDialog !== 'undefined' && AppDialog.alert) {
-                        AppDialog.alert('Wpisz prawidłową wagę wydozowaną przez maszynę (większą od 0 kg)!');
-                    } else {
-                        alert('Wpisz prawidłową wagę wydozowaną przez maszynę (większą od 0 kg)!');
-                    }
+                    showConfirmMessage(container, 'Wpisz prawidłową wagę wydozowaną przez maszynę (większą od 0 kg)!', false);
                     actualInput.focus();
                     return;
                 }
@@ -280,13 +291,13 @@
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
                 },
-                body: JSON.stringify({ kg: actualKg })
+                body: new URLSearchParams({ kg: actualKg }).toString()
             });
             const data = await res.json().catch(() => ({}));
 
-            if (res.ok) {
+            if (res.ok && data.success === true) {
                 // 1. Dynamic UI update: remove row and update badge
                 if (row) {
                     row.style.opacity = '0.5';
@@ -298,19 +309,25 @@
                     updateDosypkiBadge(planId, -1);
                 }
                 await fetchDosypki(container);
+                showConfirmMessage(container, data.message || 'Potwierdzono dosypkę.', true);
                 if (typeof window.performPartialReload === 'function') {
-                    window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-confirm' });
+                    await window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-confirm' });
+                }
+                if (window.dashboardAgroBanners && typeof window.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
+                    window.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
                 }
             } else {
                 btn.disabled = false;
                 if (originalText) btn.textContent = originalText;
-                AppDialog.alert((data && data.message) || 'Błąd podczas potwierdzania');
+                showConfirmMessage(container, data.message || (res.redirected
+                    ? 'Sesja wygasła. Zaloguj się ponownie i spróbuj zatwierdzić dosypkę.'
+                    : 'Nie udało się potwierdzić dosypki (HTTP ' + res.status + ').'), false);
             }
         } catch (e) {
             btn.disabled = false;
             try { if (originalText) btn.textContent = originalText; } catch (_) { }
             debugError('dosypki: confirm error', e);
-            AppDialog.alert('Błąd sieci');
+            showConfirmMessage(container, 'Nie udało się połączyć z serwerem. Dosypka nie została potwierdzona.', false);
         } finally {
             setConfirmOverlay(container, false);
         }
@@ -361,6 +378,7 @@
             const btn = ev.target.closest && ev.target.closest('button.dosypka-confirm-btn[data-id]');
             if (!btn) return;
             if (btn.disabled) return;
+            ev.preventDefault();
             const id = btn.getAttribute('data-id');
             if (!id) return;
 

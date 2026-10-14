@@ -1,5 +1,7 @@
+# cspell:words putaway sscc
 from app.db import get_db_connection, get_table_name
 import json
+import math
 from datetime import datetime
 import uuid
 import re
@@ -23,7 +25,22 @@ class AcceptanceResult(tuple):
 class AcceptanceService:
 
     @staticmethod
-    def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None):
+    def _get_internal_receipt_stock(cursor, table, number):
+        """Resolve and lock active stock without reviving an empty history row."""
+        cursor.execute(
+            f"SELECT id, stan_magazynowy FROM {table} "
+            "WHERE nr_palety = %s AND stan_magazynowy > 0 FOR UPDATE",
+            (number,),
+        )
+        rows = cursor.fetchall()
+        if len(rows) > 1:
+            raise ValueError(f"Niejednoznaczna paleta {number}: wiele aktywnych rekordów magazynowych")
+        if not rows:
+            raise ValueError(f"Paleta {number} nie istnieje w magazynie lub ma stan 0. Nie można jej przyjąć jako przesunięcia.")
+        return rows[0]
+
+    @staticmethod
+    def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None, expected_status=None, strict_putaway=False):
             def _clean_date(d_str):
                 if not d_str: return None
                 s = str(d_str).strip()
@@ -41,9 +58,16 @@ class AcceptanceService:
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
-                cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+                cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
                 dostawa = cursor.fetchone()
                 if not dostawa: return False, "Nie znaleziono przesunięcia", None
+                actual_status = str(dostawa.get('status') or '').upper()
+                if expected_status and actual_status != expected_status:
+                    return False, 'Status dostawy zmienił się. Odśwież odbiór.', None
+                if actual_status in ('SZKIC','AWIZOWANE','W_STREFIE_PRZYJEC'):
+                    return False, 'Najpierw zakończ przygotowanie dostawy i rozpocznij rozlokowanie.', None
+                if str(dostawa.get('status') or '').upper() in ('CANCELLED', 'COMPLETED'):
+                    return False, "Nie można przyjmować pozycji zamkniętego przesunięcia", None
 
                 lokalizacja = normalize_warehouse_location(lokalizacja) or str(lokalizacja or '').strip().upper()
                 if not lokalizacja:
@@ -52,7 +76,7 @@ class AcceptanceService:
                 # Walidacja: new_location NIE może być kodem zbiornika produkcyjnego
                 is_valid, error_msg = validate_warehouse_location(lokalizacja, allow_empty=False)
                 if not is_valid:
-                    return False, error_msg, None
+                    return False, error_msg
 
                 # Sprawdzenie ze słownikiem dozwolonych lokalizacji
                 try:
@@ -76,6 +100,13 @@ class AcceptanceService:
                 if not target: return False, "Nie znaleziono pozycji", None
                 if target.get('accepted'): return False, "Pozycja już przyjęta", None
                 if target.get('rejected'): return False, "Pozycja została odrzucona", None
+                if actual_status == 'PUTAWAY_IN_PROGRESS' and strict_putaway:
+                    suggested = target.get('putaway_suggested_location')
+                    from app.services.magazyn_dostawy.commands.putaway_suggestion_service import PutawaySuggestionService
+                    valid, error = PutawaySuggestionService.validate_putaway_location(lokalizacja, suggested, strict_mode=True)
+                    if not valid:
+                        return False, error, None
+
 
                 source_spot = str(target.get('sourceSpot') or '').strip().upper()
                 if not source_spot:
@@ -83,15 +114,20 @@ class AcceptanceService:
                     if fallback_source and fallback_source != 'WIELE':
                         source_spot = fallback_source
                 supplier = str(dostawa.get('supplier') or '').strip()
-                is_external = bool(supplier) or source_spot in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE') or str(dostawa.get('lokalizacja_z') or '').strip().upper() in ('DOSTAWA', 'OCZEKUJĄCE', 'OCZEKUJACE')
+                is_external = bool(supplier) or source_spot == 'DOSTAWA' or str(dostawa.get('lokalizacja_z') or '').strip().upper() == 'DOSTAWA'
                 is_manual = target.get('is_manual', False) or target.get('warehouseLookupSkipped', False)
+                if not is_external:
+                    destination = normalize_warehouse_location(target.get('targetSpot') or dostawa.get('lokalizacja_do'))
+                    # An open live movement receives its actual rack at scan time.
+                    if destination and destination != lokalizacja:
+                        return False, f'Paleta jest przeznaczona do {destination}. Nie można przyjąć jej na {lokalizacja}.', None
                 if not is_manual and source_spot and source_spot == lokalizacja:
                     return False, f"Nie można przyjąć na tę samą lokalizację ({lokalizacja}), z której przyjmujesz.", None
 
                 from app.utils.location_validator import validate_reception_warehouse_destination
                 is_dest_valid, dest_err_msg = validate_reception_warehouse_destination(
                     source_location=source_spot,
-                    planned_destination=dostawa.get('lokalizacja_do') or '',
+                    planned_destination=(dostawa.get('lokalizacja_do') or '') if is_external else (destination or lokalizacja),
                     putaway_location=lokalizacja,
                     is_external=is_external
                 )
@@ -129,7 +165,7 @@ class AcceptanceService:
                 # Resolve legacy/inconsistent documents by the physical SSCC
                 # (or source id), not by the document line. This prevents an
                 # AGRO/ALL document from updating a PSD row with the same id.
-                source_identity = target.get('sourcePalletId') or target.get('sourcePalletNo') or target.get('nr_palety')
+                source_identity = target.get('sourcePalletNo') or target.get('nr_palety') or target.get('sourcePalletId')
                 if source_identity and not source_table_hint:
                     if p_type_scanned in ('wyrob_gotowy', 'wyrób gotowy', 'wyrob gotowy', 'magazyn', 'produkcja'):
                         table_candidates, qty_column = sorted(allowed_got), 'waga_netto'
@@ -190,7 +226,7 @@ class AcceptanceService:
                         is_avail, err_msg = check_rack_location_availability(
                             lokalizacja,
                             current_nr_palety=nr_palety,
-                            product_name=product_name
+                            product_name=product_name, cursor=cursor
                         )
                         if not is_avail:
                             return False, err_msg, None
@@ -209,10 +245,16 @@ class AcceptanceService:
 
                 raw_qty = target.get('unitsPerPallet') or target.get('quantity') or target.get('netWeight') or target.get('ilosc') or 0
                 qty = float(raw_qty) if raw_qty else 0.0
+                if not math.isfinite(qty) or (is_external and qty <= 0):
+                    return False, 'Ilość przyjęcia musi być dodatnia i skończona.', None
 
                 if is_opk_pkg:
-                    cursor.execute(f"SELECT id FROM {table_opk} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
-                    exist_opk = cursor.fetchone()
+                    if not is_external:
+                        exist_opk = AcceptanceService._get_internal_receipt_stock(cursor, table_opk, nr_palety)
+                        source_pallet_id = exist_opk['id']
+                    else:
+                        cursor.execute(f"SELECT id FROM {table_opk} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                        exist_opk = cursor.fetchone()
                     if not exist_opk and is_external and source_pallet_id:
                         cursor.execute(f"SELECT id FROM {table_opk} WHERE id = %s LIMIT 1", (source_pallet_id,))
                         exist_opk = cursor.fetchone()
@@ -222,7 +264,7 @@ class AcceptanceService:
                             UPDATE {table_opk}
                             SET stan_magazynowy = %s, lokalizacja = %s, nazwa = %s, nr_partii = %s,
                                 data_produkcji = %s, data_przydatnosci = %s, nr_palety = %s,
-                                typ_opakowania = %s, is_blocked = 0, updated_at = NOW()
+                                typ_opakowania = %s, updated_at = NOW()
                             WHERE id = %s
                         """, (qty, lokalizacja, product_name, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, pallet_id))
                     else:
@@ -252,7 +294,7 @@ class AcceptanceService:
                         pallet_id = exist_got['id']
                         cursor.execute(f"""
                             UPDATE {table_got}
-                            SET lokalizacja = %s, waga_netto = %s, is_blocked = 0, is_loaded = 0
+                            SET lokalizacja = %s, waga_netto = %s
                             WHERE id = %s
                         """, (lokalizacja, qty, pallet_id))
                     else:
@@ -268,8 +310,12 @@ class AcceptanceService:
                     if not is_valid_surowiec(product_name):
                         return False, f"Surowiec '{product_name}' nie występuje w słowniku surowców. Nie można go przyjąć.", None
                     # Sprawdź, czy rekord palety już istnieje (np. utworzony w OCZEKUJĄCYCH lub podczas zwrotu)
-                    cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
-                    exist_sur = cursor.fetchone()
+                    if not is_external:
+                        exist_sur = AcceptanceService._get_internal_receipt_stock(cursor, table_sur, nr_palety)
+                        source_pallet_id = exist_sur['id']
+                    else:
+                        cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
+                        exist_sur = cursor.fetchone()
                     if not exist_sur and is_external and source_pallet_id:
                         cursor.execute(f"SELECT id, stan_magazynowy FROM {table_sur} WHERE id = %s LIMIT 1", (source_pallet_id,))
                         exist_sur = cursor.fetchone()
@@ -281,7 +327,7 @@ class AcceptanceService:
                             UPDATE {table_sur}
                             SET stan_magazynowy = %s, lokalizacja = %s, nazwa = %s, nr_partii = %s,
                                 data_produkcji = %s, data_przydatnosci = %s, nr_palety = %s, typ_opakowania = %s,
-                                is_blocked = 0, updated_at = NOW()
+                                updated_at = NOW()
                             WHERE id = %s
                         """, (qty, lokalizacja, product_name, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, pallet_id))
                     else:
@@ -305,6 +351,11 @@ class AcceptanceService:
                      (table_got if p_type == 'wyrob_gotowy' else table_sur))
                 )
                 target['sourcePalletId'] = pallet_id
+                if actual_status == 'PUTAWAY_IN_PROGRESS':
+                    target['putaway_confirmed_location'] = lokalizacja
+                    target['putaway_confirmed_by'] = login
+                    target['putaway_confirmed_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    target['pallet_status'] = 'STORED'
                 target['accepted'] = True
                 target['accepted_by'] = login
                 target['accepted_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -316,27 +367,30 @@ class AcceptanceService:
 
                 # Zwalniamy blokadę dla przyjętej palety źródłowej i nowej palety (dla obu linii PSD i AGRO)
                 from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
-                PalletLockManager.set_pallets_blocked(cursor, [target], 0)
+                PalletLockManager.set_pallets_blocked(cursor, [target], 0, exclude_delivery_id=dostawa_id)
 
                 # 3. Empty the source spot ONLY for internal transfers where source pallet is a SEPARATE row
                 source_spot = str(target.get('sourceSpot') or '').strip().upper()
                 is_partial = target.get('is_partial', False)
                 is_return = target.get('is_return', False)
                 if not is_external and source_spot and not is_partial and not is_return:
-                    # ONLY zero the source pallet if it is a DIFFERENT record from the newly created destination pallet
+                    source_table = source_table_hint or (table_opk if is_opk_pkg else
+                        (table_got if p_type == 'wyrob_gotowy' else
+                         ('magazyn_dodatki' if p_type == 'dodatek' else table_sur)))
+                    source_quantity = 'waga_netto' if source_table in allowed_got else 'stan_magazynowy'
+                    # Numeric ids belong to one physical table, never to every stock table.
                     if source_pallet_id and str(source_pallet_id) != str(pallet_id):
-                        cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                        cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                        cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE id = %s", (source_pallet_id,))
-                        if p_type == 'wyrob_gotowy':
-                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE id = %s", (source_pallet_id,))
+                        cursor.execute(f"UPDATE {source_table} SET {source_quantity}=0 WHERE id=%s AND lokalizacja=%s",
+                                       (source_pallet_id, source_spot))
                     elif not source_pallet_id and source_spot != lokalizacja:
-                        # Fallback for old manual transfers without sourcePalletId
-                        cursor.execute(f"UPDATE {table_sur} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
-                        cursor.execute(f"UPDATE {table_opk} SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
-                        cursor.execute(f"UPDATE magazyn_dodatki SET stan_magazynowy = 0 WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0 LIMIT 1", (source_spot, product_name))
-                        if p_type == 'wyrob_gotowy':
-                            cursor.execute(f"UPDATE {table_got} SET waga_netto = 0 WHERE lokalizacja = %s AND produkt = %s AND waga_netto > 0 LIMIT 1", (source_spot, product_name))
+                        source_name = 'produkt' if source_table in allowed_got else 'nazwa'
+                        cursor.execute(f"SELECT id FROM {source_table} WHERE lokalizacja=%s AND {source_name}=%s AND {source_quantity}>0 FOR UPDATE",
+                                       (source_spot, product_name))
+                        sources = cursor.fetchall()
+                        if len(sources) > 1:
+                            raise ValueError('Wiele palet w lokalizacji źródłowej. Wskaż dokładny kod palety.')
+                        if sources:
+                            cursor.execute(f"UPDATE {source_table} SET {source_quantity}=0 WHERE id=%s", (sources[0]['id'],))
                 
                 # Log to palety_historia
                 action_name = 'PRZYJECIE_ZWROT' if is_return else 'PRZYJECIE'
@@ -356,7 +410,7 @@ class AcceptanceService:
                     raise RuntimeError("Nie udało się zapisać historii przyjęcia palety")
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
-                new_status = 'COMPLETED' if all_processed else 'OCZEKUJE'
+                new_status = 'COMPLETED' if all_processed else ('PUTAWAY_IN_PROGRESS' if actual_status == 'PUTAWAY_IN_PROGRESS' else 'OCZEKUJE')
 
                 cursor.execute(
                     """
@@ -374,41 +428,8 @@ class AcceptanceService:
                 )
                 conn.commit()
                 
-                # --- AUTO DRUKOWANIE ETYKIET (2 SZT) W TLE ---
-                if printer_ip and printer_name:
-                    try:
-                        import threading
-                        import requests
-                        import urllib3
-                        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-                        payload = {
-                            "drukarka": printer_name,
-                            "ip": printer_ip,
-                            "typ": p_type,
-                            "copies": 2,
-                            "dane": {
-                                "palletData": {
-                                    "nrPalety": nr_palety,
-                                    "productName": product_name,
-                                    "batchNumber": nr_partii or '---',
-                                    "productionDate": str(data_produkcji) if data_produkcji else '---',
-                                    "expiryDate": str(data_przydatnosci) if data_przydatnosci else '---',
-                                    "currentWeight": qty,
-                                    "labNotes": "Dostawa Przyjęta",
-                                    "copies": 2
-                                }
-                            }
-                        }
-                        def run_print():
-                            url = "http://127.0.0.1:3001/drukuj-zpl"
-                            try:
-                                requests.post(url, json=payload, verify=False, timeout=5)
-                            except Exception:
-                                pass
-                        threading.Thread(target=run_print, daemon=True).start()
-                    except Exception as e:
-                        print(f"Błąd uruchomienia wątku drukowania: {e}")
-                # --- KONIEC AUTO DRUKU ---
+                # Label dispatch is handled by secure_accept_item after this transaction.
+
 
                 return True, "", {
                     "all_accepted": all_processed,
@@ -424,6 +445,44 @@ class AcceptanceService:
                 return False, str(e), None
             finally:
                 conn.close()
+
+    @staticmethod
+    def confirm_moved_pallet(cursor, connection, number, location, login):
+        """Confirm a full physical move in the same transaction as its stock."""
+        from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+        number = str(number or '').strip().upper()
+        if not number:
+            return
+        cursor.execute("SELECT id,items FROM magazyn_dostawy WHERE status IN ('OCZEKUJE','IN_PROGRESS') FOR UPDATE")
+        matched = []
+        for delivery in cursor.fetchall():
+            items = json.loads(delivery.get('items') or '[]')
+            pending = [item for item in items if
+                       str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper() == number
+                       and not (item.get('accepted') or item.get('rejected'))]
+            if pending:
+                matched.append((delivery, items, pending))
+        if sum(len(pending) for _, _, pending in matched) > 1:
+            raise ValueError('Paleta pasuje do wielu pozycji przyjęcia; wybierz konkretny dokument')
+        for delivery, items, _ in matched:
+            changed, received = False, []
+            for item in items:
+                nr = str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper()
+                if nr == number and not (item.get('accepted') or item.get('rejected')):
+                    item.update(accepted=True,accepted_by=login,
+                                accepted_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                lokalizacja_przyjecia=location)
+                    received.append(item)
+                    changed = True
+            if not changed:
+                continue
+            complete = bool(items) and all(item.get('accepted') or item.get('rejected') for item in items)
+            cursor.execute("UPDATE magazyn_dostawy SET items=%s,status=%s, "
+                           "potwierdzone_przez=IF(%s,%s,potwierdzone_przez), "
+                           "potwierdzone_at=IF(%s,NOW(),potwierdzone_at) WHERE id=%s",
+                           (json.dumps(items),'COMPLETED' if complete else 'OCZEKUJE',
+                            complete,login,complete,delivery['id']))
+            PalletLockManager.set_pallets_blocked(cursor,received,0,exclude_delivery_id=delivery['id'])
 
     @staticmethod
     def auto_accept_by_pallet_no(nr_palety, nowa_lokalizacja, login):
@@ -459,12 +518,12 @@ class AcceptanceService:
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
-                cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s", (dostawa_id,))
+                cursor.execute("SELECT * FROM magazyn_dostawy WHERE id = %s FOR UPDATE", (dostawa_id,))
                 dostawa = cursor.fetchone()
                 if not dostawa:
                     return False, "Nie znaleziono przesunięcia", None
-                if str(dostawa.get('status') or '').upper() == 'CANCELLED':
-                    return False, "Przesunięcie jest już anulowane", None
+                if str(dostawa.get('status') or '').upper() in ('CANCELLED', 'COMPLETED'):
+                    return False, "Nie można odrzucać pozycji zamkniętego przesunięcia", None
 
                 items = json.loads(dostawa.get('items') or '[]')
                 target = next((i for i in items if str(i.get('id')) == str(item_id)), None)
@@ -476,61 +535,36 @@ class AcceptanceService:
                     return False, "Pozycja już odrzucona", None
 
                 linia = dostawa['linia']
-                table_sur = get_table_name('magazyn_surowce', linia)
-                table_opk = get_table_name('magazyn_opakowania', linia)
-
-                source_spot = str(target.get('sourceSpot') or '').strip().upper()
+                source_spot = normalize_warehouse_location(target.get('sourceSpot') or '')
                 if not source_spot:
-                    fallback_source = str(dostawa.get('lokalizacja_z') or '').strip().upper()
-                    if fallback_source and fallback_source != 'WIELE':
+                    fallback_source = normalize_warehouse_location(dostawa.get('lokalizacja_z') or '')
+                    if fallback_source != 'WIELE':
                         source_spot = fallback_source
-                original_spot = str(target.get('originalSpot') or '').strip().upper()
-                product_name = target.get('productName') or ''
-                pallet_id = target.get('sourcePalletId')
+                original_spot = normalize_warehouse_location(target.get('originalSpot') or '')
                 pallet_no = str(target.get('sourcePalletNo') or target.get('nr_palety') or '').strip()
-                scanned_type = str(target.get('scannedType') or '').strip().lower()
-                package_form = str(target.get('packageForm') or '').strip().lower()
-                unit_type = str(target.get('unit') or '').strip().lower()
-
-                default_is_packaging = scanned_type == 'opakowanie' or package_form in ('packaging', 'tasma', 'taśma', 'karton') or unit_type == 'szt'
-                default_table = table_opk if default_is_packaging else table_sur
-                fallback_table = table_sur if default_is_packaging else table_opk
                 restored = False
-                restored_type = 'opakowanie' if default_is_packaging else 'surowiec'
-
-                def _try_restore_on_table(table_name):
-                    if pallet_id not in (None, ''):
-                        cursor.execute(
-                            f"UPDATE {table_name} SET lokalizacja = %s WHERE id = %s AND lokalizacja = %s",
-                            (original_spot, pallet_id, source_spot)
-                        )
-                        if cursor.rowcount > 0:
-                            return True
-
-                    if pallet_no:
-                        cursor.execute(
-                            f"UPDATE {table_name} SET lokalizacja = %s WHERE lokalizacja = %s AND nr_palety = %s AND stan_magazynowy > 0",
-                            (original_spot, source_spot, pallet_no)
-                        )
-                        if cursor.rowcount > 0:
-                            return True
-
-                    if product_name:
-                        cursor.execute(
-                            f"UPDATE {table_name} SET lokalizacja = %s WHERE lokalizacja = %s AND nazwa = %s AND stan_magazynowy > 0",
-                            (original_spot, source_spot, product_name)
-                        )
-                        if cursor.rowcount > 0:
-                            return True
-
-                    return False
-
+                restored_type = None
+                pallet_id = None
                 if source_spot and original_spot and source_spot != original_spot:
-                    restored = _try_restore_on_table(default_table)
-                    if not restored:
-                        restored = _try_restore_on_table(fallback_table)
-                        if restored:
-                            restored_type = 'surowiec' if default_is_packaging else 'opakowanie'
+                    from app.services.magazyn_dostawy.commands.internal_transfer_processor import InternalTransferProcessor
+                    from app.utils.location_validator import check_rack_location_availability
+                    if not pallet_no:
+                        raise ValueError('Brak SSCC do bezpiecznego cofnięcia odrzuconej palety')
+                    row, restored_type, table = InternalTransferProcessor._find_active_pallet_by_sscc(cursor, pallet_no, linia)
+                    if not row:
+                        raise ValueError(f'Nie znaleziono aktywnej palety {pallet_no}')
+                    pallet_id = row['id']
+                    if normalize_warehouse_location(row.get('lokalizacja') or '') == source_spot:
+                        available, error = check_rack_location_availability(
+                            original_spot, current_nr_palety=pallet_no,
+                            product_name=row.get('nazwa') or row.get('produkt'), cursor=cursor)
+                        if not available:
+                            raise ValueError(error)
+                        quantity_column = 'waga_netto' if restored_type == 'wyrob_gotowy' else 'stan_magazynowy'
+                        cursor.execute(f'UPDATE {table} SET lokalizacja=%s WHERE id=%s AND nr_palety=%s '
+                                       f'AND lokalizacja=%s AND {quantity_column}>0',
+                                       (original_spot, pallet_id, row['nr_palety'], source_spot))
+                        restored = cursor.rowcount == 1
 
                 normalized_reason = str(reason or '').strip() or 'Brak palety do przyjęcia'
                 target['rejected'] = True
@@ -539,12 +573,12 @@ class AcceptanceService:
                 target['rejected_reason'] = normalized_reason
                 # Zwalniamy blokadę dla odrzuconej palety
                 from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
-                PalletLockManager.set_pallets_blocked(cursor, [target], 0)
+                PalletLockManager.set_pallets_blocked(cursor, [target], 0, exclude_delivery_id=dostawa_id)
 
                 if restored:
                     cursor.execute(
-                        "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, 'TRANSFER_REJECT_ITEM', %s, %s, %s, %s)",
-                        (pallet_id if pallet_id not in (None, '') else None, linia, restored_type, source_spot, original_spot, f"Odrzucenie pozycji: {normalized_reason}", login)
+                        "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login) VALUES (%s, %s, %s, %s, 'TRANSFER_REJECT_ITEM', %s, %s, %s, %s)",
+                        (pallet_id, pallet_no, linia, restored_type, source_spot, original_spot, f"Odrzucenie pozycji: {normalized_reason}", login)
                     )
 
                 all_processed = all(i.get('accepted') or i.get('rejected') for i in items)
@@ -577,6 +611,7 @@ class AcceptanceService:
                     "restored": restored,
                 }
             except Exception as e:
+                conn.rollback()
                 return False, str(e), None
             finally:
                 conn.close()
@@ -625,12 +660,12 @@ class AcceptanceService:
                         params.append(pallet_id_int)
 
                     query = f"""
-                        SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu
+                        SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu, plan.nr_partii AS plan_batch, plan.data_produkcji AS plan_production_date, plan.termin_przydatnosci AS plan_expiry
                         FROM {t_prod} p
                         LEFT JOIN {t_plan} plan ON p.plan_id = plan.id
                         WHERE ({' OR '.join(where_clauses)})
                           AND (p.status = 'do_przyjecia' OR p.status IS NULL OR p.status = '')
-                        ORDER BY p.id DESC LIMIT 1
+                        ORDER BY p.id DESC LIMIT 1 FOR UPDATE
                     """
                     cursor.execute(query, tuple(params))
                     p_row = cursor.fetchone()
@@ -655,11 +690,11 @@ class AcceptanceService:
                             params.append(pallet_id_int)
 
                         query = f"""
-                            SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu
+                            SELECT p.*, plan.produkt as produkt_nazwa, plan.data_planu, plan.nr_partii AS plan_batch, plan.data_produkcji AS plan_production_date, plan.termin_przydatnosci AS plan_expiry
                             FROM {t_prod} p
                             LEFT JOIN {t_plan} plan ON p.plan_id = plan.id
                             WHERE ({' OR '.join(where_clauses)})
-                            ORDER BY p.id DESC LIMIT 1
+                            ORDER BY p.id DESC LIMIT 1 FOR UPDATE
                         """
                         cursor.execute(query, tuple(params))
                         p_row = cursor.fetchone()
@@ -683,7 +718,7 @@ class AcceptanceService:
                 except (TypeError, ValueError):
                     confirmed_netto = float(pallet.get('waga') or 0)
 
-                if confirmed_netto <= 0:
+                if not math.isfinite(confirmed_netto) or confirmed_netto <= 0:
                     return False, "Brak poprawnej wagi netto palety do przyjęcia."
 
                 # 2. Update production table status
@@ -692,37 +727,18 @@ class AcceptanceService:
                     (datetime.now(), confirmed_netto, login, actual_pallet_id),
                 )
                 
-                # 3. Insert into unified warehouse table
-                fk_col = 'paleta_workowanie_id'
-                cursor.execute(f"SELECT id FROM magazyn_palety WHERE {fk_col} = %s AND linia = %s", (actual_pallet_id, linia))
-                existing = cursor.fetchone()
-                
-                if existing:
-                    cursor.execute(
-                        "UPDATE magazyn_palety SET lokalizacja = %s, data_potwierdzenia = %s, user_login = %s, waga_netto = %s, linia = %s WHERE id = %s",
-                        (lokalizacja, datetime.now(), login, confirmed_netto, linia, existing['id']),
-                    )
-                else:
-                    cursor.execute(f"""
-                        INSERT INTO magazyn_palety 
-                        ({fk_col}, plan_id, data_planu, produkt, waga_netto, waga_brutto, tara, lokalizacja, user_login, nr_palety, linia)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (actual_pallet_id, 
-                          pallet.get('plan_id'), 
-                          pallet.get('data_planu'), 
-                          pallet.get('produkt_nazwa') or pallet.get('produkt') or '', 
-                          confirmed_netto, 
-                          float(pallet.get('waga_brutto') or 0), 
-                          float(pallet.get('tara') or 0), 
-                          lokalizacja, login, 
-                          pallet.get('nr_palety'),
-                          linia))
-
-                # 4. Log history
-                cursor.execute("""
-                    INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, lokalizacja_zrodlowa, lokalizacja_docelowa, komentarz, user_login)
-                    VALUES (%s, %s, 'wyrob_gotowy', 'PRZYJECIE_WG', 'OCZEKUJĄCE', %s, %s, %s)
-                """, (actual_pallet_id, linia, lokalizacja, f"Przyjęcie WG z OCZEKUJĄCE: {pallet.get('produkt_nazwa') or pallet.get('produkt') or ''}", login))
+                from app.services.pallets.finished_goods_receipt import FinishedGoodsReceipt
+                FinishedGoodsReceipt.write(
+                    conn,line=linia,production_id=actual_pallet_id,code=pallet.get('nr_palety'),
+                    product=pallet.get('produkt_nazwa') or pallet.get('produkt') or '',
+                    quantity=confirmed_netto,location=lokalizacja,login=login,
+                    plan_id=pallet.get('plan_id'),plan_date=pallet.get('data_planu'),
+                    gross=float(pallet.get('waga_brutto') or 0),tare=float(pallet.get('tara') or 0),
+                    seal=pallet.get('nr_plomby'),sequence=pallet.get('nr_palety_lp'),
+                    batch=pallet.get('nr_partii') or pallet.get('plan_batch'),
+                    production_date=pallet.get('data_produkcji') or pallet.get('plan_production_date'),
+                    expiry=pallet.get('data_przydatnosci') or pallet.get('plan_expiry'),
+                )
 
                 conn.commit()
                 
@@ -779,6 +795,12 @@ class AcceptanceService:
                 msg = "Zlecenie zamknięte - przyjęto ostatnią paletę. Raport z produkcji został otwarty do wydruku." if is_last_pallet else "Paleta została przyjęta do magazynu."
                 return AcceptanceResult(True, msg, open_report_url=open_report_url, plan_id=plan_id, is_last_pallet=is_last_pallet)
             except Exception as e:
+                conn.rollback()
                 return False, str(e)
             finally:
-                conn.close()
+                # Release locks on early returns and any read transaction opened
+                # after commit before returning the connection to the pool.
+                try:
+                    conn.rollback()
+                finally:
+                    conn.close()

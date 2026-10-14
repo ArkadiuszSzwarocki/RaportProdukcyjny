@@ -1,7 +1,7 @@
 import re
 import json
 from datetime import datetime
-from app.db import get_db_connection
+from app.db import get_db_connection, get_table_name
 
 class PalletHistoryService:
     @staticmethod
@@ -92,7 +92,9 @@ class PalletHistoryService:
             if is_finished_good:
                 target_buf = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
                 other_buf = 'palety_agro' if target_buf == 'palety_workowanie' else 'palety_workowanie'
-                search_tables = ['magazyn_palety', target_buf, other_buf]
+                target_warehouse = get_table_name('magazyn_palety', linia)
+                other_warehouse = 'magazyn_palety_agro' if target_warehouse == 'magazyn_palety' else 'magazyn_palety'
+                search_tables = [target_warehouse, target_buf, other_warehouse, other_buf]
             elif 'surow' in p_type_norm:
                 search_tables = ['magazyn_surowce', 'magazyn_agro_surowce']
             elif 'opakow' in p_type_norm:
@@ -102,7 +104,10 @@ class PalletHistoryService:
 
             for tbl in search_tables:
                 try:
-                    cursor.execute(f"SELECT * FROM {tbl} WHERE id = %s OR nr_palety = %s LIMIT 1", (pallet_id, str(pallet_id)))
+                    if nr_pal_sscc:
+                        cursor.execute(f"SELECT * FROM {tbl} WHERE nr_palety = %s LIMIT 1", (nr_pal_sscc,))
+                    else:
+                        cursor.execute(f"SELECT * FROM {tbl} WHERE id = %s OR nr_palety = %s LIMIT 1", (pallet_id, str(pallet_id)))
                     row_found = cursor.fetchone()
                     if row_found:
                         real_id = row_found.get('id')
@@ -212,7 +217,7 @@ class PalletHistoryService:
 
             # 3. Fetch finished goods confirmation events strictly by SSCC
             if is_finished_good:
-                for t_pal in ['magazyn_palety']:
+                for t_pal in ['magazyn_palety', 'magazyn_palety_agro']:
                     try:
                         if target_sscc:
                             cursor.execute(f"""

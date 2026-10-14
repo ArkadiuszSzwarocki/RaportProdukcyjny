@@ -2,6 +2,7 @@
 Testy integracyjne dla tras HTTP/API Blueprintu OSIP.
 """
 from unittest.mock import patch
+from types import SimpleNamespace
 import pytest
 
 
@@ -25,9 +26,10 @@ def test_osip_warehouse_view_unauthenticated(client):
 
 def test_osip_warehouse_view_authenticated(osip_logged_client):
     """Zalogowany użytkownik wchodzący na /osip/warehouse zostaje przekierowany do ujednoliconego widoku warehouse_v2 (zakladka=OSIP)."""
-    response = osip_logged_client.get('/osip/warehouse', follow_redirects=True)
-    assert response.status_code == 200
-    assert "Wszystkie Magazyny" in response.get_data(as_text=True) or "OSIP" in response.get_data(as_text=True)
+    response = osip_logged_client.get('/osip/warehouse')
+    assert response.status_code == 302
+    assert '/warehouse-v2/' in response.location
+    assert 'zakladka=OSIP' in response.location
 
 
 def test_osip_inventory_api(osip_logged_client):
@@ -67,7 +69,9 @@ def test_osip_scan_receive_api(osip_logged_client):
         "total_count": 17,
         "completed": False
     }
-    with patch('app.blueprints.osip.routes.transfer_service.receive_single_item', return_value=mock_result):
+    with patch('app.blueprints.osip.routes.transfer_service.repository.get_transfer_by_id',
+               return_value=SimpleNamespace(source_warehouse='MS01', destination_warehouse='OSIP')), \
+         patch('app.blueprints.osip.routes.transfer_service.receive_single_item', return_value=mock_result):
         response = osip_logged_client.post(
             '/osip/api/transfers/1/scan_receive',
             json={"pallet_code": "SUR000001785221455251", "target_location": "OS05"}
@@ -76,3 +80,23 @@ def test_osip_scan_receive_api(osip_logged_client):
         json_resp = response.get_json()
         assert json_resp["success"] is True
         assert json_resp["location"] == "OS05"
+
+
+def test_receiving_permission_uses_destination_warehouse(osip_logged_client):
+    with patch('app.blueprints.osip.routes.transfer_service.repository.get_transfer_by_id',
+               return_value=SimpleNamespace(source_warehouse='OSIP', destination_warehouse='MS01')), \
+         patch('app.core.production_permissions._page_allowed', return_value=False) as allowed, \
+         patch('app.blueprints.osip.routes.transfer_service.begin_receiving') as begin:
+        response = osip_logged_client.post('/osip/api/transfers/1/begin_receive')
+        assert response.status_code == 403
+        allowed.assert_called_once_with('AGRO', 'magazyn', write=True)
+        begin.assert_not_called()
+
+
+def test_create_transfer_permission_uses_source_warehouse(osip_logged_client):
+    with patch('app.core.production_permissions._page_allowed', return_value=False) as allowed, \
+         patch('app.blueprints.osip.routes.transfer_service.create_transfer_order') as create:
+        response = osip_logged_client.post('/osip/api/transfers', json={'source_warehouse': 'MS01'})
+        assert response.status_code == 403
+        allowed.assert_called_once_with('AGRO', 'magazyn', write=True)
+        create.assert_not_called()

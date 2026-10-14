@@ -1,502 +1,140 @@
-# Biblioteka - System Zarządzania Produkcją Agronetzwerk
+# RaportProdukcyjny
 
-System webowy do zarządzania produkcją i planowaniem oraz do raportowania
-zdarzeń w zakładzie produkcyjnym.
+System webowy Flask do obsługi produkcji, magazynu, planowania, jakości, raportowania, skanowania kodów oraz procesów paletowych.
 
-## 📋 Funkcjonalności
+## Główne moduły
 
-### Dla Wszystkich Użytkowników
+- planowanie i realizacja produkcji;
+- gospodarka magazynowa dla surowców, opakowań i wyrobów gotowych;
+- kompletacja FIFO i kalkulator zapotrzebowania;
+- przyjęcia, przesunięcia, skanery QR/SSCC i inwentaryzacja;
+- raporty jakości, HR i raporty zmianowe;
+- druk etykiet przez lokalny, uwierzytelniony mostek druku;
+- role i uprawnienia użytkowników.
 
-- ✅ Logowanie z różnymi poziomami uprawnień (Admin, Lider, Planista, Pracownik)
-- � **NOWOŚĆ: Logowanie przez QR** - skanowanie kodów QR aparatem telefonu/tabletu
-- 📊 Podgląd planu produkcji z podziałem na sekcje (Zasyp, Workowanie, Magazyn)
-- 📅 Nawigacja po datach — przeglądanie historii i planowanie przyszłych zdarzeń
-- 🚨 Zgłaszanie problemów produkcyjnych (awarie, postoje, mikro-zatrzymania, usterki)
-- 👷 Zarządzanie obsadą zmianową
-- 📷 **Skanowanie kodów QR** - etykiet palet, lokalizacji magazynowych aparatem
+## Wymagania
 
-### Dla Planisty
+- Python 3.11;
+- MySQL 8 / zgodna instancja MySQL;
+- `pip`;
+- opcjonalnie Docker lub Kubernetes.
 
-- 📝 Dodawanie planów produkcji
-- ✏️ Edycja tonażu planowanego i rzeczywistego
-- 📈 Eksport raportów do Excel
-- 📊 Dostęp do raportów okresowych
-
-### Dla Lidera
-
-- 👑 Wszystkie uprawnienia Planisty
-- ▶️ Rozpoczynanie i kończenie zleceń produkcyjnych
-- 🔄 Zarządzanie przejściami/zmianami
-- 📋 Raportowanie HR (nieobecności, nadgodziny)
-- ✔️ Zamykanie i zatwierdzanie zmian
-- 🗑️ Usuwanie wpisów
-
-### Dla Admina
-
-- ⚙️ Panel administracyjny
-- 👥 Zarządzanie pracownikami (dodawanie, edycja, usuwanie)
-- 🔐 Zarządzanie kontami użytkowników
-- 📊 Pełny dostęp do wszystkich funkcji
-
-## 🛠️ Technologie
-
-- **Backend**: Flask 3.0.0 (Python)
-- **Baza danych**: MySQL/MariaDB
-- **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
-- **Wykresy**: Chart.js
-- **Export**: Pandas + OpenPyXL (Excel)
-
-## 📦 Instalacja
-
-### Wymagania
-
-- Python 3.8+
-- MySQL/MariaDB Server
-- pip (menedżer pakietów Python)
-
-### Kroki instalacji
-
-1. **Sklonuj repozytorium** (lub pobierz pliki)
-
-```bash
-cd C:\path\to\RaportProdukcyjny
-```
-
-1. **Utwórz wirtualne środowisko**
+## Instalacja lokalna
 
 ```bash
 python -m venv .venv
+# Windows:
 .venv\Scripts\activate
-```
+# Linux/macOS:
+# source .venv/bin/activate
 
-1. **Zainstaluj zależności**
-
-```bash
 pip install -r requirements.txt
-```
-
-#### Zależności developerskie
-
-Jeśli chcesz uruchamiać testy lokalnie lub w środowisku CI,
-zainstaluj zależności developerskie:
-
-```bash
 pip install -r requirements-dev.txt
 ```
 
-1. **Skonfiguruj bazę danych**
+Skopiuj `.env.example` do `.env` i ustaw wartości właściwe dla środowiska. Dane dostępowe, klucze szyfrujące, adresy infrastruktury i tokeny nie powinny być zapisywane w repozytorium.
 
-Edytuj plik `app.py` i dostosuj konfigurację bazy danych (linie 11-18):
+Minimalna konfiguracja:
 
-```python
-db_config = {
-    'host': '192.168.0.18',  # Adres serwera MySQL
-    'port': 3307,            # Port (domyślnie 3307)
-    'database': 'biblioteka',# Nazwa bazy
-    'user': 'biblioteka',    # Użytkownik
-    'password': 88888888888888,  # Hasło
-    'charset': 'utf8mb4'
-}
+```dotenv
+FLASK_ENV=development
+SECRET_KEY=<losowy-klucz-minimum-32-znaki>
+ENCRYPTION_KEY=<klucz-Fernet>
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=<uzytkownik-aplikacyjny>
+DB_PASSWORD=<haslo>
+DB_NAME=<nazwa-bazy>
+ENABLE_BACKGROUND_DAEMONS=true
 ```
 
-1. **Uruchom aplikację**
+Uruchomienie developerskie:
 
 ```bash
 python app.py
 ```
 
-Aplikacja będzie dostępna pod adresem: `http://localhost:5000`
+Produkcja używa Gunicorna zgodnie z `gunicorn.conf.py` i `wsgi.py`.
 
-## 🗄️ Struktura Bazy Danych
+## Bezpieczeństwo konfiguracji
 
-System automatycznie tworzy następujące tabele:
+W produkcji wymagane są:
 
-- **pracownicy** — lista pracowników
-- **uzytkownicy** — konta logowania
-- **dziennik_zmiany** — zgłoszenia problemów/awarii
-- **obsada_zmiany** — obsada pracowników na zmianach
-- **plan_produkcji** — plany i realizacja produkcji
-- **obecnosc** — raportowanie HR (nieobecności/nadgodziny)
-- **raporty_koncowe** — zamknięte zmiany z uwagami lidera
-- **palety** / **warehouse_v2_palety** — śledzenie stanów magazynowych, SSCC, wagi
-- **lokalizacje** — mapa magazynu, regały, gniazda
-- **inwentaryzacja** — zapisy inwentaryzacyjne (ślepe/jawne)
+- unikalny `SECRET_KEY` minimum 32 znaki;
+- osobny `ENCRYPTION_KEY` Fernet;
+- osobne hasła administratora MySQL i użytkownika aplikacyjnego;
+- TLS na reverse proxy / Ingress;
+- `TRUST_PROXY_HEADERS=true` tylko za rzeczywiście zaufanym proxy;
+- drukarki i ich adresy konfigurowane przez środowisko, nie w kodzie;
+- `PRINTER_BRIDGE_TOKEN` dla mostka druku;
+- sekrety w secret store, a nie w plikach śledzonych przez Git.
 
-## 📊 Moduły Systemu
+Aplikacja stosuje DB-backed session tracking, fail-closed validation sesji, kontrolę ról, ochronę same-origin dla żądań modyfikujących i ograniczenie zaufania do nagłówków proxy.
 
-### 1. Dashboard Produkcji (`/`)
+## Mostek druku
 
-- Podgląd planu produkcji na wybrany dzień
-- Śledzenie status zleceń (zaplanowane → w toku → zakończone)
-- Zgłaszanie problemów produkcyjnych
-- Zarządzanie obsadą zmianową
+Mostek `printer_server/server.py` domyślnie nasłuchuje tylko na `127.0.0.1`. Przy udostępnieniu poza localhost wymagany jest token i jawna lista drukarek.
 
-### 2. Gospodarka Magazynowa (v2) & Agro
-- Śledzenie surowców, opakowań, i wyrobów gotowych
-- Zarządzanie lokalizacjami magazynowymi (regały wysokiego składowania)
-- Cyfrowe zlecenia i przepływ komponentów do/z produkcji
+Przykładowa konfiguracja:
 
-### 3. Zintegrowane Skanery i Inwentaryzacja
-- Główne Skanery QR (obsługa terminali mobilnych z kamerą/fizycznym skanerem)
-- Inwentaryzacja Magazynu ("ślepa" i z systemem podpowiedzi)
-- Inwentaryzacja Produkcji (obsługa bufora)
-- Wbudowany system drukowania etykiet z kodami SSCC
-
-### 4. Panel Admina (`/admin`)
-
-- Zarządzanie pracownikami
-- Zarządzanie kontami użytkowników
-- Raportowanie HR
-
-### 5. Raporty Okresowe & Zarząd
-
-- Statystyki miesięczne i roczne
-- Wykresy trendów produkcji
-- Analiza awarii według kategorii
-- KPI produkcyjne (zlecenia, tony, czas pracy)
-
-### 6. Export Excel (`/export_excel`)
-
-- Raport dzienny zawierający:
-    - Arkusz "Produkcja" — plan i wykonanie
-    - Arkusz "Awarie" — problemy produkcyjne
-    - Arkusz "HR" — nieobecności i nadgodziny
-
-## 🏗️ Architektura i Serwisy
-
-### Service-Oriented Architecture
-
-Projekt wykorzystuje service-oriented architecture do organizacji logiki biznesowej.
-Serwisy enkapsulują złożone operacje biznesowe i ułatwiają testowanie oraz ponowne użycie kodu.
-
-#### **DashboardService** (`app/services/dashboard_service.py`)
-
-Odpowiada za agregację danych wyświetlanych na pulpicie głównym.
-
-**Główne metody:**
-- `get_basic_staff_data()` — dane dotyczące przypisania pracowników
-- `get_journal_entries()` — wpisy dziennika ze formatowaniem czasów
-- `get_warehouse_data()` — dane magazynu (palety, niezatwierdzenia)
-- `get_production_plans()` — plany produkcji z sumami
-- `get_hr_and_leave_data()` — dane HR (urlopy, nieobecności)
-- `get_quality_and_leave_requests()` — liczba raportów jakości i wnioski
-- `get_shift_notes()` — notatki zmian liderów
-- `get_full_plans_for_sections()` — pełne plany dla sekcji (Zasyp, Workowanie, Magazyn)
-
-**Przykład użycia:**
-```python
-from app.services.dashboard_service import DashboardService
-
-staff = DashboardService.get_basic_staff_data()
-plans = DashboardService.get_production_plans()
-warehouse = DashboardService.get_warehouse_data()
+```dotenv
+PRINTER_BRIDGE_URL=http://127.0.0.1:3001
+PRINTER_BRIDGE_TOKEN=<dlugi-losowy-token>
+PRINTER_IP_MAP_JSON={"Warehouse":"10.0.0.10"}
+PRINTER_BRIDGE_HOST=127.0.0.1
+PRINTER_BRIDGE_PORT=3001
 ```
 
-**Testowanie:** 15 jednostkowych testów w `tests/test_dashboard_service.py`
+Nie przekazuj dowolnego `IP:PORT` z przeglądarki. Mostek akceptuje wyłącznie cele znajdujące się w skonfigurowanej allowliście.
 
-#### **ReportGenerationService** (`app/services/report_generation_service.py`)
-
-Orchestruje workflow zamykania zmian i generowania raportów.
-
-**Główne metody:**
-- `close_shift_and_generate_reports(uwagi_lidera)` → Tuple[str, str]
-  - Główna metoda orchestrująca całe zamknięcie zmian
-  - Zwraca ścieżkę do ZIP'a z raportami lub `(None, None)` na błąd
-  
-- `_close_in_progress_orders(uwagi_lidera)` — zamyka wszystkie bieżące zlecenia w DB
-- `_generate_report_files()` → (xls, txt, pdf) — generuje pliki raportów
-- `_create_report_zip(xls, txt, pdf)` → str — pakuje raporty do ZIP'a
-- `_send_to_outlook(xls_path, uwagi_lidera)` — wysyła raport do Outlooka
-- `get_report_files_for_date(date)` → Dict — pobiera istniejące raporty
-- `delete_old_reports(days_keep)` → int — czyści stare raporty (domyślnie: 30 dni)
-
-**Przykład użycia:**
-```python
-from app.services.report_generation_service import ReportGenerationService
-
-# Zamknięcie zmian i generowanie raportów
-zip_path, mime_type = ReportGenerationService.close_shift_and_generate_reports('Notatki lidera')
-if zip_path:
-    return send_file(zip_path, as_attachment=True, mimetype=mime_type)
-```
-
-**Testowanie:** 16 jednostkowych testów w `tests/test_report_generation_service.py`
-
-### Struktura tras (Routes)
-
-Aplikacja wykorzystuje blueprinty Flask do organizacji tras:
-
-- `app/blueprints/routes_main.py` — główne trasy (dashboard, zamknięcie zmian)
-- `app/blueprints/routes_api.py` — API endpointy
-- `app/blueprints/routes_admin.py` — panel administracyjny
-
-Serwisy są wykorzystywane w trasach, co zmniejsza złożoność kontrolerów i ułatwia testowanie.
-
-## 🔒 Zabezpieczenia
-
-- Sesyjne zarządzanie użytkownikami
-- Kontrola dostępu oparta na rolach (RBAC)
-- Walidacja formularzy po stronie serwera i klienta
-- Ochrona przed SQL Injection (parametryzowane zapytania)
-
-## 🧪 Testowanie
-
-Projekt zawiera kompleksowy zestaw testów jednostkowych obejmujący wszystkie warstwy aplikacji.
-
-### Uruchamianie testów
+## Testy i CI
 
 ```bash
-# Uruchom wszystkie testy (132 testy)
 pytest -q
-
-# Uruchom testy z szczegółowym output
-pytest -v
-
-# Uruchom testy konkretnego modułu
-pytest tests/test_dashboard_service.py -v
-
-# Uruchom testy z pokryciem kodu
-pytest --cov=app tests/
+pytest --cov=app --cov-report=term-missing
 ```
 
-### Struktura testów
+CI wykonuje m.in. testy Pythona, lint, kontrolę typów, build obrazu Docker oraz skan podatności Trivy.
 
-System posiada scentralizowany katalog `tests/` z podziałem na typy testów:
-
-| Katalog / Plik | Typ | Opis |
-|----------------|-----|------|
-| `tests/test_*.py` | Python (Unit) | Testy jednostkowe backendu (autentykacja, serwisy, trasy) |
-| `tests/typescript/` | Frontend (TS/JS) | Testy logiki frontendowej i komponentów React/TS |
-| `tests/e2e/` | Playwright (E2E) | Testy integracyjne całych procesów (end-to-end) |
-| `tests/conftest.py` | Konfiguracja | Fixtury i maki bazy danych dla pytest |
-
-**Status**: ✅ Wszystkie testy (Python & Frontend) przechodzące.
-
-### Pisanie nowych testów
-
-Przykład testowania serwisu:
-
-```python
-from unittest.mock import patch, MagicMock
-from app.services.dashboard_service import DashboardService
-
-def test_get_production_plans():
-    """Test pobierania planów produkcji."""
-    with patch('app.services.dashboard_service.get_db_connection') as mock_conn:
-        mock_cursor = MagicMock()
-        mock_conn.return_value.cursor.return_value = mock_cursor
-        
-        result = DashboardService.get_production_plans()
-        
-        assert isinstance(result, list)
-        mock_cursor.execute.assert_called()
-```
-
-**Konwencje testowania:**
-- Używaj `@pytest.fixture` dla powtarzających się setupów
-- Mockuj `get_db_connection()` by uniknąć rzeczywistego połączenia DB
-- Testuj na poziomie funkcji publicznych serwisu
-- Nienagłośne błędy (graceful degradation) zwracają bezpieczne wartości domyślne
-
-## ⚙️ Konfiguracja
-
-### Zmiana portu aplikacji
-
-Edytuj ostatnią linię w `app.py`:
-
-```python
-app.run(debug=True, host='0.0.0.0', port=5000)  # Zmień 5000 na inny port
-```
-
-### Tryb produkcyjny
-
-Dla środowiska produkcyjnego ustaw `debug=False`:
-
-```python
-app.run(debug=False, host='0.0.0.0', port=5000)
-```
-
-### Klucz sesji
-
-Zmień tajny klucz w `app.py` (linia 8):
-
-```python
-app.secret_key = 'twoj-losowy-bezpieczny-klucz'
-```
-
-## 📝 Funkcje Specjalne
-
-### Auto-Carryover
-
-System automatycznie przenosi niezakończone zlecenia z poprzednich dni na dzień bieżący.
-
-### Walidacja Zgłoszeń
-
-- Minimalny opis problemu: 150 znaków (tylko litery i cyfry)
-- Blokada zgłaszania po godzinie 15:00
-- Automatyczne uzupełnianie godziny bieżącej
-
-### Przejścia/Zmiany
-
-System pozwala na oznaczanie przerw w produkcji jako "PRZEJŚCIE / ZMIANA".
-
-Funkcja ta może automatycznie zamykać poprzednie zlecenie po rozpoczęciu nowego.
-
-## 🐛 Rozwiązywanie Problemów
-
-### Błąd połączenia z bazą
-
-Sprawdź:
-
-- Czy serwer MySQL jest uruchomiony
-- Poprawność danych w `db_config`
-- Czy baza `biblioteka` została utworzona
-- Uprawnienia użytkownika do bazy
-
-### Błąd importu modułów
-
-Zainstaluj brakujące pakiety:
+## Docker
 
 ```bash
-pip install -r requirements.txt
+docker build -t raportprodukcyjny:local .
 ```
 
-## 🧰 Development (zalecane: Python 3.11)
+Kontener działa jako użytkownik nie-root. W środowisku produkcyjnym TLS powinien być terminowany przed aplikacją, np. na Ingressie lub reverse proxy.
 
-Jeśli rozwijasz projekt lokalnie lub uruchamiasz testy, użyj Pythona 3.11.
+## Kubernetes
 
-Wiele binarnych wheel'y dla `numpy` i `pandas` jest dostępnych dla 3.11 na Windows,
-co eliminuje konieczność kompilacji C-extensionów.
+Instrukcja wdrożenia znajduje się w `k8s/README.md`.
 
-Krótkie kroki (Windows PowerShell):
+Ważne zasady:
 
-```powershell
-# 1. Sprawdź czy masz py launcher i Python 3.11
-py -0p
-py -3.11 -V
+- `app-secrets` tworzony jest poza repozytorium;
+- MySQL działa wewnętrznie na porcie `3306`;
+- aplikacja jest wystawiana przez `ClusterIP` + Ingress;
+- web workers nie uruchamiają własnych daemonów;
+- jeden dedykowany Deployment `app-daemons` obsługuje procesy tła;
+- ServiceAccount nie ma dostępu do Secrets/ConfigMaps przez Kubernetes API.
 
-# 2. Utwórz virtualenv z Python 3.11
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+## Struktura projektu
 
-# 3. Zaktualizuj narzędzia instalacyjne i zainstaluj zależności
-python -m pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-
-# 4. Uruchom testy
-pytest -q
-
-# 5. Uruchom serwer (w nowym oknie terminala)
-python app.py
+```text
+app/                 aplikacja Flask, blueprints, serwisy i repozytoria
+printer_server/      lokalny mostek druku
+templates/           szablony HTML
+static/              zasoby frontendowe
+scripts/             aktywne skrypty operacyjne
+k8s/                 manifesty Kubernetes
+tests/               testy automatyczne
+.github/workflows/   CI/CD
 ```
 
-Alternatywa: jeśli używasz `conda`, utwórz środowisko `conda` z Pythonem 3.11
-i zainstaluj zależności tam.
+## Zasady rozwoju
 
-### Architektura dla Developerów
-
-Projekt organizuje kod w wysoce modułowe struktury Blueprintów:
-
-```
-app/
-├── core/                 # Fabryka aplikacji (create_app), połączenie DB
-├── blueprints/           # Trasy Flask (REST API, web endpoints)
-│   ├── admin/            # Zarządzanie pracownikami i użytkownikami
-│   ├── warehouse_v2/     # Gospodarka Magazynowa 2.0 (zlecenia, skanowanie, surowce)
-│   ├── agro_warehouse/   # Magazyn Półproduktów i Wyrobów Gotowych
-│   ├── inwentaryzacja/   # System Inwentaryzacji (ślepej/jawnej)
-│   ├── scanner/          # Zunifikowany Skaner Kodów Kreskowych/SSCC
-│   ├── auth/             # Logowanie, JWT, Autoryzacja
-│   └── ... (+20 innych dedykowanych modułów, np. quality, planner)
-├── services/             # Serwisy (Clean Architecture logic)
-│   ├── dashboard_service.py
-│   ├── report_generation_service.py
-│   └── ...
-└── static/               # Style, JavaScript, dźwięki dla frontend
-```
-
-**Wzorzec: Request → Route → Service → Database**
-
-1. HTTP request wchodzi do `route` w blueprincie
-2. Route parsuje dane wejściowe i waliduje
-3. Route wywołuje odpowiednią metodę `service`
-4. Service orchestruje logikę biznesową
-5. Service korzysta z `get_db_connection()` by wykonać operacje DB
-6. Service zwraca wynik do route'u
-7. Route zwraca odpowiedź HTTP
-
-**Przykład: Zamknięcie zmian**
-
-```python
-# blueprints/main/routes.py - trasa
-@main_bp.route('/zamknij_zmiane', methods=['POST'])
-@roles_required('lider', 'admin')
-def zamknij_zmiane():
-    uwagi_lidera = request.form.get('uwagi_lidera', '')
-    zip_path, mime_type = ReportGenerationService.close_shift_and_generate_reports(uwagi_lidera)
-    if zip_path:
-        return send_file(zip_path, as_attachment=True, mimetype=mime_type)
-    return redirect('/login')
-
-# services/report_generation_service.py - serwis
-class ReportGenerationService:
-    @staticmethod
-    def close_shift_and_generate_reports(uwagi_lidera=''):
-        ReportGenerationService._close_in_progress_orders(uwagi_lidera)
-        xls_path, txt_path, pdf_path = ReportGenerationService._generate_report_files()
-        ReportGenerationService._send_to_outlook(xls_path, uwagi_lidera)
-        zip_path = ReportGenerationService._create_report_zip(xls_path, txt_path, pdf_path)
-        return (zip_path, 'application/zip') if zip_path else (None, None)
-```
-
-### Problemy z kodowaniem
-
-Upewnij się, że baza używa `utf8mb4`:
-
-```sql
-ALTER DATABASE biblioteka CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-## 📄 Licencja
-
-Ten projekt jest własnością Agronetzwerk.
-
-## � Skaner QR
-
-System obsługuje skanowanie kodów QR za pomocą aparatu w telefonach i tabletach.
-
-### Możliwości:
-- 🔐 Logowanie przez QR - szybkie logowanie bez wpisywania hasła
-- 📦 Skanowanie etykiet palet - odczyt numerów palet
-- 📍 Skanowanie lokalizacji - szybkie wprowadzanie kodów regałów
-
-### Wymagania:
-- Nowoczesna przeglądarka (Chrome, Firefox, Safari, Edge)
-- Dostęp do kamery (użytkownik musi zaakceptować uprawnienia)
-- HTTPS (w produkcji)
-
-### Generowanie kodów QR dla logowania:
-
-```bash
-# Generuj pojedynczy kod QR
-python tools/generate_login_qr.py pracownik1 haslo123
-
-# Generuj kody QR dla wielu użytkowników
-python tools/generate_login_qr.py --bulk users.txt qr_codes/
-```
-
-### Dokumentacja:
-Pełna dokumentacja: [docs/QR_SCANNER_DOCUMENTATION.md](docs/QR_SCANNER_DOCUMENTATION.md)
-
-## 👨‍💻 Kontakt
-
-Dla wsparcia technicznego skontaktuj się z administratorem systemu.
-
----
-
-**Wersja**: 2.3 — Modular Architecture & Scanner Unification
-
-**Data ostatniej aktualizacji**: 2026-07-17
-
-**Status**: ✅ Testy jednostkowe i integracyjne przechodzące
+- nie umieszczaj sekretów, haseł, tokenów ani prywatnych adresów infrastruktury w kodzie;
+- używaj parametryzowanych zapytań SQL dla wartości;
+- identyfikatory tabel dynamicznych pobieraj wyłącznie przez istniejące mapowanie/allowlisty;
+- nowe endpointy modyfikujące dane powinny wymagać uwierzytelnienia i przechodzić ochronę CSRF/same-origin;
+- operacje sieciowe muszą mieć timeout i weryfikację TLS;
+- dla nowych funkcji biznesowych dodawaj testy regresyjne.

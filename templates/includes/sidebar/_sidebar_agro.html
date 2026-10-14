@@ -25,10 +25,12 @@
         {% endif %}
         {% endif %}
 
+        {% if role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('production.agro_station_history') }}"
             class="nav-sub-item {% if request.endpoint == 'production.agro_station_history' %}active{% endif %}">
             Historia Stacji (BB/MZ/WZ)
         </a>
+        {% endif %}
 
         {% if role_has_access('agro.bufor') %}
         <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
@@ -42,6 +44,7 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Workowanie' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
             Workowanie Agro
         </a>
+        {% if role not in ['laborant', 'laboratorium'] %}
         <a href="/maszyny"
             class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}"
             style="color: #0284c7; font-weight: 700;">
@@ -56,6 +59,7 @@
             class="nav-sub-item {% if 'przestoje' in request.path %}active{% endif %}">
             Przestoje AGRO
         </a>
+        {% endif %}
         {% endif %}
 
         {% if role_has_access('agro.magazyn') %}
@@ -92,10 +96,12 @@
             Raport Zasypów i Dosypek
         </a>
 
+        {% if role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('agro_warehouse.raport_palet', select=1) }}" 
            class="nav-sub-item {% if request.endpoint == 'agro_warehouse.raport_palet' %}active{% endif %}">
             Raport Palet AGRO
         </a>
+        {% endif %}
     </div>
 </div>
 {% endif %}

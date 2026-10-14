@@ -296,16 +296,24 @@ def register_production_notification_routes(
         return jsonify({"new_update": False})
 
     @production_bp.route('/api/zasyp/pending_dosypki_badges', methods=['GET'])
+    @login_required
     def api_pending_dosypki_badges():
         """Return pending dosypki badge counts per plan_id for Zasyp dashboard (PSD/AGRO)."""
         role = str(session.get('rola') or '').strip().lower()
         allowed_roles = {'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'masteradmin', 'laborant', 'laboratorium'}
         if role not in allowed_roles:
-            return jsonify({"success": True, "counts": {}, "timestamp": time.time()})
+            return jsonify({"success": False, "error": "forbidden"}), 403
 
         linia = request.args.get('linia', 'PSD').upper()
         if linia not in ['PSD', 'AGRO']:
             return jsonify({"success": True, "counts": {}, "timestamp": time.time()})
+        from app.core.production_permissions import _page_allowed
+        try:
+            if not _page_allowed(linia, 'zasyp', write=False):
+                return jsonify({"success": False, "error": "forbidden"}), 403
+        except Exception:
+            current_app.logger.exception('Cannot verify dosypki badge read permission')
+            return jsonify({"success": False, "error": "permission_unavailable"}), 503
 
         date_raw = request.args.get('data') or ''
         try:
@@ -321,28 +329,31 @@ def register_production_notification_routes(
             table_plan = get_table_name('plan_produkcji', linia)
             cursor.execute(
                 f"""
-                SELECT d.plan_id, COUNT(*)
+                SELECT d.plan_id, d.szarza_id, COUNT(*)
                 FROM {table_dosypki} d
                 JOIN {table_plan} p ON d.plan_id = p.id
                 WHERE d.potwierdzone = 0
                   AND COALESCE(d.anulowana, 0) = 0
                   AND p.sekcja = 'Zasyp'
                   AND (DATE(p.data_planu) = %s OR p.status = 'w toku')
-                GROUP BY d.plan_id
+                GROUP BY d.plan_id, d.szarza_id
                 """,
                 (target_day,),
             )
 
             counts = {}
-            for plan_id, pending_count in cursor.fetchall() or []:
+            batch_counts = {}
+            for plan_id, batch_id, pending_count in cursor.fetchall() or []:
                 try:
                     pid_s = str(int(plan_id))
-                    counts[pid_s] = int(pending_count or 0)
+                    counts[pid_s] = counts.get(pid_s, 0) + int(pending_count or 0)
+                    if batch_id is not None:
+                        batch_counts.setdefault(pid_s, {})[str(int(batch_id))] = int(pending_count or 0)
                 except Exception:
                     continue
 
             current_app.logger.info(f'[BADGE-DEBUG] role={role}, linia={linia}, target_day={target_day}, counts={counts}')
-            return jsonify({"success": True, "counts": counts, "timestamp": time.time()})
+            return jsonify({"success": True, "counts": counts, "batch_counts": batch_counts, "timestamp": time.time()})
         except Exception:
             current_app.logger.exception('Failed to load pending dosypki badge counts')
             return jsonify({"success": False, "counts": {}, "timestamp": time.time()})

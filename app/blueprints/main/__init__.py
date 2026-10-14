@@ -26,6 +26,28 @@ register_main_misc_routes(main_bp)
 register_main_layout_routes(main_bp)
 register_main_reporting_routes(main_bp)
 
+@main_bp.route('/api/agro/pomiary')
+@login_required
+def agro_measurements():
+    from app.core.contexts import inject_role_permissions
+    from app.services.ipomiar_service import read_dashboard
+    helpers = inject_role_permissions()
+    group = str(session.get('grupa') or '').upper()
+    role = str(session.get('rola') or '').lower()
+    if not (helpers['role_has_access']('agro.zasyp') or helpers['role_has_access']('agro.dashboard')):
+        return jsonify(error='Brak dostępu'), 403
+    if group not in {'AGRO', 'ALL', 'ADMIN', 'ZARZAD', 'MASTERADMIN'} and role not in {
+        'admin', 'masteradmin', 'zarzad', 'laborant', 'planista'
+    }:
+        return jsonify(error='Brak dostępu do AGRO'), 403
+    try:
+        measurements_list = read_dashboard(request.args.get('data', str(date.today())))
+    except ValueError:
+        return jsonify(error='Nieprawidłowa data'), 400
+    response = app.make_response(render_template('dashboard/_agro_measurement_values.html', measurements_list=measurements_list))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
 @main_bp.route('/')
 @login_required
 def index():
@@ -161,7 +183,9 @@ def index():
         przestoje_mapa = downtime_repo.get_downtime_summary_map(plan_ids_all)
 
         # Build final context
+        from app.services.ipomiar_service import read_dashboard
         context = {
+            'agro_measurements': read_dashboard(dzisiaj) if aktywna_linia == 'AGRO' and aktywna_sekcja.lower() in ('zasyp', 'dashboard') else [],
             'halls_data': halls_data,
             'halls_to_fetch': halls_to_fetch,
             'sekcja': aktywna_sekcja,
@@ -199,6 +223,7 @@ def index():
             'buffer_map': main_h_data.get('buffer_queue'),
             'global_active': main_h_data.get('global_active'),
             'active_products': main_h_data.get('active_products'),
+            'unfinished_section_orders': main_h_data.get('unfinished_section_orders', []),
             'zasyp_has_active': main_h_data.get('zasyp_has_active'),
             'work_first_map': main_h_data.get('work_first_map'),
             'zasyp_product_order': main_h_data.get('zasyp_product_order'),
@@ -253,11 +278,9 @@ def index():
             return render_template('dashboard_global.html', **context)
         return render_template('dashboard.html', **context)
 
-    except Exception as e:
-        import traceback
-        error_msg = f"Error loading dashboard: {str(e)}\n{traceback.format_exc()}"
-        app.logger.error(error_msg)
-        return f"<pre>{error_msg}</pre>", 500
+    except Exception:
+        app.logger.exception('Error loading dashboard')
+        raise
 
 @main_bp.route('/machine-telemetry')
 @login_required

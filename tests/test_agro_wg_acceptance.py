@@ -7,6 +7,7 @@ def test_accept_production_pallet_agro_crossline_auto_detection():
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = []
 
     fake_agro_pallet = {
         'id': 643,
@@ -60,6 +61,7 @@ def test_accept_production_pallet_by_nr_palety():
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = []
 
     fake_agro_pallet = {
         'id': 643,

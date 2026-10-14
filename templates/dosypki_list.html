@@ -1,7 +1,21 @@
 <style>
+    .quick-popup:has(.dosypki-list-root) {
+        width: calc(100% - 32px) !important;
+        max-width: 1240px !important;
+        height: auto !important;
+        max-height: 90vh !important;
+    }
+
+    .quick-popup:has(.dosypki-list-root) .qp-body {
+        padding: 16px !important;
+        max-height: calc(90vh - 72px) !important;
+        overflow: auto !important;
+    }
+
     .dosypki-list-root {
         position: relative;
         font-family: inherit;
+        container-type: inline-size;
     }
 
     #dosypki-table {
@@ -135,6 +149,88 @@
         animation: spin 0.8s linear infinite;
     }
 
+    @container (max-width: 1100px) {
+        #dosypki-table:not([style*="none"]) {
+            display: block !important;
+        }
+
+        #dosypki-table {
+            border: none;
+            background: transparent;
+        }
+
+        #dosypki-table thead {
+            display: none;
+        }
+
+        #dosypki-table tbody {
+            display: block;
+        }
+
+        #dosypki-table tbody tr {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 14px;
+            padding: 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+        }
+
+        #dosypki-table tbody td {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+            padding: 0;
+            min-width: 0;
+            border: none;
+            text-align: left !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere;
+        }
+
+        #dosypki-table tbody td::before {
+            content: attr(data-label);
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+        }
+
+        #dosypki-table td[data-label="Do zasypu"],
+        #dosypki-table td[data-label="Nazwa"],
+        #dosypki-table td[data-label="Akcja"] {
+            grid-column: 1 / -1;
+        }
+
+        #dosypki-table td[data-label="Do zasypu"] > span {
+            max-width: 100%;
+            box-sizing: border-box;
+            white-space: normal !important;
+        }
+
+        #dosypki-table td[data-label="Akcja"]::before {
+            content: none;
+        }
+
+        #dosypki-table .dosypka-confirm-btn {
+            width: 100%;
+            min-height: 44px;
+        }
+
+        .dosypki-list-root .section-header {
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+    }
+
+    @container (max-width: 380px) {
+        #dosypki-table tbody tr {
+            grid-template-columns: minmax(0, 1fr);
+        }
+    }
+
     @keyframes spin {
         to { transform: rotate(360deg); }
     }
@@ -217,7 +313,7 @@
                     <td data-label="Dodana" style="font-size:12px; color:#64748b;">{{ d.data_zlecenia }}</td>
                     <td data-label="Akcja" style="text-align: right;">
                         {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
-                        <button class="dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
+                        <button type="button" class="dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
                         {% endif %}
                     </td>
                 </tr>

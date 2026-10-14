@@ -1,3 +1,4 @@
+# cspell:words autouse
 """Tests for middleware functions."""
 
 import pytest
@@ -260,3 +261,16 @@ class TestSessionManagement:
         
         with client2.session_transaction() as sess:
             assert sess['user_id'] == 2
+
+
+@pytest.fixture(autouse=True)
+def explicit_worker_page_policy():
+    # Route tests must not inherit the operator's saved UI permission settings.
+    from pathlib import Path
+    import json
+    policy = json.loads((Path(__file__).parents[1] / 'config/role_permissions.json').read_text(encoding='utf-8'))
+    policy.setdefault('psd.zasyp', {})['pracownik'] = {'access': True, 'readonly': False}
+    policy.setdefault('dashboard', {})['pracownik'] = {'access': False, 'readonly': False}
+    with patch('app.core.contexts._get_role_permissions', return_value=policy), patch(
+            'app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_override', return_value=None):
+        yield

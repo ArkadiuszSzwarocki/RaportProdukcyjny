@@ -4,9 +4,9 @@
         row.className = 'delivery-row row items-center gap-8';
         row.style.display = 'flex';
         row.innerHTML = `
-            <input type="text" class="form-control del-name" placeholder="Nazwa surowca" list="surowceList" style="flex:1;" value="${nazwa}">
-            <input type="number" class="form-control del-qty" step="0.1" placeholder="Ilość (kg)" style="width:140px;" value="${ilosc}">
-            <input type="text" class="form-control del-note" placeholder="Komentarz (opcjonalnie)" style="flex:0.8;" value="${komentarz}">
+            <input type="text" class="form-control del-name" placeholder="Nazwa surowca" list="surowceList" style="flex:1;" value="${agroEscapeHtml(nazwa)}">
+            <input type="number" class="form-control del-qty" step="0.1" placeholder="Ilość (kg)" style="width:140px;" value="${agroEscapeHtml(ilosc)}">
+            <input type="text" class="form-control del-note" placeholder="Komentarz (opcjonalnie)" style="flex:0.8;" value="${agroEscapeHtml(komentarz)}">
             <button type="button" class="btn btn-ghost" onclick="this.parentNode.remove()">Usuń</button>
         `;
         container.appendChild(row);
@@ -70,7 +70,7 @@
             const res = await response.json();
             if (res.success && res.suggestion) {
                 document.getElementById('conf_lokalizacja').value = res.suggestion;
-                document.getElementById('suggestionText').innerHTML = '<span class="material-icons" style="font-size:16px;">lightbulb</span> Sugerowane miejsce: <strong>' + res.suggestion + '</strong>';
+                document.getElementById('suggestionText').innerHTML = '<span class="material-icons" style="font-size:16px;">lightbulb</span> Sugerowane miejsce: <strong>' + agroEscapeHtml(res.suggestion) + '</strong>';
                 sugBox.style.display = 'block';
             }
         } catch (e) {}

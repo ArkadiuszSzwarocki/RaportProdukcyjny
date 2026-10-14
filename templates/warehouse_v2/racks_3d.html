@@ -9,8 +9,8 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/warehouse_3d.css') }}">
 
 <!-- THREE.JS & ORBIT CONTROLS -->
-<script src="{{ url_for('static', filename='vendor/three/three.min.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='vendor/three/OrbitControls.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='vendor/three-r128/three.min.js', v=static_version) }}"></script>
+<script src="{{ url_for('static', filename='vendor/three-r128/OrbitControls.js', v=static_version) }}"></script>
 
 <div class="wh3d-root" data-no-autorefresh="true">
 
@@ -29,6 +29,7 @@
         <div class="wh3d-controls-flex">
             <!-- RACK SELECTOR -->
             <select id="selectRackFilter" class="wh3d-select" onchange="onRackFilterChanged(this.value)">
+                <option value="ALL" {% if active_rack == 'ALL' %}selected{% endif %}>🏢 Cała Hala (Wszystkie Regały i Strefy)</option>
                 {% for rc in racks_config %}
                 <option value="{{ rc.rack_id }}" {% if active_rack == rc.rack_id %}selected{% endif %}>
                     {% if rc.rack_type == 'FLOOR_ZONE' %}🏭 {{ rc.name }} ({{ rc.columns }}×{{ rc.levels }})
@@ -38,7 +39,6 @@
                     {% endif %}
                 </option>
                 {% endfor %}
-                <option value="ALL" {% if active_rack == 'ALL' %}selected{% endif %}>🏢 Cała Hala (Wszystkie Regały i Strefy)</option>
             </select>
 
             <!-- LINE FILTER -->

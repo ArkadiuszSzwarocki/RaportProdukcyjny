@@ -1,5 +1,5 @@
 <div class="p-10" data-popup-title="{{ _('wznow_zlecenie') }}">
-    <form action="{{ url_for('planning.reanimate_zlecenie', id=id) }}" method="POST">
+    <form action="{{ url_for('planning.reanimate_zlecenie', id=id) }}" method="POST" data-success-navigate="true">
         <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
         <input type="hidden" name="sekcja" value="{{ sekcja or 'Zasyp' }}">
         <input type="hidden" name="data_planu" value="{{ data_planu or '' }}">

@@ -9,6 +9,7 @@ def test_acceptance_service_triggers_report_on_last_pallet_closed_agro():
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = []
 
     fake_agro_pallet = {
         'id': 700,
@@ -62,6 +63,7 @@ def test_acceptance_service_does_not_trigger_report_if_not_last_pallet():
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = []
 
     fake_agro_pallet = {
         'id': 701,
@@ -114,6 +116,7 @@ def test_warehouse_pallet_service_potwierdz_palete_last_pallet_agro_ajax():
     mock_conn = MagicMock()
     mock_cur = MagicMock()
     mock_conn.cursor.return_value = mock_cur
+    mock_cur.fetchall.return_value = []
 
     def fake_fetchone():
         if mock_cur.execute.call_args:
@@ -173,6 +176,7 @@ def test_warehouse_pallet_service_potwierdz_palete_last_pallet_agro_non_ajax():
     mock_conn = MagicMock()
     mock_cur = MagicMock()
     mock_conn.cursor.return_value = mock_cur
+    mock_cur.fetchall.return_value = []
 
     def fake_fetchone():
         if mock_cur.execute.call_args:

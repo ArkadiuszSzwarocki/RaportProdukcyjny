@@ -736,6 +736,65 @@ class ZasypEtapyService:
                 pass
 
     @staticmethod
+    def advance_after_confirmed_dosypka(cursor, plan_id: int, batch_id: int, user_login: str) -> Optional[int]:
+        """Stop mixing and start the addition in the caller's confirmation transaction."""
+        cursor.execute(
+            f"SELECT s.nr_szarzy FROM {get_table_name('szarze', 'AGRO')} s "
+            f"JOIN {get_table_name('plan_produkcji', 'AGRO')} p ON p.id=s.plan_id "
+            "WHERE s.id=%s AND s.plan_id=%s AND p.sekcja='Zasyp' AND p.status='w toku'",
+            (int(batch_id), int(plan_id)),
+        )
+        batch = cursor.fetchone()
+        if not batch or batch[0] is None:
+            return None
+        batch_number = int(batch[0])
+        cursor.execute(
+            "SELECT etap,czas_start,czas_stop,data_planu FROM zasyp_etapy "
+            "WHERE linia='AGRO' AND plan_id=%s AND szarza_nr=%s FOR UPDATE",
+            (int(plan_id), batch_number),
+        )
+        stages = cursor.fetchall() or []
+        mixing = next((item for item in stages if (int(item[0]) == 2 or str(item[0]).startswith('4'))
+                       and item[1] and not item[2]), None)
+        if not mixing:
+            return None
+        cursor.execute(
+            f"SELECT COUNT(*) FROM {get_table_name('dosypki', 'AGRO')} "
+            "WHERE plan_id=%s AND szarza_id=%s AND potwierdzone=0 AND COALESCE(anulowana,0)=0 FOR UPDATE",
+            (int(plan_id), int(batch_id)),
+        )
+        if cursor.fetchone()[0]:
+            return None
+        login = (user_login or '')[:100]
+        pending_stage = next((int(item[0]) for item in stages
+                              if str(item[0]).startswith('3') and not item[1] and not item[2]), None)
+        if pending_stage is None:
+            existing = {int(item[0]) for item in stages}
+            suffixes = [_agro_suffix_for_etap(item) for item in existing]
+            suffixes = [item for item in suffixes if item is not None]
+            suffix = max(suffixes, default=0) + 1 if existing.intersection({3, 4}) or suffixes else 0
+            pair = (3, 4) if suffix == 0 else (int(f'3{suffix}'), int(f'4{suffix}'))
+            for new_stage in pair:
+                cursor.execute(
+                    "INSERT INTO zasyp_etapy (linia,plan_id,data_planu,szarza_nr,etap,start_login) "
+                    "VALUES ('AGRO',%s,%s,%s,%s,%s)",
+                    (int(plan_id), mixing[3], batch_number, new_stage, login),
+                )
+            pending_stage = pair[0]
+        cursor.execute(
+            "UPDATE zasyp_etapy SET czas_stop=NOW(),stop_login=%s "
+            "WHERE linia='AGRO' AND plan_id=%s AND szarza_nr=%s AND etap=%s AND czas_stop IS NULL",
+            (login, int(plan_id), batch_number, int(mixing[0])),
+        )
+        cursor.execute(
+            "UPDATE zasyp_etapy SET czas_start=NOW(),start_login=%s "
+            "WHERE linia='AGRO' AND plan_id=%s AND szarza_nr=%s AND etap=%s "
+            "AND czas_start IS NULL AND czas_stop IS NULL",
+            (login, int(plan_id), batch_number, pending_stage),
+        )
+        return pending_stage
+
+    @staticmethod
     def stop_etap(plan_id: int, linia: str, etap: int, user_login: str, szarza_nr: Optional[int] = None, powod_opoznienia: Optional[str] = None) -> Tuple[bool, str]:
         linia_u = _norm_linia(linia)
         try:
@@ -756,6 +815,7 @@ class ZasypEtapyService:
                 SELECT czas_start, czas_stop
                 FROM zasyp_etapy
                 WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s
+                FOR UPDATE
                 """,
                 (linia_u, int(plan_id), curr_szarza_nr, etap_nr),
             )
@@ -768,6 +828,42 @@ class ZasypEtapyService:
                 return False, f'Etap {etap_nr} nie ma START'
             if czas_stop:
                 return True, f'Etap {etap_nr} już jest STOP'
+
+            if linia_u == 'AGRO' and (etap_nr == 2 or str(etap_nr).startswith('4')):
+                table_dosypki = get_table_name('dosypki', linia_u)
+                table_szarze = get_table_name('szarze', linia_u)
+                cursor.execute(
+                    f"SELECT d.potwierdzone, d.data_potwierdzenia FROM {table_dosypki} d "
+                    f"JOIN {table_szarze} s ON s.id=d.szarza_id AND s.plan_id=d.plan_id "
+                    "WHERE d.plan_id=%s AND s.nr_szarzy=%s AND COALESCE(d.anulowana,0)=0 FOR UPDATE",
+                    (int(plan_id), curr_szarza_nr),
+                )
+                additions = cursor.fetchall() or []
+                if any(not item[0] for item in additions):
+                    conn.rollback()
+                    return False, 'Najpierw potwierdź wszystkie dosypki przypisane do tego zasypu. Mieszanie trwa nadal.'
+                needs_pair = any(item[0] and (etap_nr == 2 or (item[1] and item[1] >= czas_start)) for item in additions)
+                if needs_pair:
+                    cursor.execute(
+                        "SELECT etap, czas_start, czas_stop, data_planu FROM zasyp_etapy "
+                        "WHERE linia=%s AND plan_id=%s AND szarza_nr=%s FOR UPDATE",
+                        (linia_u, int(plan_id), curr_szarza_nr),
+                    )
+                    stages = cursor.fetchall() or []
+                    existing = {int(item[0]) for item in stages}
+                    waiting = any(str(item[0]).startswith('3') and not item[1] for item in stages)
+                    if not waiting:
+                        previous_suffixes = [_agro_suffix_for_etap(item) for item in existing]
+                        previous_suffixes = [item for item in previous_suffixes if item is not None]
+                        suffix = max(previous_suffixes, default=0) + 1 if existing.intersection({3, 4}) or previous_suffixes else 0
+                        pair = (3, 4) if suffix == 0 else (int('3' + str(suffix)), int('4' + str(suffix)))
+                        stage_date = next((item[3] for item in stages if int(item[0]) == etap_nr), date.today())
+                        for new_stage in pair:
+                            cursor.execute(
+                                "INSERT INTO zasyp_etapy (linia,plan_id,data_planu,szarza_nr,etap,start_login) "
+                                "VALUES (%s,%s,%s,%s,%s,%s)",
+                                (linia_u, int(plan_id), stage_date, curr_szarza_nr, new_stage, (user_login or '')[:100]),
+                            )
 
             cursor.execute(
                 """

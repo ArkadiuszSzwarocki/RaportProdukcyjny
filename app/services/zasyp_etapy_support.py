@@ -162,10 +162,11 @@ def _etap_display_name(linia_u: str, etap_nr: int) -> str:
             return 'Mieszanie i oczekiwanie na LAB po dosypce'
         if etap == 5:
             return 'Opróżnianie'
-        if 30 < etap < 40:
-            return f'Dosypka ({etap})'
-        if 40 < etap < 50:
-            return f'Mieszanie po dosypce ({etap})'
+        suffix = _agro_suffix_for_etap(etap)
+        if suffix is not None and str(etap).startswith('3'):
+            return f'Dosypka — cykl {suffix + 1}'
+        if suffix is not None and str(etap).startswith('4'):
+            return f'Mieszanie i oczekiwanie na LAB po dosypce — cykl {suffix + 1}'
         return f'Etap {etap}'
 
     if etap == 1:

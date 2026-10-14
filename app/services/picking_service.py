@@ -144,6 +144,7 @@ class PickingService:
                     is_mp01 = source_location == 'MP01'
                     row = {
                         'order_ref': order_ref,
+                        'linia': linia,
                         'surowiec_nazwa': nazwa,
                         'paleta_id': pallet.get('id', 0),
                         'nr_palety': pallet.get('nr_palety', ''),
@@ -606,81 +607,42 @@ class PickingService:
 
     def _move_pallet_to_mp01(self, paleta_id, source_location, magazynier_login):
         """Move a pallet only when its current DB state still matches the picking row."""
-        if not paleta_id:
+        if not paleta_id or not source_location:
             return False
 
         conn = get_db_connection()
         try:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT id, nr_palety, lokalizacja, stan_magazynowy, is_blocked FROM magazyn_surowce WHERE id = %s",
-                (paleta_id,)
-            )
-            pallet = cursor.fetchone()
-            if not pallet:
-                return False
-
-            curr_loc = str(pallet.get('lokalizacja') or '').strip().upper()
-            curr_qty = float(pallet.get('stan_magazynowy') or 0)
-            is_blocked = bool(pallet.get('is_blocked'))
-
-            if is_blocked:
-                return False
-
-            expected_src = str(source_location).strip().upper() if source_location else None
-            if expected_src and curr_loc != expected_src:
-                return False
-
-            from app.utils.location_validator import is_production_tank_code
-            if curr_loc == 'MP01' or is_production_tank_code(curr_loc) or curr_qty == 0:
-                return True
-
             cursor = conn.cursor()
-            if expected_src:
-                cursor.execute(
-                    """
-                    UPDATE magazyn_surowce
-                    SET lokalizacja = 'MP01'
-                    WHERE id = %s
-                      AND stan_magazynowy > 0
-                      AND COALESCE(is_blocked, 0) = 0
-                      AND UPPER(lokalizacja) = %s
-                    """,
-                    (paleta_id, expected_src)
-                )
-            else:
-                cursor.execute(
-                    """
-                    UPDATE magazyn_surowce
-                    SET lokalizacja = 'MP01'
-                    WHERE id = %s
-                      AND stan_magazynowy > 0
-                      AND COALESCE(is_blocked, 0) = 0
-                    """,
-                    (paleta_id,)
-                )
-            if cursor.rowcount < 1:
+            cursor.execute(
+                """
+                UPDATE magazyn_surowce
+                SET lokalizacja = 'MP01'
+                WHERE id = %s
+                  AND stan_magazynowy > 0
+                  AND COALESCE(is_blocked, 0) = 0
+                  AND UPPER(TRIM(COALESCE(lokalizacja, ''))) = UPPER(TRIM(%s))
+                """,
+                (paleta_id, source_location)
+            )
+            if cursor.rowcount != 1:
                 conn.rollback()
                 return False
 
-            conn.commit()
-
             try:
-                from app.services.warehouse_history.movement_recorder import MovementRecorder
-                MovementRecorder.record_movement(
-                    paleta_id=paleta_id,
-                    linia='PSD',
-                    typ_palety='surowiec',
-                    akcja='KOMPLETACJA',
-                    lokalizacja_zrodlowa=curr_loc,
-                    lokalizacja_docelowa='MP01',
-                    komentarz='Kompletacja FIFO → MP01',
-                    user_login=magazynier_login,
-                    nr_palety=pallet.get('nr_palety')
+                cursor.execute(
+                    """
+                    INSERT INTO magazyn_ruch
+                        (paleta_id, typ, lokalizacja_z, lokalizacja_do,
+                         operator_login, komentarz, created_at)
+                    VALUES (%s, 'KOMPLETACJA', %s, 'MP01', %s, %s, %s)
+                    """,
+                    (paleta_id, source_location, magazynier_login,
+                     'Kompletacja FIFO → MP01', datetime.now())
                 )
             except Exception:
                 pass
 
+            conn.commit()
             return True
         except Exception:
             conn.rollback()

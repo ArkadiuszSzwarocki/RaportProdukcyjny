@@ -491,10 +491,10 @@
                             {% elif job.status == 'DONE' %}
                                 <div style="color: #16a34a; font-weight: 600;">
                                     <span class="material-icons" style="font-size: 14px; vertical-align: middle; margin-right: 4px;">verified</span>
-                                    {% if job.error_message and ('Czujniki' in job.error_message or 'Licznik' in job.error_message) and 'Błąd' not in job.error_message %}
+                                    {% if job.error_message and job.error_message.startswith('POTWIERDZONO_LICZNIKIEM:') %}
                                         {{ job.error_message }}
                                     {% else %}
-                                        Czujniki ~HS OK - Fizyczny wydruk zakończony
+                                        Zlecenie wysłane — sprawdź etykiety na drukarce
                                     {% endif %}
                                 </div>
                             {% else %}

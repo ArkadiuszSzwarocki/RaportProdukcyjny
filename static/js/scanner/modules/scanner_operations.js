@@ -104,7 +104,7 @@ function submitLP01Modal() {
     })
     .then(r => r.json())
     .then(d => {
-      showToast(d.message, d.success ? 'success' : 'danger');
+      showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
       closeLP01Modal();
       if (d.success) {
         if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
@@ -170,8 +170,8 @@ function printLabel(type) {
         div.innerHTML = `
           <span class="material-icons">print</span>
           <div>
-            <div class="printer-option-title">${p.nazwa}</div>
-            <div class="printer-option-ip">${p.ip} ${p.lokalizacja ? ' | ' + p.lokalizacja : ''}</div>
+            <div class="printer-option-title">${scannerEscapeHtml(p.nazwa)}</div>
+            <div class="printer-option-ip">${scannerEscapeHtml(p.ip)} ${p.lokalizacja ? ' | ' + scannerEscapeHtml(p.lokalizacja) : ''}</div>
           </div>
         `;
         list.appendChild(div);

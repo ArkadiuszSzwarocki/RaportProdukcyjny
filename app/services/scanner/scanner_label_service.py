@@ -45,6 +45,7 @@ class ScannerLabelService:
 
                     return {
                         'id': b_row['id'],
+                        'linia': b_row.get('linia'),
                         'nr_palety': sscc,
                         'nazwa': f"WIADRO {b_row['kod_wiadra']}: {pozycje_txt}",
                         'ilosc': float(len(pozycje)),
@@ -87,16 +88,16 @@ class ScannerLabelService:
                 for mag_tbl, plan_tbl, item_line in fg_configs:
                     try:
                         sql = (
-                            f"SELECT m.id, m.nr_palety, COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób Gotowy') AS nazwa, "
+                            f"SELECT m.id, m.linia, m.nr_palety, COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób Gotowy') AS nazwa, "
                             f"m.waga_netto AS stan_magazynowy, COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
                             f"COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, '') AS nr_partii, "
                             f"COALESCE(m.data_produkcji, plan.data_produkcji, m.data_planu, plan.data_planu) AS data_produkcji, "
                             f"COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci "
                             f"FROM {mag_tbl} m "
-                            f"LEFT JOIN {plan_tbl} plan ON m.plan_id = plan.id "
-                            f"WHERE UPPER(COALESCE(m.nr_palety, '')) = %s ORDER BY m.waga_netto > 0 DESC, m.id DESC LIMIT 1"
+                            f"LEFT JOIN {plan_tbl} plan ON m.plan_id = plan.id AND m.linia = '{item_line}' "
+                            f"WHERE m.linia = %s AND UPPER(COALESCE(m.nr_palety, '')) = %s ORDER BY m.waga_netto > 0 DESC, m.id DESC LIMIT 1"
                         )
-                        cur.execute(sql, (sscc_code.upper(),))
+                        cur.execute(sql, (item_line, sscc_code.upper()))
                         row = cur.fetchone()
                         if row:
                             return ScannerLabelService.build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
@@ -146,16 +147,16 @@ class ScannerLabelService:
                 for mag_tbl, plan_tbl, item_line in fg_configs:
                     try:
                         sql = (
-                            f"SELECT m.id, m.nr_palety, COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób Gotowy') AS nazwa, "
+                            f"SELECT m.id, m.linia, m.nr_palety, COALESCE(NULLIF(TRIM(m.produkt), ''), plan.produkt, 'Wyrób Gotowy') AS nazwa, "
                             f"m.waga_netto AS stan_magazynowy, COALESCE(NULLIF(TRIM(m.lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
                             f"COALESCE(NULLIF(TRIM(m.nr_partii), ''), plan.nr_partii, '') AS nr_partii, "
                             f"COALESCE(m.data_produkcji, plan.data_produkcji, m.data_planu, plan.data_planu) AS data_produkcji, "
                             f"COALESCE(m.data_przydatnosci, plan.termin_przydatnosci) AS data_przydatnosci "
                             f"FROM {mag_tbl} m "
-                            f"LEFT JOIN {plan_tbl} plan ON m.plan_id = plan.id "
-                            f"WHERE m.id = %s LIMIT 1"
+                            f"LEFT JOIN {plan_tbl} plan ON m.plan_id = plan.id AND m.linia = '{item_line}' "
+                            f"WHERE m.linia = %s AND m.id = %s LIMIT 1"
                         )
-                        cur.execute(sql, (numeric_id,))
+                        cur.execute(sql, (item_line, numeric_id))
                         row = cur.fetchone()
                         if row:
                             return ScannerLabelService.build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
@@ -249,6 +250,7 @@ class ScannerLabelService:
 
         return {
             'id': row['id'],
+            'linia': row.get('linia') or linia,
             'nr_palety': nr_palety,
             'sscc': nr_palety,
             'nazwa': row.get('nazwa') or 'Brak nazwy',

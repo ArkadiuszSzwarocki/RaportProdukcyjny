@@ -157,24 +157,6 @@
       }
     };
 
-    // Planning info elements
-    const planningInfoBanner = document.getElementById('planningInfoBanner');
-    const btnOpenPlanningInfo = document.getElementById('btnOpenPlanningInfo');
-    const infoModal = document.getElementById('infoModal');
-    const infoModalBackdrop = document.getElementById('infoModalBackdrop');
-    const btnDismissInfo = document.getElementById('btnDismissInfo');
-
-    const currentLogin = window.PlanistaBulkConfig.data.userLogin;
-    const storageKey = `planista_bulk_info_read_${currentLogin}`;
-
-    const checkInfoBanner = () => {
-      if (localStorage.getItem(storageKey) !== 'true') {
-        planningInfoBanner.style.display = 'flex';
-      } else {
-        planningInfoBanner.style.display = 'none';
-      }
-    };
-
     let produktyList = [];
     let editProductId = null;
 
@@ -426,8 +408,6 @@
       if (e.key === 'Escape') {
         if (productModal.classList.contains('active')) {
           closeProductModal();
-        } else if (infoModal && infoModal.classList.contains('active')) {
-          closeInfoModal();
         }
       }
     });
@@ -884,44 +864,6 @@
       manageModalBackdrop.classList.remove('active');
       manageModal.classList.remove('active');
     });
-
-    // Planning info modal event listeners
-    if (btnOpenPlanningInfo) {
-      btnOpenPlanningInfo.addEventListener('click', () => {
-        if (infoModalBackdrop && infoModal) {
-          infoModalBackdrop.classList.add('active');
-          infoModal.classList.add('active');
-        }
-      });
-    }
-
-    const closeInfoModal = () => {
-      if (infoModalBackdrop && infoModal) {
-        infoModalBackdrop.classList.remove('active');
-        infoModal.classList.remove('active');
-      }
-    };
-
-    if (btnDismissInfo) {
-      btnDismissInfo.addEventListener('click', () => {
-        localStorage.setItem(storageKey, 'true');
-        closeInfoModal();
-        if (planningInfoBanner) {
-          planningInfoBanner.style.transition = 'all 0.3s ease';
-          planningInfoBanner.style.opacity = '0';
-          planningInfoBanner.style.transform = 'translateY(-10px)';
-          setTimeout(() => {
-            planningInfoBanner.style.display = 'none';
-          }, 300);
-        }
-      });
-    }
-
-    if (infoModalBackdrop) {
-      infoModalBackdrop.addEventListener('click', closeInfoModal);
-    }
-
-    checkInfoBanner();
 
     loadProdukty();
 

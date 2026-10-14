@@ -1,3 +1,12 @@
+<style>
+    .top-bar.connection-offline { background: #b91c1c !important; }
+    .top-bar.connection-offline #topBarPageTitle { display: none !important; }
+    @media (max-width: 767px) {
+        .top-bar.connection-offline { flex-wrap: wrap; height: auto; min-height: 54px; }
+        .top-bar.connection-offline #pwa-offline-top-banner { flex-basis: 100%; order: 3; padding: 4px 12px; }
+        body:has(.top-bar.connection-offline) #mainContent { padding-top: 28px; }
+    }
+</style>
 <div class="top-bar">
     <button class="hamburger-btn" id="hamburgerBtn" aria-label="Otwórz menu" aria-expanded="false">
         <span class="material-icons">menu</span>

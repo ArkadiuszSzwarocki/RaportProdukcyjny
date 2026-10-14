@@ -5,6 +5,7 @@ Opis: Agregator danych dashboardu. Ładuje dane HR, plany produkcji i kontekst d
 from app.db import get_db_connection, get_table_name
 from app.services.dashboard_service import DashboardService
 from app.services.dashboard_context_service import DashboardContextService
+from app.services.planning.start_guard import get_unfinished_section_orders
 from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
 from app.services.magazyn_dostawy.delivery_command_service import DeliveryCommandService
 from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
@@ -42,6 +43,9 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, 
         zasyp_product_order = DashboardService.get_zasyp_product_order(dzisiaj, linia=linia, cursor=cursor)
         zasyp_has_active = DashboardService.get_zasyp_active_status(dzisiaj, linia=linia, cursor=cursor)
         active_products = DashboardService.get_active_products(dzisiaj, linia=linia, cursor=cursor)
+        unfinished_section_orders = get_unfinished_section_orders(
+            cursor, get_table_name('plan_produkcji', linia), aktywna_sekcja
+        )
 
         plan_dnia = []
         palety_mapa = {}
@@ -120,6 +124,7 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, 
             'zasyp_product_order': zasyp_product_order,
             'zasyp_has_active': zasyp_has_active,
             'active_products': active_products,
+            'unfinished_section_orders': unfinished_section_orders,
         }
 
     conn.close()

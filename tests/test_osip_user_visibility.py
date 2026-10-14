@@ -11,6 +11,7 @@ def test_gontaart_redirect_target():
     assert target == '/osip/transfers'
 
 
+@pytest.mark.require_db
 def test_gontaart_login_and_session(client, app):
     """Test logging in as GontaArt user and session variables."""
     response = client.post('/login', data={
@@ -28,6 +29,7 @@ def test_gontaart_login_and_session(client, app):
         assert sess.get('grupa') == 'OSIP'
 
 
+@pytest.mark.require_db
 def test_gontaart_index_redirect(client):
     """Test that accessing '/' as GontaArt redirects to /osip/transfers."""
     # Login first
@@ -39,6 +41,7 @@ def test_gontaart_index_redirect(client):
     assert '/osip/transfers' in response.location
 
 
+@pytest.mark.require_db
 def test_gontaart_sidebar_renders_only_osip(client):
     """Test that OSIP user sidebar renders Magazyn OSIP with Skaner and Drukarki."""
     client.post('/login', data={'login': 'GontaArt', 'haslo': 'Artur2026'})
@@ -57,6 +60,7 @@ def test_gontaart_sidebar_renders_only_osip(client):
     assert 'PRODUKCJA AGRO' not in html
 
 
+@pytest.mark.require_db
 def test_gontaart_access_scanner_and_printers(client):
     """Test that GontaArt can access scanner UI and printer settings."""
     client.post('/login', data={'login': 'GontaArt', 'haslo': 'Artur2026'})

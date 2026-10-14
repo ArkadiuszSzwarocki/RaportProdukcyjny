@@ -20,11 +20,14 @@
 
 
 <!-- UNCONFIRMED PALLETS -->
-<div class="section-box mb-10">
-    <h4 class="m-0">📦 Palety do Zatwierdzenia</h4>
+<div class="section-box mb-10 warehouse-pending-section">
+    <div class="warehouse-section-title">
+        <h4 class="m-0">📦 Palety do zatwierdzenia</h4>
+        {% if unconfirmed_palety %}<span class="warehouse-count">{{ unconfirmed_palety|length }}</span>{% endif %}
+    </div>
     <div class="mt-10">
         {% if unconfirmed_palety and unconfirmed_palety|length > 0 %}
-        <table class="modern-table small">
+        <table class="modern-table small no-mobile-cards warehouse-pending-table">
             <thead>
                 <tr>
                     <th>Nr palety</th>
@@ -37,32 +40,22 @@
             <tbody>
                 {% for p in unconfirmed_palety %}
                 <tr id="unconfirmed-row-{{ p[0] }}">
-                    <td class="text-muted font-bold font-mono">
-                        {{ p[6] if p|length > 6 and p[6] else p[0] }}
+                    <td class="text-muted font-bold font-mono warehouse-pending-code">
+                        <span>{{ p[6] if p|length > 6 and p[6] else p[0] }}</span>
                         <button type="button" class="btn-icon" style="color: #94a3b8; padding: 0; margin-left: 6px; border: none; background: transparent; cursor: pointer;" title="Kopiuj SSCC"
                             onclick="navigator.clipboard.writeText('{{ p[6] if p|length > 6 and p[6] else p[0] }}'); if(typeof showToast === 'function') showToast('Skopiowano SSCC: {{ p[6] if p|length > 6 and p[6] else p[0] }}', 'success');">
                             <span class="material-icons" style="font-size:16px;">content_copy</span>
                         </button>
                     </td>
-                    <td>
+                    <td class="warehouse-pending-product">
                         <strong class="text-primary">{{ p[2] }}</strong>
                         <div class="text-muted" style="font-size:12px; margin-top:2px;">
-                            Paleta: <strong>{{ p[6] if p|length > 6 and p[6] else p[0] }}</strong>
+                            Oczekuje na przyjęcie
                         </div>
                     </td>
-                    <td class="time-display">{{ p[3] }}</td>
-                    <td><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{%
-                            else %}-{% endif %}</span></td>
-                    <td>
-                        <a
-                            href="{{ url_for('magazyn_dostawy.podglad_etykiety_system', paleta_id=p[0], linia=linia) }}"
-                            onclick="event.preventDefault(); openInApp(this.href, 'Etykieta palety')"
-                            class="btn-icon"
-                            style="color:#0ea5e9; margin-right:8px;"
-                            title="Podgląd etykiety"
-                        >
-                            <span class="material-icons" style="font-size:18px;">local_offer</span>
-                        </a>
+                    <td class="time-display warehouse-pending-created"><span class="warehouse-mobile-label">Dodano</span>{{ p[3] }}</td>
+                    <td class="warehouse-pending-elapsed"><span class="paleta-elapsed duration-badge" data-start="{{ p[3] }}">{% if p[5] %}{{ p[5] }}{% else %}-{% endif %}</span></td>
+                    <td class="warehouse-pending-actions">
                         <a href="{{ url_for('warehouse.potwierdz_palete_page', paleta_id=p[0], linia=linia) }}"
                             class="btn-action btn-success btn-small" data-slide>{{ _('zatwierdz') }}</a>
                     </td>
@@ -77,10 +70,10 @@
 </div>
 
 <!-- CONFIRMED PALLETS -->
-<div class="section-box p-0">
+<div class="section-box p-0 warehouse-confirmed-section">
     <div class="p-15 p-15-bg">
         <h4 class="m-0 mb-15">📦 Ostatnio potwierdzone palety</h4>
-        <table class="modern-table">
+        <table class="modern-table no-mobile-cards warehouse-confirmed-table">
             <thead>
                 <tr>
                     <th>Nr palety</th>

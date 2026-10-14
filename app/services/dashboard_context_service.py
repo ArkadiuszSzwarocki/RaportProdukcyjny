@@ -98,9 +98,10 @@ class DashboardContextService:
             cursor = conn.cursor()
             cursor.execute(
                 f"""
-                SELECT d.plan_id, d.nazwa, d.kg, d.data_zlecenia, d.data_potwierdzenia, d.szarza_id
+                SELECT d.plan_id, d.nazwa, d.kg, d.data_zlecenia, d.data_potwierdzenia, d.szarza_id, s.nr_szarzy
                 FROM {table_dosypki} d
                 JOIN {table_plan} p ON d.plan_id = p.id
+                LEFT JOIN {get_table_name('szarze', aktywna_linia)} s ON s.id=d.szarza_id AND s.plan_id=d.plan_id
                 WHERE d.potwierdzone = 1 AND COALESCE(d.anulowana, 0) = 0 AND (DATE(p.data_planu) = %s OR p.status = 'w toku') AND p.sekcja = 'Zasyp'
                 ORDER BY d.data_potwierdzenia ASC
                 """,
@@ -115,21 +116,26 @@ class DashboardContextService:
                         'zlecono': str(row[3])[:16] if row[3] else '',
                         'potwierdzono': str(row[4])[:16] if row[4] else '',
                         'szarza_id': row[5],
+                        'szarza_nr': row[6],
+                        'potwierdzono_dt': row[4],
                     }
                 )
 
             cursor.execute(
                 f"""
-                SELECT d.plan_id, COUNT(*)
+                SELECT d.plan_id, d.szarza_id, s.nr_szarzy, COUNT(*)
                 FROM {table_dosypki} d
                 JOIN {table_plan} p ON d.plan_id = p.id
+                LEFT JOIN {get_table_name('szarze', aktywna_linia)} s ON s.id=d.szarza_id AND s.plan_id=d.plan_id
                 WHERE d.potwierdzone = 0 AND COALESCE(d.anulowana, 0) = 0 AND (DATE(p.data_planu) = %s OR p.status = 'w toku') AND p.sekcja = 'Zasyp'
-                GROUP BY d.plan_id
+                GROUP BY d.plan_id, d.szarza_id, s.nr_szarzy
                 """,
                 (dzisiaj,),
             )
-            for plan_id, pending_count in cursor.fetchall():
-                dosypki_oczekujace_mapa[plan_id] = pending_count
+            for plan_id, batch_id, batch_number, pending_count in cursor.fetchall():
+                dosypki_oczekujace_mapa[plan_id] = dosypki_oczekujace_mapa.get(plan_id, 0) + pending_count
+                dosypki_oczekujace_mapa[(plan_id, batch_id)] = pending_count
+                dosypki_oczekujace_mapa[('nr', plan_id, batch_number)] = pending_count
 
             cursor.close()
             conn.close()

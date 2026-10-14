@@ -1,3 +1,5 @@
+# cspell:words putaway
+import json
 from typing import Tuple, List, Dict, Any, Optional
 from app.db import get_db_connection, get_table_name
 
@@ -9,44 +11,107 @@ class PalletLockManager:
     """
 
     @classmethod
-    def set_pallets_blocked(cls, cursor, items: List[Dict[str, Any]], blocked_val: int = 1) -> None:
+    def set_pallets_blocked(cls, cursor, items: List[Dict[str, Any]], blocked_val: int = 1, exclude_delivery_id=None) -> None:
         """Sets is_blocked to blocked_val (1 or 0) for all pallets in items."""
         if not items:
             return
 
+        allowed_tables = {
+            'magazyn_surowce', 'magazyn_agro_surowce',
+            'magazyn_opakowania', 'magazyn_agro_opakowania',
+            'magazyn_palety', 'magazyn_palety_agro', 'magazyn_dodatki',
+        }
         for it in items:
             pid = it.get('sourcePalletId') or it.get('pallet_id') or it.get('surowiec_id')
-            pnr = it.get('sourcePalletNo') or it.get('nr_palety')
-            if not pid and not pnr:
+            pnr = str(it.get('sourcePalletNo') or it.get('nr_palety') or '').strip().upper()
+            hint = str(it.get('sourceTable') or '').strip()
+            if hint and hint not in allowed_tables:
+                raise ValueError("Nieprawidłowa tabela palety")
+            if not pnr and not pid:
                 continue
+            if not pnr and not hint:
+                raise ValueError("Numer ID bez tabeli nie identyfikuje jednoznacznie palety")
+            tables = [hint] if hint else sorted(allowed_tables)
+            matches = []
+            for table in tables:
+                predicate = "UPPER(nr_palety) = %s" if pnr else "id = %s"
+                quantity_column = 'waga_netto' if table in ('magazyn_palety', 'magazyn_palety_agro') else 'stan_magazynowy'
+                hall_column = ', linia' if table in ('magazyn_palety', 'magazyn_palety_agro') else ''
+                try:
+                    cursor.execute(f"SELECT id, nr_palety{hall_column} FROM {table} WHERE {predicate} AND {quantity_column} > 0 FOR UPDATE",
+                                   (pnr if pnr else pid,))
+                    matches.extend((table, row) for row in cursor.fetchall())
+                except Exception as exc:
+                    # Optional legacy tables may be absent; connection and SQL
+                    # failures must abort the surrounding transaction.
+                    if getattr(exc, 'errno', None) != 1146 or hint:
+                        raise
+            if len(matches) > 1:
+                cursor.execute(
+                    "SELECT TABLE_NAME AS table_name FROM information_schema.TABLES "
+                    "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'VIEW' "
+                    "AND TABLE_NAME = 'magazyn_palety_agro'"
+                )
+                agro_is_view = any(row.get('table_name') == 'magazyn_palety_agro' for row in cursor.fetchall())
+                base_ids = {str(row['id']) for table, row in matches if table == 'magazyn_palety'}
+                if agro_is_view:
+                    matches = [(table, row) for table, row in matches if not (
+                        table == 'magazyn_palety_agro' and str(row['id']) in base_ids
+                    )]
+            if len(matches) > 1:
+                raise ValueError(f"Niejednoznaczna paleta {pnr or pid}: wiele rekordów magazynowych")
+            if not matches:
+                if blocked_val:
+                    raise ValueError(f"Nie znaleziono palety {pnr or pid} do zablokowania")
+                continue
+            table, row = matches[0]
+            from app.core.logistics_permissions import logistics_stock_write_allowed
+            if not logistics_stock_write_allowed(table, row):
+                raise PermissionError('Brak uprawnień do hali wskazanej palety.')
+            if not blocked_val and cls.has_protected_block(cursor, row.get('nr_palety'), exclude_delivery_id):
+                continue
+            cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s",
+                           (blocked_val, row['id']))
 
-            for l_code in ['PSD', 'AGRO']:
-                for tbl in [
-                    get_table_name('magazyn_surowce', l_code),
-                    get_table_name('magazyn_opakowania', l_code),
-                    get_table_name('magazyn_palety', l_code)
-                ]:
-                    if pid:
-                        try:
-                            cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE id = %s", (blocked_val, pid))
-                        except Exception:
-                            pass
-                    if pnr:
-                        try:
-                            cursor.execute(f"UPDATE {tbl} SET is_blocked = %s WHERE nr_palety = %s", (blocked_val, pnr))
-                        except Exception:
-                            pass
+    @staticmethod
+    def has_quality_or_manual_block(cursor, number):
+        """Return whether a quality or explicit manual hold is active."""
+        number = str(number or '').strip().upper()
+        if not number:
+            return True
+        cursor.execute("SELECT id FROM lab_blokady WHERE UPPER(pallet_code)=%s AND status='BLOKADA_LAB' FOR UPDATE", (number,))
+        if cursor.fetchone():
+            return True
+        cursor.execute("SELECT akcja FROM palety_historia WHERE UPPER(nr_palety)=%s "
+                       "AND akcja IN ('BLOKADA','BLOKADA_MANUALNA','ODBLOKOWANIE') ORDER BY id DESC LIMIT 1", (number,))
+        manual = cursor.fetchone()
+        if manual and manual.get('akcja') in ('BLOKADA','BLOKADA_MANUALNA'):
+            return True
+        return False
 
-                if pid:
-                    try:
-                        cursor.execute("UPDATE magazyn_dodatki SET is_blocked = %s WHERE id = %s", (blocked_val, pid))
-                    except Exception:
-                        pass
-                if pnr:
-                    try:
-                        cursor.execute("UPDATE magazyn_dodatki SET is_blocked = %s WHERE nr_palety = %s", (blocked_val, pnr))
-                    except Exception:
-                        pass
+    @classmethod
+    def has_protected_block(cls, cursor, number, exclude_delivery_id=None):
+        if cls.has_quality_or_manual_block(cursor, number):
+            return True
+        number = str(number or '').strip().upper()
+        cursor.execute("SELECT items FROM magazyn_dostawy WHERE status IN "
+                       "('SZKIC','AWIZOWANE','OCZEKUJE','IN_PROGRESS','OPEN','W_STREFIE_PRZYJEC','PUTAWAY_IN_PROGRESS') "
+                       "AND (%s IS NULL OR id<>%s)", (exclude_delivery_id, exclude_delivery_id))
+        for delivery in cursor.fetchall():
+            raw = delivery.get('items') or []
+            items = json.loads(raw) if isinstance(raw,str) else raw
+            if not isinstance(items,list):
+                raise ValueError('Nieprawidłowa lista rezerwacji')
+            for item in items:
+                if not isinstance(item,dict):
+                    raise ValueError('Nieprawidłowa pozycja rezerwacji')
+                nr = str(item.get('sourcePalletNo') or item.get('nr_palety') or '').strip().upper()
+                if nr == number and not (item.get('accepted') or item.get('rejected') or item.get('putaway_confirmed_at')):
+                    return True
+        cursor.execute("SELECT ti.id FROM osip_transfer_items ti JOIN osip_transfers t ON ti.transfer_id=t.id "
+                       "WHERE UPPER(ti.nr_palety)=%s AND t.status IN ('PLANNED','IN_TRANSIT','RECEIVING') "
+                       "AND ti.status NOT IN ('RECEIVED','CANCELLED') LIMIT 1", (number,))
+        return bool(cursor.fetchone())
 
     @classmethod
     def lock_draft_pallets(cls, items: List[Dict[str, Any]], linia: str = 'AGRO', user_login: str = 'system') -> Tuple[bool, str]:
@@ -61,6 +126,7 @@ class PalletLockManager:
             conn.commit()
             return True, "Draft pallets locked successfully"
         except Exception as e:
+            conn.rollback()
             return False, str(e)
         finally:
             conn.close()
@@ -92,6 +158,7 @@ class PalletLockManager:
                 conn.commit()
             return True, "Draft pallets unlocked successfully"
         except Exception as e:
+            conn.rollback()
             return False, str(e)
         finally:
             conn.close()
@@ -101,7 +168,7 @@ class PalletLockManager:
         """
         Reconciles orphaned pallet locks:
         Pallets marked as is_blocked = 1 that are NOT part of any active in-flight transfer
-        (status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS'))
+        (status IN ('SZKIC', 'AWIZOWANE', 'OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS'))
         and were NOT manually blocked by quality/user are unblocked (is_blocked = 0).
         """
         import json
@@ -118,7 +185,7 @@ class PalletLockManager:
             # 1. Collect all active in-flight pallet IDs and numbers from active orders
             cursor.execute("""
                 SELECT items FROM magazyn_dostawy 
-                WHERE status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS')
+                WHERE status IN ('SZKIC', 'AWIZOWANE', 'OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS')
             """)
             active_orders = cursor.fetchall()
             active_pids = set()
@@ -170,9 +237,10 @@ class PalletLockManager:
             # 3. Scan all warehouse stock and buffer tables for is_blocked = 1
             all_tables = [
                 'magazyn_surowce',
+                'magazyn_agro_surowce',
                 'magazyn_opakowania',
+                'magazyn_agro_opakowania',
                 'magazyn_palety',
-                'magazyn_palety_agro',
                 'magazyn_dodatki',
                 'palety_workowanie',
                 'palety_agro'
@@ -180,7 +248,7 @@ class PalletLockManager:
 
             for tbl in all_tables:
                 try:
-                    cursor.execute(f"SELECT id, nr_palety FROM {tbl} WHERE is_blocked = 1")
+                    cursor.execute(f"SELECT id, nr_palety, lokalizacja FROM {tbl} WHERE is_blocked = 1")
                     blocked_items = cursor.fetchall()
                     for b_item in blocked_items:
                         b_id = str(b_item.get('id') or '')
@@ -194,22 +262,30 @@ class PalletLockManager:
                         if (b_nr and b_nr in manual_blocked_nrs) or (b_id and b_id in manual_blocked_ids):
                             continue
 
-                        # Otherwise, it's an orphaned transfer lock -> unblock it!
+                        # SSCC conflicts are intentionally quarantined during
+                        # registry consolidation.  They are not transfer locks
+                        # and therefore must never be released by cleanup.
+                        if str(b_item.get('lokalizacja') or '').strip().upper() == 'KOREKTA_SSCC':
+                            continue
+
+                        if cls.has_protected_block(cursor, b_nr):
+                            continue
+
+                        # Otherwise, it is an orphaned transfer lock.
                         cursor.execute(f"UPDATE {tbl} SET is_blocked = 0 WHERE id = %s", (b_item['id'],))
                         unblocked_count += 1
                 except Exception as tbl_err:
-                    continue
+                    if getattr(tbl_err, 'errno', None) not in (1146,1054):
+                        raise
 
-            if conn:
-                try:
-                    conn.commit()
-                except Exception:
-                    pass
+            if should_close and conn:
+                conn.commit()
 
             return unblocked_count
         except Exception as err:
-            print(f"Error reconciling orphan transfer locks: {err}")
-            return 0
+            if should_close and conn:
+                conn.rollback()
+            raise
         finally:
             if should_close and conn:
                 try:

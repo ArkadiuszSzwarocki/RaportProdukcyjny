@@ -1,3 +1,4 @@
+# cspell:words autouse
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -67,3 +68,31 @@ class TestDashboardAccessGuards:
         # widz has access=false to everything, should get a 403 Forbidden page
         response = client.get('/')
         assert response.status_code == 403
+
+
+@pytest.fixture(autouse=True)
+def explicit_worker_page_policy():
+    # Route tests must not inherit the operator's saved UI permission settings.
+    from pathlib import Path
+    import json
+    policy = json.loads((Path(__file__).parents[1] / 'config/role_permissions.json').read_text(encoding='utf-8'))
+    policy.setdefault('psd.zasyp', {})['pracownik'] = {'access': True, 'readonly': False}
+    policy.setdefault('dashboard', {})['pracownik'] = {'access': False, 'readonly': False}
+    with patch('app.core.contexts._get_role_permissions', return_value=policy), patch(
+            'app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_override', return_value=None):
+        yield
+
+
+@pytest.mark.parametrize('hall', ['PSD', 'AGRO'])
+def test_root_redirect_uses_assigned_hall_without_selected_view(client, hall):
+    with client.session_transaction() as state:
+        state.update(zalogowany=True, login='test-navigation', rola='pracownik', grupa=hall)
+    helpers = {'role_has_access': lambda page: page == hall.lower() + '.zasyp',
+               'role_is_readonly': lambda page: False}
+    with patch('app.core.contexts.inject_role_permissions', return_value=helpers), patch(
+            'app.blueprints.main.build_dashboard_halls_context') as fetch_dashboard:
+        response = client.get('/')
+    assert response.status_code == 302
+    assert 'sekcja=Zasyp' in response.headers['Location']
+    assert 'linia=' + hall in response.headers['Location']
+    fetch_dashboard.assert_not_called()

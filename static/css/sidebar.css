@@ -231,13 +231,24 @@
         top: 60px;
         left: 0 !important;
         inline-size: 280px;
-        height: calc(100vh - 60px) !important;
+        height: calc(100vh - 44px) !important;
         transform: translateX(-100%);
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         z-index: 9999;
         padding-bottom: 100px !important; /* Extra space at the bottom */
         overflow-y: auto !important;
+        min-height: 0;
+        max-height: calc(100vh - 44px);
+        overscroll-behavior-y: contain;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
     }
+
+    @supports (height: 100dvh) {
+        .sidebar { height: calc(100dvh - 44px) !important; max-height: calc(100dvh - 44px); }
+    }
+
+    .sidebar-nav { flex-shrink: 0; }
 
     
     body.sidebar-open .sidebar,

@@ -42,6 +42,12 @@
     let currentTab = 'plan';
     let cachedHistoryBuckets = [];
 
+    function escapeBucketText(value) {
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[character]));
+    }
+
     // ── TOAST NOTIFICATIONS (Zero alert()) ──
     function showToast(message, type = 'info') {
         const toastContainer = document.getElementById('mToastContainer');
@@ -50,7 +56,11 @@
         const toast = document.createElement('div');
         toast.className = `m-toast m-toast-${type}`;
         const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️');
-        toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+        const iconNode = document.createElement('span');
+        iconNode.textContent = icon;
+        const messageNode = document.createElement('span');
+        messageNode.textContent = String(message ?? '');
+        toast.append(iconNode, messageNode);
         toastContainer.appendChild(toast);
 
         setTimeout(() => {
@@ -244,70 +254,6 @@
         });
     });
 
-    // ── DYNAMIC RESOLUTION OF STATION MATERIALS (KO01–KO40) ──
-    async function loadStationMaterials() {
-        const buttons = document.querySelectorAll('.m-st-btn');
-        if (!buttons.length) return;
-
-        // 1. Try batch endpoint first
-        try {
-            const resBatch = await fetch(`/maluchy/api/stations-materials?linia=${encodeURIComponent(linia)}`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            if (resBatch.ok) {
-                const bData = await resBatch.json();
-                if (bData && bData.success && bData.materials) {
-                    buttons.forEach(btn => {
-                        const stacja = btn.getAttribute('data-stacja');
-                        const mat = bData.materials[stacja];
-                        const span = btn.querySelector('.m-st-material');
-                        if (span) {
-                            if (mat && !mat.toLowerCase().startsWith('surowiec ze stacji')) {
-                                span.textContent = mat;
-                                span.classList.remove('m-st-empty');
-                                btn.title = `${stacja}: ${mat}`;
-                            } else {
-                                span.textContent = '—';
-                                span.classList.add('m-st-empty');
-                                btn.title = stacja;
-                            }
-                        }
-                    });
-                    return;
-                }
-            }
-        } catch (e) {
-            // fallback to single station fetch below
-        }
-
-        // 2. Fallback: fetch materials in parallel via /api/station-material
-        Array.from(buttons).forEach(async (btn) => {
-            const stacja = btn.getAttribute('data-stacja');
-            if (!stacja) return;
-            try {
-                const res = await fetch(`/maluchy/api/station-material?stacja=${encodeURIComponent(stacja)}&linia=${encodeURIComponent(linia)}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data && data.success && data.surowiec) {
-                        const mat = data.surowiec.trim();
-                        const span = btn.querySelector('.m-st-material');
-                        if (span && mat && !mat.toLowerCase().startsWith('surowiec ze stacji')) {
-                            span.textContent = mat;
-                            span.classList.remove('m-st-empty');
-                            btn.title = `${stacja}: ${mat}`;
-                        }
-                    }
-                }
-            } catch (err) {
-                // ignore network err
-            }
-        });
-    }
-
-    loadStationMaterials();
-
     // ── 4. COMPLETE BUCKET ──
     btnCompleteBucket.addEventListener('click', async function () {
         if (!currentBucket || !currentBucket.id) return;
@@ -403,7 +349,6 @@
         cardBucketDetails.style.display = 'block';
         activeBucketDisplay.textContent = bucket.kod_wiadra;
         detailsBucketCode.textContent = bucket.kod_wiadra;
-        loadStationMaterials();
 
         const recipeNameEl = document.getElementById('detailsRecipeName');
         const planBadgeEl = document.getElementById('detailsPlanBadge');
@@ -433,10 +378,10 @@
 
         bucketItemsBody.innerHTML = items.map(it => `
             <tr>
-                <td><strong style="color: #1e3a8a; font-size: 14px;">${it.stacja_kod}</strong></td>
-                <td style="font-weight: 700;">${it.surowiec_nazwa}</td>
+                <td><strong style="color: #1e3a8a; font-size: 14px;">${escapeBucketText(it.stacja_kod)}</strong></td>
+                <td style="font-weight: 700;">${escapeBucketText(it.surowiec_nazwa)}</td>
                 <td style="text-align: center;">
-                    <button type="button" class="remove-item-btn" data-item-id="${it.id}" 
+                    <button type="button" class="remove-item-btn" data-item-id="${escapeBucketText(it.id)}"
                             title="Usuń pozycję"
                             style="background: none; border: none; cursor: pointer; font-weight: bold; color: #dc2626; font-size: 16px;">✕</button>
                 </td>
@@ -477,21 +422,21 @@
         const itemsCount = items.length;
         const canDelete = b.status !== 'wrzucone_do_mieszalnika';
         const deleteBtn = canDelete
-            ? `<button type="button" class="btn-delete-bucket" data-bucket-id="${b.id}" data-bucket-code="${b.kod_wiadra}" data-plan-id="${b.plan_id || ''}" 
-                      title="Usuń wiadro ${b.kod_wiadra} z systemu"
+            ? `<button type="button" class="btn-delete-bucket" data-bucket-id="${escapeBucketText(b.id)}" data-bucket-code="${escapeBucketText(b.kod_wiadra)}" data-plan-id="${escapeBucketText(b.plan_id || '')}"
+                      title="Usuń wiadro ${escapeBucketText(b.kod_wiadra)} z systemu"
                       style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; font-size: 12px; font-weight: 800; cursor: pointer; padding: 4px 8px; border-radius: 6px; margin-left: 8px;">🗑 Usuń</button>`
             : '';
 
         const canResume = b.status === 'w_trakcie_nawazania' && selectPlanId && String(selectPlanId.value) === String(b.plan_id);
         const resumeBtn = canResume
-            ? `<button type="button" class="btn-resume-bucket" data-bucket-id="${b.id}"
+            ? `<button type="button" class="btn-resume-bucket" data-bucket-id="${escapeBucketText(b.id)}"
                       style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 12px; font-weight: 800; cursor: pointer; padding: 4px 8px; border-radius: 6px; margin-left: 6px;">▶ Wznów</button>`
             : '';
 
         const planBadge = showPlan && b.plan_id
             ? `<div style="font-size: 12px; font-weight: 800; color: #1e3a8a; margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                 <span>📋 Zlecenie #${b.plan_id}</span>
-                 <span style="color: #475569; font-weight: 600;">${b.plan_produkt || '—'}</span>
+                 <span>📋 Zlecenie #${escapeBucketText(b.plan_id)}</span>
+                 <span style="color: #475569; font-weight: 600;">${escapeBucketText(b.plan_produkt || '—')}</span>
                </div>`
             : '';
 
@@ -503,7 +448,7 @@
         }
         if (!recipeName) recipeName = '—';
 
-        const recipeCodeBadge = b.plan_nr_receptury ? `<span style="font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 2px 7px; border-radius: 5px; font-weight: 800; margin-left: 6px;">Kod: ${b.plan_nr_receptury}</span>` : '';
+        const recipeCodeBadge = b.plan_nr_receptury ? `<span style="font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 2px 7px; border-radius: 5px; font-weight: 800; margin-left: 6px;">Kod: ${escapeBucketText(b.plan_nr_receptury)}</span>` : '';
         const orderText = b.plan_id ? `#${b.plan_id}` : '—';
         const planDateStr = b.plan_data ? ` (${b.plan_data})` : '';
 
@@ -514,14 +459,14 @@
                         🎯 Przypisana Receptura / Produkt:
                     </div>
                     <div style="font-size: 14px; font-weight: 800; color: #0f172a; margin-top: 2px; display: flex; align-items: center; flex-wrap: wrap;">
-                        <span>${recipeName}</span>
+                        <span>${escapeBucketText(recipeName)}</span>
                         ${recipeCodeBadge}
                     </div>
                 </div>
                 <div style="text-align: right;">
                     <div style="font-size: 11px; font-weight: 700; color: #64748b;">Zlecenie Zasypu:</div>
                     <div style="font-size: 12px; font-weight: 800; color: #1e40af; background: #dbeafe; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 6px; display: inline-block; margin-top: 2px;">
-                        Zlecenie ${orderText}${planDateStr}
+                        Zlecenie ${escapeBucketText(orderText)}${escapeBucketText(planDateStr)}
                     </div>
                 </div>
             </div>
@@ -530,37 +475,37 @@
         const itemsHtml = items.length > 0
             ? items.map(p => `
                 <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 4px;">
-                    <span style="font-weight: 800; color: #1e3a8a; font-size: 13px;">${p.stacja_kod}</span>
-                    <span style="font-weight: 700; color: #0f172a; margin-left: 10px; flex: 1; font-size: 13px;">${p.surowiec_nazwa}</span>
+                    <span style="font-weight: 800; color: #1e3a8a; font-size: 13px;">${escapeBucketText(p.stacja_kod)}</span>
+                    <span style="font-weight: 700; color: #0f172a; margin-left: 10px; flex: 1; font-size: 13px;">${escapeBucketText(p.surowiec_nazwa)}</span>
                 </div>
             `).join('')
             : '<div style="color: #94a3b8; font-style: italic; font-size: 12px;">Brak składników w wiadrze</div>';
 
-        const ssccInfo = b.nr_sscc ? `<div style="font-family: monospace; font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-weight: 700;">SSCC: ${b.nr_sscc}</div>` : '';
+        const ssccInfo = b.nr_sscc ? `<div style="font-family: monospace; font-size: 11px; background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-weight: 700;">SSCC: ${escapeBucketText(b.nr_sscc)}</div>` : '';
         const prodDate = b.data_produkcji || b.data_rozpoczecia || '—';
         const expDate = b.data_przydatnosci || '— (+24h)';
         const dumpedInfo = b.status === 'wrzucone_do_mieszalnika' && b.data_zasypania
-            ? `<div style="font-size: 11px; color: #047857; font-weight: 700; margin-top: 2px;">Wsypano: ${b.data_zasypania} (${b.mieszalnik_kod || 'MI01'}) przez ${b.operator_zasypania || '—'}</div>`
+            ? `<div style="font-size: 11px; color: #047857; font-weight: 700; margin-top: 2px;">Wsypano: ${escapeBucketText(b.data_zasypania)} (${escapeBucketText(b.mieszalnik_kod || 'MI01')}) przez ${escapeBucketText(b.operator_zasypania || '—')}</div>`
             : '';
 
         return `
-            <div class="m-plan-bucket-card" data-bucket-id="${b.id}" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;">
+            <div class="m-plan-bucket-card" data-bucket-id="${escapeBucketText(b.id)}" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;">
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                     <div>
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <span class="m-bucket-pill" style="font-size: 14px;">Wiadro ${b.kod_wiadra}</span>
-                            <span style="background: ${(b.linia || linia) === 'AGRO' ? '#eff6ff' : '#f0fdf4'}; color: ${(b.linia || linia) === 'AGRO' ? '#1d4ed8' : '#15803d'}; border: 1px solid ${(b.linia || linia) === 'AGRO' ? '#bfdbfe' : '#bbf7d0'}; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">${b.linia || linia}</span>
-                            <span style="font-weight: 700; font-size: 13px; color: #1e293b;">${itemsCount} składników</span>
+                            <span class="m-bucket-pill" style="font-size: 14px;">Wiadro ${escapeBucketText(b.kod_wiadra)}</span>
+                            <span style="background: ${escapeBucketText((b.linia || linia) === 'AGRO' ? '#eff6ff' : '#f0fdf4')}; color: ${escapeBucketText((b.linia || linia) === 'AGRO' ? '#1d4ed8' : '#15803d')}; border: 1px solid ${escapeBucketText((b.linia || linia) === 'AGRO' ? '#bfdbfe' : '#bbf7d0')}; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px;">${escapeBucketText(b.linia || linia)}</span>
+                            <span style="font-weight: 700; font-size: 13px; color: #1e293b;">${escapeBucketText(itemsCount)} składników</span>
                             <span style="font-size: 12px; color: #2563eb; font-weight: 700;" class="m-toggle-indicator">▾ zawartość</span>
                         </div>
                         ${planBadge}
                         <div style="font-size: 12px; color: #64748b; margin-top: 3px;">
-                            Data: ${prodDate} ${expDate !== '—' ? '| Ważność: ' + expDate : ''}
+                            Data: ${escapeBucketText(prodDate)} ${escapeBucketText(expDate !== '—' ? '| Ważność: ' + expDate : '')}
                         </div>
                         ${dumpedInfo}
                     </div>
                     <div style="display: flex; align-items: center;">
-                        <span class="status-badge ${badgeClass}">${statusLabel}</span>
+                        <span class="status-badge ${escapeBucketText(badgeClass)}">${escapeBucketText(statusLabel)}</span>
                         ${resumeBtn}
                         ${deleteBtn}
                     </div>
@@ -569,7 +514,7 @@
                     ${recipeDetailsBox}
                     ${ssccInfo}
                     <div style="font-weight: 800; color: #475569; font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">
-                        Składniki w wiadrze ${b.kod_wiadra}:
+                        Składniki w wiadrze ${escapeBucketText(b.kod_wiadra)}:
                     </div>
                     ${itemsHtml}
                 </div>

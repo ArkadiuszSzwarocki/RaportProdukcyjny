@@ -31,8 +31,15 @@ def test_dodaj_dosypke_success(client):
         (1,),  # 5. SHOW COLUMNS pracownik_login
     ]
     mock_cursor.fetchall.return_value = [('Actisaf Drożdże Żywe',)]
+    resource_connection = MagicMock()
+    resource_connection.cursor.return_value.fetchone.return_value = ('Zasyp',)
 
     with patch('app.blueprints.production.dosypki.get_db_connection', return_value=mock_conn), \
+         patch('app.core.production_permissions.get_db_connection', return_value=resource_connection), \
+         patch('app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_overrides', return_value={}), \
+         patch('app.core.contexts.inject_role_permissions', return_value={
+             'role_has_access': lambda page: page == 'agro.zasyp',
+             'role_is_readonly': lambda page: False}), \
          patch('app.blueprints.production.dosypki.sync_dosypka_notifications'):
 
         resp = client.post('/dodaj_dosypke', data={

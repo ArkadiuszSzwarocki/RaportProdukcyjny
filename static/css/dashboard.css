@@ -8,6 +8,237 @@
     pointer-events: none;
 }
 
+.warehouse-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.warehouse-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.warehouse-mobile-label {
+    display: none;
+}
+
+@media (max-width: 1200px) {
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"],
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .dashboard-top-row {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .dashboard-top-row {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 6px !important;
+        margin-bottom: 10px !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .header-title-row {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 6px !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .header-title-row .header-title {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        min-width: 0 !important;
+        font-size: 1.08rem !important;
+        white-space: nowrap !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .header-title-row > div:nth-child(2) {
+        grid-column: 1 / -1 !important;
+        grid-row: 2 !important;
+        display: flex !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        gap: 5px !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .header-title-row > div:nth-child(3) {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        justify-self: end !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .unified-date-picker {
+        flex: 0 0 auto !important;
+        max-width: 166px !important;
+        min-width: 0 !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .unified-date-prev,
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .unified-date-next {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+        font-size: .88rem !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .unified-date-tile {
+        padding-left: 3px !important;
+        padding-right: 3px !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .unified-date-tile > span,
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .unified-date-label {
+        font-size: .75rem !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .topbar-printer-container {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        padding: 3px 5px !important;
+        margin-left: 0 !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] #topbarZplPrinterSelect {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        font-size: .75rem !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .header-stats {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        justify-content: flex-start !important;
+        gap: 5px !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .stat-inline {
+        flex: 0 1 auto !important;
+        min-width: 0 !important;
+        padding: 4px 7px !important;
+        font-size: .72rem !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .stat-inline .label,
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .stat-inline .value {
+        white-space: nowrap !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] .warehouse-preprint-action {
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
+        margin-left: 0 !important;
+    }
+
+    body #mainContent #dashboard-config[data-sekcja="Magazyn"] #preprint_pallets_btn {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+}
+
+@media (max-width: 640px) {
+    .warehouse-pending-section {
+        padding: 10px !important;
+        overflow: visible !important;
+    }
+
+    .warehouse-pending-section .mt-10 {
+        margin-top: 8px !important;
+    }
+
+    table.modern-table.warehouse-pending-table,
+    table.modern-table.warehouse-pending-table tbody {
+        display: block !important;
+        width: 100% !important;
+        border: 0 !important;
+        background: transparent !important;
+    }
+
+    table.modern-table.warehouse-pending-table thead {
+        display: none !important;
+    }
+
+    table.modern-table.warehouse-pending-table tr {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        gap: 6px 10px !important;
+        margin: 0 0 8px !important;
+        padding: 10px !important;
+        border: 1px solid #dbe4f0 !important;
+        border-radius: 10px !important;
+        background: #fff !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, .05) !important;
+    }
+
+    table.modern-table.warehouse-pending-table td {
+        display: block !important;
+        width: auto !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        text-align: left !important;
+    }
+
+    .warehouse-pending-product { grid-column: 1; grid-row: 1; line-height: 1.25; min-width: 0; }
+    .warehouse-pending-product > strong { font-size: .98rem !important; }
+    .warehouse-pending-product div { margin-top: 2px !important; font-size: .72rem !important; }
+    .warehouse-pending-code { grid-column: 2; grid-row: 1; align-self: start; font-size: .68rem !important; color: #475569 !important; white-space: nowrap; }
+    .warehouse-pending-code .btn-icon { margin-left: 3px !important; vertical-align: middle; }
+    .warehouse-pending-created { grid-column: 1; grid-row: 2; color: #64748b !important; font-size: .75rem !important; }
+    .warehouse-pending-elapsed { grid-column: 1; grid-row: 3; align-self: center; }
+    .warehouse-pending-actions { grid-column: 2; grid-row: 2 / span 2; align-self: stretch; display: flex !important; align-items: center; }
+    .warehouse-pending-actions .btn-action { display: flex !important; width: 104px !important; min-height: 58px !important; justify-content: center !important; align-items: center !important; }
+    .warehouse-mobile-label { display: inline; margin-right: 4px; font-size: .68rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; }
+
+    .warehouse-confirmed-section .p-15-bg { padding: 10px !important; }
+    .warehouse-confirmed-section h4 { margin-bottom: 8px !important; }
+
+    #mainContent .warehouse-confirmed-table,
+    #mainContent .warehouse-confirmed-table tbody { display: block !important; width: 100% !important; }
+    #mainContent .warehouse-confirmed-table thead { display: none !important; }
+    #mainContent .warehouse-confirmed-table tr {
+        display: grid !important;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+        padding: 10px !important;
+        margin-bottom: 8px !important;
+        border: 1px solid #dbe4f0 !important;
+        border-radius: 10px !important;
+    }
+    #mainContent .warehouse-confirmed-table td {
+        display: block !important;
+        padding: 0 !important;
+        border: 0 !important;
+        min-width: 0 !important;
+        font-size: .75rem !important;
+        overflow-wrap: anywhere;
+    }
+    #mainContent .warehouse-confirmed-table td:nth-child(3) { grid-column: 1 / -1; grid-row: 1; }
+    #mainContent .warehouse-confirmed-table td:nth-child(3) > div { display: none; }
+    #mainContent .warehouse-confirmed-table td:nth-child(1) { grid-column: 1 / -1; grid-row: 2; }
+    #mainContent .warehouse-confirmed-table td:nth-child(2) { grid-column: 1 / -1; grid-row: 3; }
+    #mainContent .warehouse-confirmed-table td:nth-child(7) { grid-column: 1; }
+    #mainContent .warehouse-confirmed-table td:nth-child(8) { grid-column: 2 / -1; display: flex !important; justify-content: flex-end; gap: 8px; }
+    #mainContent .warehouse-confirmed-table td[colspan] { grid-column: 1 / -1; }
+}
+
 .active-order-floating-bar {
     display: flex;
     align-items: center;
@@ -381,6 +612,16 @@
 .machine-counter-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; background: #334155; color: white; border: 1px solid #475569; }
 
 /* Modal Enhancements */
+[data-dashboard-submit="zasyp-stop"] .btn-stop:disabled {
+    background: #cbd5e1 !important;
+    color: #475569 !important;
+    border-color: #cbd5e1 !important;
+    cursor: not-allowed;
+    opacity: 0.65;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
 .quick-popup.open:not(.qp-wide):not(.qp-dosypka-full):not(:has(.dosypka-popup-container)) {
     max-width: min(700px, 95vw);
     max-height: 90vh;
@@ -513,7 +754,7 @@
 }
 
 /* On very small screens keep them smaller but still in one row */
-@media (max-width: 640px) {
+@media (max-width: 1200px) {
     #mainContent .header-stats {
         gap: 4px !important;
     }
@@ -707,7 +948,7 @@
 }
 
 /* On very small screens keep them smaller but still in one row */
-@media (max-width: 640px) {
+@media (max-width: 1200px) {
     #mainContent .header-stats {
         gap: 4px !important;
     }

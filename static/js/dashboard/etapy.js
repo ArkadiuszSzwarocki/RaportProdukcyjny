@@ -249,6 +249,14 @@
             (linia === 'AGRO' && etap === '5') ||
             (linia !== 'AGRO' && etap === '6');
 
+        if (isAgroDecisionStop && Number(form.dataset.pendingDosypki || 0) > 0) {
+            if (typeof global.showToast === 'function') global.showToast('Najpierw potwierdź dosypki przypisane do tego zasypu.', 'danger');
+            return false;
+        }
+        if (isAgroDecisionStop && form.dataset.automaticDosypka === '1') {
+            isAgroDecisionStop = false;
+        }
+
         if (!isAgroDecisionStop && !isFinalEmptyStop) {
             var etapIdRaw = parseInt(etap, 10);
             var isOvertime = _isEtapOvertime(form.closest('.etap-card'), etapIdRaw);
@@ -761,9 +769,9 @@
 
         if (num === 1 || String(etapNum) === '1') {
             limitMin = limits.nawazanie_min || limits.zasyp_min || limits.wydozowanie_min || 20;
-        } else if (num === 2 || num === 4 || (num > 40 && num < 50)) {
+        } else if (num === 2 || String(num).startsWith('4')) {
             limitMin = limits.mieszanie_min || 10;
-        } else if (num === 3 || (num > 30 && num < 40)) {
+        } else if (String(num).startsWith('3')) {
             limitMin = limits.dosypka_min || 5;
         } else if (num === 5 || num === 6) {
             limitMin = limits.oproznianie_min || 10;

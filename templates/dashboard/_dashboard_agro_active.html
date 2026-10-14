@@ -73,7 +73,7 @@
                     </a>
                 {% endif %}
 
-                {% if fb_kstats %}
+                {% if fb_kstats and not (sekcja == 'Zasyp' and linia == 'AGRO') %}
                 <span class="agro-kgph-pill js-kgph-explain" role="button" tabindex="0"
                     data-kind="real" data-plan-id="{{ fb_pid }}"
                     data-value="{{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '' }}"

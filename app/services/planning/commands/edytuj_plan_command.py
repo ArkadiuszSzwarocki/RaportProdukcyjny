@@ -29,12 +29,12 @@ class EdytujPlanCommand:
 
         if linia.upper() == 'AGRO':
             cursor.execute(
-                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, opakowanie_id, etykieta_id, rodzaj_palety, '' as updated_at FROM {table_plan} WHERE id=%s",
+                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, opakowanie_id, etykieta_id, rodzaj_palety, '' as updated_at FROM {table_plan} WHERE id=%s FOR UPDATE",
                 (pid,),
             )
         else:
             cursor.execute(
-                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, NULL as opakowanie_id, NULL as etykieta_id, rodzaj_palety, '' as updated_at FROM {table_plan} WHERE id=%s",
+                f"SELECT id, produkt, tonaz, sekcja, data_planu, status, COALESCE(typ_produkcji, ''), COALESCE(nazwa_zlecenia, ''), zasyp_id, COALESCE(typ_zlecenia, ''), data_produkcji, NULL as opakowanie_id, NULL as etykieta_id, rodzaj_palety, '' as updated_at FROM {table_plan} WHERE id=%s FOR UPDATE",
                 (pid,),
             )
             

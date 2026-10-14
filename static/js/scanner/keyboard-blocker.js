@@ -8,6 +8,16 @@
 (function() {
     'use strict';
 
+    // One idle poll also detects programmatic values without per-input timers.
+    const keyboardControllers = new Map();
+    setInterval(() => {
+        if (document.hidden || document.body.classList.contains('sidebar-open')) return;
+        keyboardControllers.forEach((refresh, input) => {
+            if (!input.isConnected) keyboardControllers.delete(input);
+            else refresh();
+        });
+    }, 250);
+
     // Inject dedicated CSS for keyboard and clear button positioning
     if (!document.getElementById('kb-controller-style')) {
         const style = document.createElement('style');
@@ -260,9 +270,12 @@
 
         wrapper.appendChild(icon);
 
+        let lastHasText = null;
         function updateVisibility() {
             const val = (input.value !== undefined && input.value !== null) ? String(input.value).trim() : '';
             const hasText = val.length > 0;
+            if (hasText === lastHasText) return;
+            lastHasText = hasText;
             if (hasText) {
                 icon.style.setProperty('display', 'none', 'important');
                 if (clearBtn) {
@@ -287,7 +300,7 @@
         input.addEventListener('blur', updateVisibility);
 
         // Keep state synchronized safely without overriding native input property descriptors
-        setInterval(updateVisibility, 150);
+        keyboardControllers.set(input, updateVisibility);
 
         updateVisibility();
     }

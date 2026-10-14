@@ -1,105 +1,138 @@
 #!/usr/bin/env python3
-"""
-SKRYPT: podmien_baze.py
-OPIS: Narzędzie Python do automatycznej podmiany bazy danych MySQL w środowisku Docker.
-PROJEKT: Raport Produkcyjny
-ŚRODOWISKO: Serwer Ubuntu (Localhost)
-"""
+"""Bezpieczna procedura podmiany bazy MySQL w środowisku Docker Compose."""
 
 import argparse
 import os
+from pathlib import Path
+import shlex
 import subprocess
 import sys
 import time
 
-DEFAULT_SQL_FILE = "nowa_baza.sql"
 
-def run_cmd(cmd, check=True, shell=True):
-    print(f"\n[EXEC] {cmd}")
-    res = subprocess.run(cmd, shell=shell, check=check)
-    return res.returncode == 0
+DEFAULT_SQL_FILE = 'nowa_baza.sql'
+
+
+def _compose_prefix():
+    """Return a shell-free Docker Compose command prefix.
+
+    Override with e.g. ``DOCKER_COMPOSE_COMMAND='docker-compose'`` or
+    ``DOCKER_COMPOSE_COMMAND='sudo docker compose'`` on the target host.
+    ``shlex.split`` only tokenizes configuration; commands are still executed
+    with ``shell=False``.
+    """
+    raw = os.getenv('DOCKER_COMPOSE_COMMAND', 'docker compose').strip()
+    parts = shlex.split(raw)
+    if not parts:
+        raise RuntimeError('DOCKER_COMPOSE_COMMAND nie może być pusty.')
+    return parts
+
+
+def run_cmd(args, *, check=True, stdin_handle=None):
+    command = [str(part) for part in args]
+    print(f"\n[EXEC] {shlex.join(command)}")
+    result = subprocess.run(
+        command,
+        stdin=stdin_handle,
+        check=check,
+        shell=False,
+    )
+    return result.returncode == 0
+
+
+def compose(*args, check=True, stdin_handle=None):
+    return run_cmd(
+        [*_compose_prefix(), *args],
+        check=check,
+        stdin_handle=stdin_handle,
+    )
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Automatyczna procedura podmiany bazy danych (Docker / Python)")
-    parser.add_argument("sql_file", nargs="?", default=DEFAULT_SQL_FILE, help="Nazwa/ścieżka pliku zrzutu bazy SQL (domyślnie: nowa_baza.sql)")
-    parser.add_argument("--yes", "-y", action="store_true", help="Automatyczne potwierdzenie (bez pytania t/n)")
+    parser = argparse.ArgumentParser(
+        description='Procedura podmiany bazy danych (Docker Compose / Python)'
+    )
+    parser.add_argument(
+        'sql_file',
+        nargs='?',
+        default=DEFAULT_SQL_FILE,
+        help='Ścieżka pliku zrzutu SQL (domyślnie: nowa_baza.sql)',
+    )
+    parser.add_argument('--yes', '-y', action='store_true', help='Pomiń pytanie potwierdzające')
     args = parser.parse_args()
 
-    sql_file = args.sql_file
-
-    print("======================================================================")
-    print("    PROCEDURA PODMIANY BAZY DANYCH (ŚRODOWISKO DOCKER)")
-    print("    Projekt: Raport Produkcyjny | Środowisko: Serwer Ubuntu (Localhost)")
-    print("======================================================================\n")
-
-    # KROK 1: Przygotowanie pliku
-    print("--- KROK 1: Przygotowanie pliku ---")
-    if not os.path.isfile(sql_file):
-        print(f"❌ [BŁĄD] Plik '{sql_file}' nie został znaleziony w katalogu ({os.getcwd()})!")
-        print("Upewnij się, że nowy zrzut bazy z QNAP-a (np. nowa_baza.sql) znajduje się w Twoim głównym katalogu projektu na Ubuntu:")
-        print("  ~/raportprodukcyjny")
-        sql_files = [f for f in os.listdir(".") if f.endswith(".sql")]
-        if sql_files:
-            print(f"Znalezione pliki .sql w bieżącym katalogu: {', '.join(sql_files)}")
-        else:
-            print("Brak plików .sql w tym katalogu.")
+    sql_path = Path(args.sql_file).expanduser().resolve()
+    if not sql_path.is_file():
+        print(f"[BŁĄD] Nie znaleziono pliku SQL: {sql_path}")
+        candidates = sorted(Path.cwd().glob('*.sql'))
+        if candidates:
+            print('Pliki SQL w bieżącym katalogu:')
+            for candidate in candidates:
+                print(f'  - {candidate.name}')
         sys.exit(1)
 
-    file_size_mb = os.path.getsize(sql_file) / (1024 * 1024)
-    print(f"✅ Znaleziono plik bazy danych: {sql_file} ({file_size_mb:.2f} MB)")
+    file_size_mb = sql_path.stat().st_size / (1024 * 1024)
+    print('======================================================================')
+    print('    PROCEDURA PODMIANY BAZY DANYCH (DOCKER COMPOSE)')
+    print('======================================================================')
+    print(f'Plik: {sql_path} ({file_size_mb:.2f} MB)')
 
     if not args.yes:
-        confirm = input(f"\n⚠️ Czy na pewno chcesz usunąć stary wolumen bazy i wgrać '{sql_file}'? (t/N): ")
-        if confirm.strip().lower() not in ['t', 'tak', 'y', 'yes']:
-            print("🚫 Anulowano procedurę podmiany bazy.")
-            sys.exit(0)
+        confirm = input(
+            '\nUWAGA: procedura usunie dotychczasowy wolumen bazy. '
+            'Kontynuować? (t/N): '
+        )
+        if confirm.strip().lower() not in {'t', 'tak', 'y', 'yes'}:
+            print('Anulowano procedurę.')
+            return
 
-    # KROK 2: Czyszczenie starego środowiska
-    print("\n--- KROK 2: Czyszczenie starego środowiska ---")
-    print("Zatrzymywanie kontenerów i usuwanie starego wolumenu bazy danych...")
-    run_cmd("sudo docker-compose down -v")
+    print('\n--- KROK 1: zatrzymanie środowiska i usunięcie wolumenu ---')
+    compose('down', '-v')
 
-    # KROK 3: Uruchomienie czystej bazy danych
-    print("\n--- KROK 3: Uruchomienie czystej bazy danych ---")
-    print("Podnoszenie kontenera bazy danych...")
-    run_cmd("sudo docker-compose up -d db")
+    print('\n--- KROK 2: uruchomienie czystej bazy ---')
+    compose('up', '-d', 'db')
 
-    print("Oczekiwanie około 15-20 sekund na pełne uruchomienie i inicjalizację MySQL...")
-    for i in range(20, 0, -1):
-        print(f"Inicjalizacja MySQL... pozostało {i}s \r", end="", flush=True)
-        time.sleep(1)
-    print("\n✅ Kontener db wystartował.")
-
-    # KROK 4: Import nowych danych
-    print("\n--- KROK 4: Import nowych danych ---")
-    print("Weryfikacja gotowości bazy skonfigurowanej jako MYSQL_DATABASE...")
-    run_cmd(
-        """sudo docker-compose exec -T db sh -c '
-        export MYSQL_PWD="$MYSQL_ROOT_PASSWORD";
-        mysqladmin -u root ping
-        '"""
+    print('\n--- KROK 3: oczekiwanie na MySQL ---')
+    readiness_command = (
+        'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; '
+        'exec mysqladmin -u root ping'
     )
-    print(f"Wgrywanie pliku '{sql_file}' do skonfigurowanej bazy...")
-    run_cmd(
-        f'''sudo docker-compose exec -T db sh -c '
-        export MYSQL_PWD="$MYSQL_ROOT_PASSWORD";
-        exec mysql -u root "$MYSQL_DATABASE"
-        ' < "{sql_file}"'''
+    ready = False
+    for attempt in range(1, 31):
+        try:
+            compose(
+                'exec', '-T', 'db', 'sh', '-c', readiness_command,
+                check=True,
+            )
+            ready = True
+            break
+        except subprocess.CalledProcessError:
+            print(f'MySQL jeszcze niegotowy ({attempt}/30)...')
+            time.sleep(2)
+    if not ready:
+        raise RuntimeError('MySQL nie osiągnął gotowości w wymaganym czasie.')
+
+    print('\n--- KROK 4: import dumpa SQL ---')
+    import_command = (
+        'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; '
+        'exec mysql -u root "$MYSQL_DATABASE"'
     )
-    print(f"✅ Pomyślnie zaimportowano plik '{sql_file}' do skonfigurowanej bazy!")
+    # The dump path never enters a shell command. Bytes are streamed directly
+    # to mysql stdin, so hostile spaces/quotes in a local filename are harmless.
+    with sql_path.open('rb') as sql_stream:
+        compose(
+            'exec', '-T', 'db', 'sh', '-c', import_command,
+            stdin_handle=sql_stream,
+        )
 
-    # KROK 5: Uruchomienie aplikacji
-    print("\n--- KROK 5: Uruchomienie aplikacji ---")
-    print("Gdy import zakończy się bez błędów, uruchamianie kontenera z aplikacją...")
-    run_cmd("sudo docker-compose up -d app")
+    print('\n--- KROK 5: uruchomienie aplikacji ---')
+    compose('up', '-d', 'app')
 
-    # KROK 6: Weryfikacja
-    print("\n======================================================================")
-    print(" 🎉 PROCEDURA PODMIANY BAZY DANYCH ZAKOŃCZONA SUKCESEM!")
-    print("======================================================================")
-    print("KROK 6: Weryfikacja")
-    print("Wejdź do przeglądarki pod adres: https://localhost:5005")
-    print("Zaloguj się i sprawdź, czy nowe dane są widoczne. Procedura zakończona!\n")
+    print('\n======================================================================')
+    print('PROCEDURA PODMIANY BAZY DANYCH ZAKOŃCZONA SUKCESEM')
+    print('======================================================================')
+    print('Zweryfikuj aplikację na adresie skonfigurowanym dla środowiska docelowego.')
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()

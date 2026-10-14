@@ -1,57 +1,61 @@
 version: "3.8"
 
 services:
-  # MySQL Database
   db:
     image: mysql:8.0
     container_name: raportprodukcyjny_db
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
       MYSQL_DATABASE: ${DB_NAME:?DB_NAME is required}
       MYSQL_USER: ${DB_USER:?DB_USER is required}
       MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       TZ: ${TZ:-Europe/Warsaw}
     ports:
-      - "${DB_PORT:-  3307}:3307"
+      # Optional host administration is loopback-only by default. Containers use 3306.
+      - "127.0.0.1:${DB_HOST_PORT:-3307}:3306"
     volumes:
       - db_data:/var/lib/mysql
-      - ./db-init:/docker-entrypoint-initdb.d
+      - ./db-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - raportprodukcyjny_net
+    restart: unless-stopped
 
-  # Flask Application
   app:
-    image: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
+    image: ${APP_IMAGE:?APP_IMAGE must reference the tested sha image}
     container_name: raportprodukcyjny_app
     environment:
       FLASK_ENV: ${FLASK_ENV:-production}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
       DB_HOST: db
-      DB_PORT: 3307
+      DB_PORT: 3306
       DB_USER: ${DB_USER:?DB_USER is required}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       DB_NAME: ${DB_NAME:?DB_NAME is required}
+      DB_SSL_DISABLED: ${DB_SSL_DISABLED:-false}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       TZ: ${TZ:-Europe/Warsaw}
       PORT: 8082
       HOST: 0.0.0.0
-      PRINTER_BRIDGE_URL: "${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}"
-      PRINTER_CLIENT_BRIDGE_URL: "${PRINTER_CLIENT_BRIDGE_URL:-}"
-      USE_SSL: "${USE_SSL:?USE_SSL is required}"
+      ENABLE_BACKGROUND_DAEMONS: "false"
+      TRUST_PROXY_HEADERS: "false"
+      PRINTER_BRIDGE_URL: ${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}
+      PRINTER_BRIDGE_TOKEN: ${PRINTER_BRIDGE_TOKEN:?PRINTER_BRIDGE_TOKEN is required}
+      PRINTER_BRIDGE_AUTOSTART: ${PRINTER_BRIDGE_AUTOSTART:-false}
+      USE_SSL: ${USE_SSL:?USE_SSL is required}
       TLS_CERT_FILE: /run/secrets/tls-cert.pem
       TLS_KEY_FILE: /run/secrets/tls-key.pem
     ports:
-      - "5005:8082" # [Port QNAP-a]:[Port aplikacji webowej w kontenerze]
+      - "${APP_HOST_PORT:-5005}:8082"
     volumes:
       - ./logs:/app/logs
       - ./raporty:/app/raporty
-      - ./config:/app/config
+      - ./config:/app/config:ro
       - "${TLS_CERT_HOST_PATH:?TLS_CERT_HOST_PATH is required}:/run/secrets/tls-cert.pem:ro"
       - "${TLS_KEY_HOST_PATH:?TLS_KEY_HOST_PATH is required}:/run/secrets/tls-key.pem:ro"
     depends_on:
@@ -63,7 +67,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8082', timeout=5)",
+          "import socket; s=socket.create_connection(('127.0.0.1', 8082), 5); s.close()",
         ]
       interval: 30s
       timeout: 10s
@@ -73,10 +77,50 @@ services:
       - raportprodukcyjny_net
     restart: unless-stopped
 
+  daemons:
+    image: ${APP_IMAGE:?APP_IMAGE must reference the tested sha image}
+    container_name: raportprodukcyjny_daemons
+    command: ["python", "scripts/run_daemons.py"]
+    environment:
+      FLASK_ENV: ${FLASK_ENV:-production}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:?DB_USER is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_NAME: ${DB_NAME:?DB_NAME is required}
+      DB_SSL_DISABLED: ${DB_SSL_DISABLED:-false}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      TZ: ${TZ:-Europe/Warsaw}
+      ENABLE_BACKGROUND_DAEMONS: "true"
+      SKIP_DB_SETUP: "true"
+      PRINTER_BRIDGE_URL: ${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}
+      PRINTER_BRIDGE_TOKEN: ${PRINTER_BRIDGE_TOKEN:?PRINTER_BRIDGE_TOKEN is required}
+      PRINTER_BRIDGE_AUTOSTART: ${PRINTER_BRIDGE_AUTOSTART:-false}
+      MQTT_BROKER_HOST: ${MQTT_BROKER_HOST:-}
+      MQTT_BROKER_PORT: ${MQTT_BROKER_PORT:-8883}
+      MQTT_BROKER_USERNAME: ${MQTT_BROKER_USERNAME:-}
+      MQTT_BROKER_PASSWORD: ${MQTT_BROKER_PASSWORD:-}
+      MQTT_SUBSCRIBE_TOPICS: ${MQTT_SUBSCRIBE_TOPICS:-#}
+      SMTP_SERVER: ${SMTP_SERVER:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    volumes:
+      - ./logs:/app/logs
+      - ./raporty:/app/raporty
+      - ./config:/app/config:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - raportprodukcyjny_net
+    restart: unless-stopped
+
 volumes:
   db_data:
     driver: local
-  # raporty_data removed in favor of host bind-mount ./raporty
 
 networks:
   raportprodukcyjny_net:

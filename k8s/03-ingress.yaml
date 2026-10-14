@@ -26,10 +26,10 @@ spec:
               number: 80
 
 ---
-apiVersion: v1
+apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: app-network-policy
+  name: app-ingress-policy
   namespace: raportprodukcyjny
 spec:
   podSelector:
@@ -37,15 +37,56 @@ spec:
       app: raportprodukcyjny
   policyTypes:
   - Ingress
-  - Egress
   ingress:
   - from:
     - namespaceSelector:
         matchLabels:
-          name: ingress-nginx
+          kubernetes.io/metadata.name: ingress-nginx
     ports:
     - protocol: TCP
       port: 8082
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mysql-ingress-policy
+  namespace: raportprodukcyjny
+spec:
+  podSelector:
+    matchLabels:
+      app: mysql
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - raportprodukcyjny
+          - raportprodukcyjny-daemons
+    ports:
+    - protocol: TCP
+      port: 3306
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: app-egress-policy
+  namespace: raportprodukcyjny
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - raportprodukcyjny
+      - raportprodukcyjny-daemons
+  policyTypes:
+  - Egress
   egress:
   - to:
     - podSelector:
@@ -61,3 +102,34 @@ spec:
       port: 53
     - protocol: UDP
       port: 53
+  # Public integrations: web/TLS, SMTP and MQTT only.
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 465
+    - protocol: TCP
+      port: 587
+    - protocol: TCP
+      port: 1883
+    - protocol: TCP
+      port: 8883
+  # Printer bridge/raw printer traffic is LAN-only. Site overlays can narrow
+  # these private ranges further to the actual printer VLAN/subnet.
+  - to:
+    - ipBlock:
+        cidr: 10.0.0.0/8
+    - ipBlock:
+        cidr: 172.16.0.0/12
+    - ipBlock:
+        cidr: 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 9100

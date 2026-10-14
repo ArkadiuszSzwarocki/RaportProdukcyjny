@@ -46,7 +46,7 @@ function submitAcceptWG() {
     fetch('/magazyn-dostawy/api/przyjmij-wg', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ id: id, lokalizacja: lok, linia: currentWgAcceptLine, waga: wagaValue })
+        body: JSON.stringify({ id: id, nr_palety: document.getElementById('wgNrPalety').innerText, lokalizacja: lok, linia: currentWgAcceptLine, waga: wagaValue })
     }).then(r => r.json()).then(res => {
         if (res.success) {
             performSilentRefresh(); closeModal('modalWG');

@@ -42,14 +42,6 @@ def api_get_station_material():
     return jsonify({'success': True, 'stacja': stacja_kod, 'surowiec': material})
 
 
-@maluchy_bp.route('/api/stations-materials', methods=['GET'])
-@login_required
-def api_get_all_stations_materials():
-    linia = request.args.get('linia') or session.get('selected_hall_view') or 'PSD'
-    materials = BucketMaluchService.get_all_station_materials(linia)
-    return jsonify({'success': True, 'materials': materials})
-
-
 @maluchy_bp.route('/api/item/add', methods=['POST'])
 @login_required
 def api_add_item():
@@ -128,7 +120,10 @@ def api_complete_bucket():
 def api_delete_bucket():
     data = request.get_json(silent=True) or request.form
     bucket_id = data.get('bucket_id')
-    force = bool(data.get('force', False))
+    force_value = data.get('force', False)
+    if force_value not in (False, True, 'false', 'true', '0', '1', 0, 1):
+        return jsonify({'success': False, 'message': 'Nieprawidłowy parametr force'}), 400
+    force = force_value in (True, 'true', '1', 1)
     operator_login = session.get('login') or session.get('imie_nazwisko') or 'operator'
 
     if not bucket_id:
@@ -139,6 +134,13 @@ def api_delete_bucket():
     except (ValueError, TypeError):
         return jsonify({'success': False, 'message': 'Nieprawidłowe ID wiadra'}), 400
 
+    from app.repositories.bucket_maluch_repository import BucketMaluchRepository
+    from app.core.production_permissions import _page_allowed
+    bucket = BucketMaluchRepository.find_by_id(bucket_id)
+    if not bucket:
+        return jsonify({'success': False, 'message': 'Wiadro nie istnieje'}), 404
+    if not _page_allowed(str(bucket.get('linia') or '').upper(), 'zasyp', write=True):
+        return jsonify({'success': False, 'message': 'Brak uprawnień do usunięcia wiadra.'}), 403
     success, msg = BucketMaluchService.delete_bucket(bucket_id, operator_login, force=force)
     status_code = 200 if success else 400
     return jsonify({'success': success, 'message': msg}), status_code

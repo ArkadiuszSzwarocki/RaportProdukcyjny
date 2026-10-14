@@ -30,7 +30,7 @@
                 <span class="agro-session-running-hint">Otwarte: {{ fb_running.items|join(' | ') }}</span>
                 {% endif %}
             </div>
-            {% if fb_kstats %}
+            {% if fb_kstats and not (sekcja == 'Zasyp' and linia == 'AGRO') %}
             <div class="agro-kgph-inline">
                 <span class="agro-kgph-pill js-kgph-explain" data-kind="real" data-plan-id="{{ fb_pid }}" title="Wydajność rzeczywista">
                     Wydajność rzeczywista: {{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '-' }} kg/h

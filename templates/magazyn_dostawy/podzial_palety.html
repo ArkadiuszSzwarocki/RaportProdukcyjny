@@ -4,135 +4,16 @@
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/logistyka.css') }}">
 
-<style>
-.premium-screen {
-    max-width: 1440px;
-}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pallet-workflow.css') }}?v={{ static_version }}">
 
-.premium-hero {
-    border-radius: 12px;
-    border: 1px solid #dbe7ff;
-    background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 55%, #ffffff 100%);
-    padding: 16px 20px;
-    margin-bottom: 16px;
-}
-
-.premium-hero-title {
-    margin: 0;
-    font-size: 1.35rem;
-    font-weight: 800;
-    color: #0f172a;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.premium-hero-subtitle {
-    margin: 4px 0 0 44px;
-    color: #64748b;
-    font-size: 0.85rem;
-}
-
-.premium-card {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    overflow: hidden;
-    height: 100%;
-}
-
-.premium-card-header {
-    background: #f8fafc;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.premium-card-header h5 {
-    margin: 0;
-    font-weight: 800;
-    color: #334155;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.premium-input {
-    border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
-    padding: 8px 12px !important;
-    font-size: 0.95rem !important;
-    font-weight: 600 !important;
-    color: #0f172a !important;
-    transition: all 0.2s ease !important;
-}
-
-.premium-input:focus {
-    border-color: #3b82f6 !important;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
-}
-
-.info-row {
-    display: flex;
-    padding: 8px 0;
-    border-bottom: 1px dashed #e2e8f0;
-}
-
-.info-row:last-child {
-    border-bottom: none;
-}
-
-.info-label {
-    width: 40%;
-    color: #64748b;
-    font-weight: 700;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.info-value {
-    width: 60%;
-    color: #0f172a;
-    font-weight: 800;
-    font-size: 0.95rem;
-}
-
-@media (max-width: 576px) {
-    .info-row {
-        flex-direction: column;
-    }
-    .info-label, .info-value {
-        width: 100%;
-    }
-    .info-label {
-        margin-bottom: 2px;
-        font-size: 0.75rem;
-    }
-    .premium-hero-title {
-        font-size: 1.1rem;
-    }
-    .premium-hero-subtitle {
-        margin-left: 0;
-        margin-top: 8px;
-    }
-    .hero-icon-container {
-        display: none !important;
-    }
-}
-</style>
-
-<div class="container-fluid py-3 premium-screen mx-auto">
-    <div class="premium-hero shadow-sm">
+<div class="pallet-workspace">
+    <div class="premium-hero section-box">
+        <a class="btn-action" href="{{ url_for('warehouse_v2.index', linia=linia) }}">Powrót do magazynu</a>
         <h2 class="premium-hero-title">
             <div class="hero-icon-container" style="background: #eff6ff; padding: 8px; border-radius: 8px; display: flex; border: 1px solid #bfdbfe;">
                 <span class="material-icons text-primary fs-3">call_split</span>
             </div>
-            Podział Palety (Workowanie)
+            Podział palety ({{ linia }})
         </h2>
         <p class="premium-hero-subtitle">Zeskanuj kod SSCC palety-matki, aby wydzielić z niej nową paletę w systemie.</p>
     </div>

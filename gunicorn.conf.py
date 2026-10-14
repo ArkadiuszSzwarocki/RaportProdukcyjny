@@ -27,5 +27,7 @@ key_path = os.environ.get("TLS_KEY_FILE", "")
 if use_ssl:
     if not cert_path or not key_path or not os.path.isfile(cert_path) or not os.path.isfile(key_path):
         raise RuntimeError("USE_SSL=true wymaga poprawnych TLS_CERT_FILE i TLS_KEY_FILE poza repozytorium.")
+    from scripts.tls_security import validate_tls_files
+    validate_tls_files(cert_path, key_path)
     keyfile = key_path
     certfile = cert_path

@@ -1,10 +1,12 @@
 from datetime import date
+import math
 
 from flask import current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name, list_unconfirmed_dosypki, sync_dosypka_notifications
 from app.decorators import roles_required
+from app.services.zasyp_etapy_service import ZasypEtapyService
 
 
 def register_production_dosypki_routes(
@@ -454,7 +456,14 @@ def register_production_dosypki_routes(
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(f"SELECT id FROM {table_dosypki} WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0", (dosypka_id,))
+            cursor.execute(f"SELECT plan_id, szarza_id FROM {table_dosypki} WHERE id=%s", (dosypka_id,))
+            dosypka_row = cursor.fetchone()
+            plan_id = dosypka_row[0] if dosypka_row else None
+            batch_id = dosypka_row[1] if dosypka_row else None
+            if plan_id:
+                cursor.execute(f"SELECT id FROM {table_plan} WHERE id=%s FOR UPDATE", (plan_id,))
+                cursor.fetchone()
+            cursor.execute(f"SELECT id FROM {table_dosypki} WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0 FOR UPDATE", (dosypka_id,))
             r = cursor.fetchone()
             if not r:
                 if is_ajax:
@@ -470,14 +479,17 @@ def register_production_dosypki_routes(
             if raw_kg is not None:
                 try:
                     val = float(str(raw_kg).replace(',', '.').strip())
-                    if val > 0:
+                    if math.isfinite(val) and val > 0:
                         actual_kg = val
                 except (ValueError, TypeError):
                     pass
-
-            cursor.execute(f"SELECT plan_id FROM {table_dosypki} WHERE id=%s", (dosypka_id,))
-            dosypka_row = cursor.fetchone()
-            plan_id = dosypka_row[0] if dosypka_row else None
+                if actual_kg is None:
+                    conn.rollback()
+                    message = 'Podaj poprawną, dodatnią wagę dosypki.'
+                    if is_ajax:
+                        return jsonify({'success': False, 'message': message}), 400
+                    flash(message, 'warning')
+                    return redirect(bezpieczny_powrot())
 
             if actual_kg is not None:
                 cursor.execute(
@@ -507,11 +519,18 @@ def register_production_dosypki_routes(
                     linia=linia,
                 )
 
+            next_stage = None
+            if str(linia).upper() == 'AGRO' and plan_id and batch_id:
+                next_stage = ZasypEtapyService.advance_after_confirmed_dosypka(
+                    cursor, plan_id, batch_id, session.get('login') or '')
             conn.commit()
             mark_dosypki_updated(linia)
+            message = 'Potwierdzono dosypkę.'
+            if next_stage is not None:
+                message += ' Automatycznie zatrzymano mieszanie i uruchomiono etap Dosypka.'
             if is_ajax:
-                return jsonify({'success': True, 'message': 'Potwierdzono dosypkę.', 'plan_id': plan_id})
-            flash('Potwierdzono dosypkę.', 'success')
+                return jsonify({'success': True, 'message': message, 'plan_id': plan_id, 'next_stage': next_stage})
+            flash(message, 'success')
             try:
                 audit_log('Potwierdził dosypkę', f'id={dosypka_id}, plan_id={plan_id}')
             except Exception:

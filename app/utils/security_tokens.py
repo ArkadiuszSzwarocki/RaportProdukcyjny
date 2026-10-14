@@ -1,42 +1,49 @@
-"""
-Cryptographic token utilities for secure internal communications (e.g. headless printing).
-"""
-import hmac
+"""Cryptographic token utilities for short-lived internal communications."""
+
 import hashlib
+import hmac
 import time
+
 from flask import current_app
 
 
-def generate_internal_print_token(endpoint: str, expires_in_sec: int = 60) -> str:
-    """Generate a cryptographic HMAC token for internal headless print rendering."""
+_MAX_INTERNAL_TOKEN_TTL_SECONDS = 300
+
+
+def _secret_bytes():
     secret = current_app.secret_key
     if not secret:
         raise RuntimeError('Brak skonfigurowanego SECRET_KEY dla tokenu wewnętrznego.')
-    if isinstance(secret, str):
-        secret = secret.encode('utf-8')
-    expires_at = int(time.time()) + expires_in_sec
-    data = f"{endpoint}:{expires_at}".encode('utf-8')
-    signature = hmac.new(secret, data, hashlib.sha256).hexdigest()
-    return f"{expires_at}:{signature}"
+    return secret.encode('utf-8') if isinstance(secret, str) else secret
+
+
+def generate_internal_print_token(endpoint: str, expires_in_sec: int = 60) -> str:
+    """Generate an endpoint-bound HMAC token valid for at most five minutes."""
+    clean_endpoint = str(endpoint or '').strip()
+    if not clean_endpoint.startswith('/'):
+        raise ValueError('Internal token endpoint must be an absolute application path.')
+    ttl = max(1, min(int(expires_in_sec or 60), _MAX_INTERNAL_TOKEN_TTL_SECONDS))
+    expires_at = int(time.time()) + ttl
+    data = f'{clean_endpoint}:{expires_at}'.encode('utf-8')
+    signature = hmac.new(_secret_bytes(), data, hashlib.sha256).hexdigest()
+    return f'{expires_at}:{signature}'
 
 
 def verify_internal_print_token(endpoint: str, token: str) -> bool:
-    """Verify validity, expiration, and signature of an internal print token."""
-    if not token or ':' not in token:
+    """Verify endpoint binding, expiry, bounded TTL and signature."""
+    clean_endpoint = str(endpoint or '').strip()
+    if not clean_endpoint.startswith('/') or not token or ':' not in token:
         return False
     try:
         ts_str, signature = token.split(':', 1)
         expires_at = int(ts_str)
-        if time.time() > expires_at:
+        now = time.time()
+        if expires_at < now:
             return False
-
-        secret = current_app.secret_key
-        if not secret:
+        if expires_at - now > _MAX_INTERNAL_TOKEN_TTL_SECONDS:
             return False
-        if isinstance(secret, str):
-            secret = secret.encode('utf-8')
-        data = f"{endpoint}:{expires_at}".encode('utf-8')
-        expected = hmac.new(secret, data, hashlib.sha256).hexdigest()
+        data = f'{clean_endpoint}:{expires_at}'.encode('utf-8')
+        expected = hmac.new(_secret_bytes(), data, hashlib.sha256).hexdigest()
         return hmac.compare_digest(signature, expected)
     except Exception:
         return False

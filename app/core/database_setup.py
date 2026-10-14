@@ -1,3 +1,4 @@
+# cspell:words zarejestowana
 """
 Moduł inicjalizacyjny i migracyjny bazy danych.
 """
@@ -490,6 +491,24 @@ def _create_tables(cursor):
             status VARCHAR(20) DEFAULT 'zarejestowana',
             uwagi TEXT,
             FOREIGN KEY (plan_id) REFERENCES plan_produkcji(id) ON DELETE CASCADE,
+            FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
+        )
+    """)
+
+    # AGRO batches belong to AGRO plans; the dashboard fallback queries this
+    # physical table even before any batch has been registered.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS szarze_agro (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            plan_id INT NOT NULL,
+            waga FLOAT NOT NULL,
+            data_dodania DATETIME DEFAULT CURRENT_TIMESTAMP,
+            godzina TIME,
+            pracownik_id INT,
+            status VARCHAR(20) DEFAULT 'zarejestowana',
+            uwagi TEXT,
+            nr_szarzy INT NULL,
+            FOREIGN KEY (plan_id) REFERENCES plan_produkcji_agro(id) ON DELETE CASCADE,
             FOREIGN KEY (pracownik_id) REFERENCES pracownicy(id) ON DELETE SET NULL
         )
     """)
@@ -1228,6 +1247,8 @@ def _ensure_unique_index(cursor, table, index_name, columns, description=""):
 
 def _migrate_columns(cursor):
     """Add missing columns to existing tables (schema migrations)."""
+    from app.services.auto_label_service import ensure_auto_label_schema
+    ensure_auto_label_schema(cursor)
     # plan_produkcji columns
     _add_column_if_missing(cursor, "plan_produkcji", "typ_produkcji", "VARCHAR(20) DEFAULT 'worki_zgrzewane_25'", "Dodawanie kolumny 'typ_produkcji'")
     _add_column_if_missing(cursor, "plan_produkcji", "nazwa_zlecenia", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'nazwa_zlecenia'")
@@ -1382,6 +1403,7 @@ def _migrate_columns(cursor):
 
     # magazyn_palety columns & index unification
     _add_column_if_missing(cursor, "magazyn_palety", "linia", "VARCHAR(20) NOT NULL DEFAULT 'PSD'", "Dodawanie kolumny 'linia' do magazyn_palety")
+    _add_column_if_missing(cursor, "magazyn_palety", "is_loaded", "TINYINT(1) DEFAULT 0", "Dodawanie kolumny 'is_loaded' do magazyn_palety")
     _add_column_if_missing(cursor, "magazyn_palety", "nr_palety", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_palety' do magazyn_palety")
     _add_column_if_missing(cursor, "magazyn_palety", "nr_plomby", "VARCHAR(100) NULL", "Dodawanie kolumny 'nr_plomby' do magazyn_palety")
 

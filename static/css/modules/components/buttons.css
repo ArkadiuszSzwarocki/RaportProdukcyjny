@@ -33,44 +33,6 @@
     color: #fff;
 }
 
-.btn-planning-info-open {
-    background: #0284c7;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(2, 132, 199, 0.2);
-    white-space: nowrap;
-}
-
-.btn-planning-info-open:hover {
-    background: #0369a1;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(2, 132, 199, 0.3);
-}
-
-.btn-info-dismiss {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
-}
-
-.btn-info-dismiss:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
-}
-
 @media (max-width: 360px) {
     .planista-viewport .planista-main-table tbody#plans-tbody > tr[data-plan-id],
     .planista-viewport .planista-main-table tbody#plans-agro-tbody > tr[data-plan-id] {

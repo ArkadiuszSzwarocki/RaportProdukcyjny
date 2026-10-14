@@ -4,7 +4,6 @@ Moduł odpowiedzialny za odczyt i agregację danych magazynowych do raportów dz
 from typing import Dict, Any, List, Tuple
 import json
 import re
-import app.services.osip_report_email_service as email_service_module
 from app.services.warehouse_reports.warehouse_document_classifier import WarehouseDocumentClassifier
 from app.services.warehouse_reports.warehouse_status_resolver import WarehouseStatusResolver
 
@@ -33,6 +32,7 @@ class WarehouseActivityQueryService:
     @classmethod
     def get_daily_warehouse_activity(cls, date_str: str, central_only: bool = True) -> Dict[str, Any]:
         """Pobiera wszystkie zrealizowane lub zarejestrowane w danym dniu dostawy zewnętrzne oraz przesunięcia MM / transfery."""
+        import app.services.osip_report_email_service as email_service_module
         conn = email_service_module.get_db_connection()
         dostawy_rows = []
         osip_transfers_rows = []

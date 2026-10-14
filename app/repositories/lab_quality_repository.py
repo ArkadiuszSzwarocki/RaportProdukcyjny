@@ -9,7 +9,7 @@ class LabQualityRepository:
 
     @staticmethod
     def _get_target_table(pallet_type: str, linia: str = 'PSD') -> str:
-        p_type = str(pallet_type or 'surowiec').lower()
+        p_type = str(pallet_type or 'surowiec').lower().replace('ó','o')
         if 'opak' in p_type:
             return get_table_name('magazyn_opakowania', linia)
         elif 'dodat' in p_type:
@@ -30,7 +30,13 @@ class LabQualityRepository:
         """Record lab quality hold and flag the source pallet as blocked."""
         conn = get_db_connection()
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
+            table = LabQualityRepository._get_target_table(pallet_type, linia)
+            norm_code = str(pallet_code).strip().upper()
+            cursor.execute(f"SELECT id FROM {table} WHERE id=%s AND UPPER(nr_palety)=%s FOR UPDATE",
+                           (pallet_id, norm_code))
+            if not cursor.fetchone():
+                raise ValueError('Nie znaleziono wskazanej palety do blokady LAB')
             
             # 1. Insert into lab_blokady
             query_insert = """
@@ -41,7 +47,7 @@ class LabQualityRepository:
             """
             cursor.execute(query_insert, (
                 pallet_id,
-                str(pallet_code).strip().upper(),
+                norm_code,
                 pallet_type.lower(),
                 linia.upper(),
                 reason,
@@ -50,14 +56,13 @@ class LabQualityRepository:
             block_id = cursor.lastrowid
 
             # 2. Update is_blocked in source table
-            table = LabQualityRepository._get_target_table(pallet_type, linia)
-            try:
-                cursor.execute(f"UPDATE {table} SET is_blocked = 1 WHERE id = %s", (pallet_id,))
-            except Exception:
-                pass
+            cursor.execute(f"UPDATE {table} SET is_blocked = 1 WHERE id = %s", (pallet_id,))
 
             conn.commit()
             return block_id
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             cursor.close()
             conn.close()
@@ -73,7 +78,7 @@ class LabQualityRepository:
         """Release pallet from Lab hold, setting status to ZWOLNIONY_LAB and is_blocked = 0."""
         conn = get_db_connection()
         try:
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
             norm_code = str(pallet_code).strip().upper()
 
             # 1. Update lab_blokady
@@ -85,18 +90,17 @@ class LabQualityRepository:
             cursor.execute(query_update, (user_login, comment, norm_code))
             affected = cursor.rowcount > 0
 
-            # 2. Unblock in source table
-            table = LabQualityRepository._get_target_table(pallet_type, linia)
-            try:
-                cursor.execute(
-                    f"UPDATE {table} SET is_blocked = 0 WHERE UPPER(nr_palety) = %s OR id = %s",
-                    (norm_code, norm_code if norm_code.isdigit() else -1)
-                )
-            except Exception:
-                pass
+            # Release only the LAB reason; other reservations/manual holds survive.
+            if affected:
+                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                table = LabQualityRepository._get_target_table(pallet_type, linia)
+                PalletLockManager.set_pallets_blocked(cursor, [dict(nr_palety=norm_code, sourceTable=table)], 0)
 
             conn.commit()
             return affected
+        except Exception:
+            conn.rollback()
+            raise
         finally:
             cursor.close()
             conn.close()

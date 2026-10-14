@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import threading
 import time
@@ -143,11 +144,9 @@ def on_message(client, userdata, msg):
 
     try:
         parsed_payload = json.loads(payload_text)
-    except Exception as e:
-        import traceback
-        with open("C:/Users/Admin/Documents/GitHub/RaportProdukcyjny/json_error.log", "w") as f:
-            f.write(f"Error: {e}\nTraceback: {traceback.format_exc()}\nString: {repr(payload_text)}")
-        parsed_payload = {"_raw": payload_text}
+    except (ValueError, TypeError):
+        logging.getLogger(__name__).warning('Rejected invalid MQTT JSON on topic %s', topic)
+        return
 
     if isinstance(parsed_payload, dict):
         payload_data = parsed_payload.get("d", parsed_payload)
@@ -423,7 +422,6 @@ def publish_command(topic: str, payload_dict: dict):
     Asynchronously publishes a JSON command message to the specified topic using the active MQTT client.
     Example payload_dict: {"d": {"zerowanieLicznikow": [1]}, "ts": "2026-06-24T..."}
     """
-    global _active_mqtt_client
     if _active_mqtt_client is None:
         print(f"[MQTT-SERVER] Ostrzezenie: Nie mozna opublikowac - brak podlaczonego klienta dla topic={topic}")
         return False

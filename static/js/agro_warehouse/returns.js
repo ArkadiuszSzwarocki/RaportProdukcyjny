@@ -31,14 +31,14 @@
             const tr = document.createElement('tr');
             tr.style.cursor = 'pointer';
             tr.innerHTML = `
-                <td><input type="radio" name="return_select" value="${it.ruch_id}" data-sid="${it.surowiec_id}" data-plan="${it.plan_id||''}" data-max="${it.do_zwrotu}" data-nazwa="${it.nazwa||''}" data-lok="${it.lokalizacja||''}"></td>
-                <td>${it.nazwa || ''}</td>
-                <td>${it.lokalizacja || '<span class="text-muted">—</span>'}</td>
-                <td class="font-bold">${it.ilosc_pobrana}</td>
-                <td>${it.ilosc_zwrocona}</td>
-                <td class="font-bold text-primary">${it.do_zwrotu}</td>
-                <td>${it.plan_name ? it.plan_name + ' (#' + it.plan_id + ')' : (it.plan_id || '—')}</td>
-                <td class="text-muted small">${it.data || ''}</td>
+                <td><input type="radio" name="return_select" value="${agroEscapeHtml(it.ruch_id)}" data-sid="${agroEscapeHtml(it.surowiec_id)}" data-plan="${agroEscapeHtml(it.plan_id||'')}" data-max="${agroEscapeHtml(it.do_zwrotu)}" data-nazwa="${agroEscapeHtml(it.nazwa||'')}" data-lok="${agroEscapeHtml(it.lokalizacja||'')}"></td>
+                <td>${agroEscapeHtml(it.nazwa || '')}</td>
+                <td>${agroEscapeHtml(it.lokalizacja || '—')}</td>
+                <td class="font-bold">${agroEscapeHtml(it.ilosc_pobrana)}</td>
+                <td>${agroEscapeHtml(it.ilosc_zwrocona)}</td>
+                <td class="font-bold text-primary">${agroEscapeHtml(it.do_zwrotu)}</td>
+                <td>${agroEscapeHtml(it.plan_name ? it.plan_name + ' (#' + it.plan_id + ')' : (it.plan_id || '—'))}</td>
+                <td class="text-muted small">${agroEscapeHtml(it.data || '')}</td>
             `;
             tr.addEventListener('click', function(e) {
                 if (e.target.tagName !== 'INPUT') {

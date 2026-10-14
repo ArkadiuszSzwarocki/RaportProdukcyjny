@@ -1,0 +1,26 @@
+/* cspell:words sscc */
+.pallet-workspace { max-width:1200px; margin:0 auto; padding:20px; }
+.pallet-workspace > .row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px; margin:0; }
+.pallet-workspace > .row > div { width:auto; padding:0; min-width:0; }
+.pallet-workspace .premium-hero { background:white; padding:20px; margin-bottom:20px; }
+.pallet-workspace .premium-hero-title { display:flex; align-items:center; gap:12px; margin:18px 0 8px; font-size:1.5rem; color:#1e293b; }
+.pallet-workspace .premium-hero-subtitle { color:#64748b; margin:0; }
+.pallet-workspace .premium-card { border:1px solid #e2e8f0; border-radius:12px; background:white; overflow:hidden; }
+.pallet-workspace .premium-card-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid #e2e8f0; background:#f8fafc; }
+.pallet-workspace .premium-card-header h5 { display:flex; align-items:center; gap:8px; margin:0; font-size:1.1rem; }
+.pallet-workspace .card-body { padding:20px !important; }
+.pallet-workspace .premium-input { width:100%; min-height:48px; box-sizing:border-box; padding:12px; border:1px solid #cbd5e1; border-radius:8px; }
+.pallet-workspace .input-group { display:flex; flex-wrap:wrap; gap:8px; }
+.pallet-workspace .input-group input { flex:1; min-width:180px; }
+.pallet-workspace .btn-action { min-height:44px; border-radius:8px; }
+.pallet-workspace .info-row { display:flex; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid #e2e8f0; }
+.pallet-workspace .info-label { color:#64748b; font-weight:600; }
+.pallet-workspace .info-value { font-weight:700; overflow-wrap:anywhere; }
+.pallet-workspace .component-item { display:flex; justify-content:space-between; gap:12px; padding:16px; border:1px solid #e2e8f0; border-radius:8px; margin-top:12px; }
+.pallet-workspace .comp-title,.pallet-workspace .comp-weight { font-weight:700; }
+.pallet-workspace .comp-sscc { color:#64748b; overflow-wrap:anywhere; }
+.pallet-workspace .remove-btn { border:0; background:transparent; color:#dc2626; cursor:pointer; }
+.modal-premium-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#0f172a99; z-index:9999; }
+.modal-premium-content { width:min(450px,90vw); padding:24px; border-radius:12px; background:white; }
+.modal-premium-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+@media(max-width:850px) { .pallet-workspace { padding:12px; } .pallet-workspace > .row { grid-template-columns:1fr; } }

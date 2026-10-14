@@ -1,12 +1,13 @@
 {# Reusable Hamburger Dropdown Menu for Dashboard Quick Actions with Gray Backdrop #}
 <div id="dashboardActionsDropdownContainer" class="position-relative d-inline-block" style="z-index: 30;">
-    <!-- Button AKCJE -->
+    <!-- Compact actions menu -->
     <button class="btn btn-dark px-3 py-2 fw-bold" 
             type="button" 
             id="dashboardActionsDropdownBtn" 
             onclick="window.toggleDashboardActionsDropdown(event)"
-            style="border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #ffffff; display: inline-flex; align-items: center; justify-content: flex-start; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2); font-size: 0.92rem; font-weight: 800; cursor: pointer; outline: none;">
-        <span style="pointer-events: none; font-weight: 800; text-align: left;">AKCJE</span>
+            aria-expanded="false" aria-controls="dashboardActionsDropdownMenu" aria-label="Więcej akcji" title="Więcej akcji"
+            style="border-radius: 8px; background: #1e293b; border: 1px solid #334155; color: #ffffff; width: 48px; height: 38px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2); font-size: 1.45rem; font-weight: 800; cursor: pointer; outline: none;">
+        <span style="pointer-events: none; font-weight: 900; line-height: 1;">⋮</span>
     </button>
     
     <!-- Fullscreen Gray Backdrop Overlay -->
@@ -17,7 +18,7 @@
 
     <!-- Actions Window (Positioned directly under the button) -->
     <div id="dashboardActionsDropdownMenu"
-         style="display: none; position: absolute; top: calc(100% + 8px); left: 0; border-radius: 16px; min-width: 260px; background: #ffffff; padding: 10px; box-shadow: 0 15px 40px rgba(15, 23, 42, 0.3); border: 1px solid #cbd5e1; z-index: 1045; text-align: left;">
+         style="display: none; position: absolute; top: calc(100% + 8px); left: 0; border-radius: 16px; width: 260px; background: #ffffff; padding: 10px; box-shadow: 0 15px 40px rgba(15, 23, 42, 0.3); border: 1px solid #cbd5e1; z-index: 1045; text-align: left;">
         
         <!-- Header with Close Button -->
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px 10px 10px; border-bottom: 1px solid #f1f5f9; margin-bottom: 6px; text-align: left;">
@@ -48,6 +49,28 @@
         </div>
 
         {% if sekcja == 'Zasyp' and linia == 'AGRO' %}
+        <div style="margin: 0; padding: 0;">
+            {% with current_date=(dzisiaj.strftime('%Y-%m-%d') if dzisiaj else ''), mode='url', param_name='data', custom_title=_('widok_dla') %}
+                {% include 'components/_date_picker.html' %}
+            {% endwith %}
+            <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
+        </div>
+        {% if rola|lower not in ['laborant', 'laboratorium'] %}
+        <div style="margin: 0; padding: 0;">
+            <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
+               style="display:block;width:100%;text-align:left;text-decoration:none;border-radius:10px;font-size:.9rem;padding:10px 14px;color:#334155;font-weight:700;box-sizing:border-box;"
+               onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">⏱ Rejestr Przestojów</a>
+        </div>
+        {% for action_plan in plan|default([]) if action_plan[3] == 'w toku' %}
+        {% set fb_kstats = kgph_stats_mapa.get(action_plan[0]) if kgph_stats_mapa is defined and kgph_stats_mapa else None %}
+        {% if fb_kstats %}
+        <div style="padding:8px 14px 6px;color:#475569;font-size:.82rem;line-height:1.45;">
+            <strong>Wydajność</strong><br>
+            Rzeczywista: {{ (fb_kstats.real_work|round(1)) if fb_kstats.real_work else '-' }} kg/h<br>
+            Produkcyjna: {{ (fb_kstats.timeline|round(1)) if fb_kstats.timeline else '-' }} kg/h
+        </div>
+        {% endif %}
+        {% endfor %}
         <!-- Surowce w produkcji -->
         <div style="margin: 0; padding: 0;">
             <button type="button" 
@@ -58,8 +81,10 @@
             </button>
         </div>
         {% endif %}
+        {% endif %}
         
         <!-- Zgłoś Przestój -->
+        {% if rola|lower not in ['laborant', 'laboratorium'] %}
         <div style="margin: 0; padding: 0;">
             <a href="{{ url_for('production.zglos_przestoj_page', linia=linia, sekcja=sekcja) }}"
                style="display: block; width: 100%; text-align: left; text-decoration: none; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; color: #dc2626; font-weight: 700; box-sizing: border-box;"
@@ -67,8 +92,9 @@
                 Zgłoś Przestój ({{ sekcja }})
             </a>
         </div>
+        {% endif %}
 
-        {% if sekcja == 'Zasyp' %}
+        {% if sekcja == 'Zasyp' and rola|lower not in ['laborant', 'laboratorium'] %}
         <!-- Kalkulator Zapotrzebowania -->
         <div style="margin: 0; padding: 0;">
             <button type="button" 
@@ -92,6 +118,7 @@
         </div>
         {% endif %}
 
+        {% if rola|lower not in ['laborant', 'laboratorium'] %}
         <div style="margin: 6px 0; border-top: 1px solid #f1f5f9;"></div>
 
         <!-- Czyszczenie Magnesu -->
@@ -113,6 +140,7 @@
                 Zgłoś czyszczenie separatora
             </button>
         </div>
+        {% endif %}
 
         {% if session.get('rola') in ['lider', 'admin', 'masteradmin', 'zarzad'] %}
         <div style="margin: 6px 0; border-top: 1px solid #f1f5f9;"></div>
@@ -130,27 +158,12 @@
 
 <script>
 window.toggleDashboardActionsDropdown = function(e) {
-    if (e) { e.preventDefault(); e.stopPropagation(); }
-    var menu = document.getElementById('dashboardActionsDropdownMenu');
-    var backdrop = document.getElementById('dashboardActionsBackdrop');
-    if (menu && backdrop) {
-        var isVisible = (menu.style.display === 'block');
-        if (isVisible) {
-            menu.style.display = 'none';
-            backdrop.style.display = 'none';
-        } else {
-            menu.style.display = 'block';
-            backdrop.style.display = 'block';
-        }
-    }
+    window.dashboardPopover.toggle('dashboardActionsDropdownMenu', 'dashboardActionsDropdownBtn', 'dashboardActionsBackdrop', e);
 };
 
 window.closeDashboardActionsDropdown = function(e) {
-    if (e) { e.stopPropagation(); }
-    var menu = document.getElementById('dashboardActionsDropdownMenu');
-    var backdrop = document.getElementById('dashboardActionsBackdrop');
-    if (menu) { menu.style.display = 'none'; }
-    if (backdrop) { backdrop.style.display = 'none'; }
+    if (e) e.stopPropagation();
+    window.dashboardPopover.close();
 };
 
 window.triggerRecepturaFromMenu = function(e) {

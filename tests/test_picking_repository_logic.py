@@ -1,6 +1,38 @@
 from unittest.mock import MagicMock, patch
 
 from app.repositories.picking_repository import PickingRepository
+import pytest
+
+
+def test_auto_complete_uses_sscc_instead_of_overlapping_table_ids():
+    connection = MagicMock()
+    cursor = connection.cursor.return_value
+    cursor.rowcount = 1
+    assert PickingRepository.auto_complete_pallet_if_pending(7, 'SOY-SSCC', external_conn=connection) == 1
+    sql, params = cursor.execute.call_args.args
+    assert 'paleta_id = %s' not in sql
+    assert 'SOY-SSCC' in params
+    connection.commit.assert_not_called()
+    connection.close.assert_not_called()
+
+
+def test_auto_complete_failure_is_reported_to_movement_transaction():
+    connection = MagicMock()
+    connection.cursor.return_value.execute.side_effect = RuntimeError('write failed')
+    with pytest.raises(RuntimeError, match='write failed'):
+        PickingRepository.auto_complete_pallet_if_pending(nr_palety='SOY-SSCC', external_conn=connection)
+    connection.commit.assert_not_called()
+    connection.rollback.assert_not_called()
+    connection.close.assert_not_called()
+
+
+def test_standalone_auto_complete_commits_and_closes_its_connection():
+    connection = MagicMock()
+    connection.cursor.return_value.rowcount = 1
+    with patch('app.repositories.picking_repository.get_db_connection', return_value=connection):
+        assert PickingRepository.auto_complete_pallet_if_pending(nr_palety='SOY-SSCC') == 1
+    connection.commit.assert_called_once()
+    connection.close.assert_called_once()
 
 
 def test_get_active_orders_keeps_unresolved_shortage_placeholders_active():

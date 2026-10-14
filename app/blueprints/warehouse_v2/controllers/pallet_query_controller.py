@@ -207,9 +207,9 @@ class PalletQueryController:
                     try:
                         cur.execute("""
                             SELECT komentarz FROM palety_historia 
-                            WHERE (nr_palety = %s OR paleta_id = %s) AND komentarz LIKE '%partia%' 
+                            WHERE nr_palety = %s AND komentarz LIKE '%%partia%%'
                             ORDER BY id DESC LIMIT 1
-                        """, (p_sscc, p_real_id))
+                        """, (p_sscc,))
                         kom_row = cur.fetchone()
                         if kom_row and kom_row.get('komentarz'):
                             m_part = re.search(r'partia:\s*([A-Za-z0-9\-_\/]+)', kom_row['komentarz'], re.IGNORECASE)

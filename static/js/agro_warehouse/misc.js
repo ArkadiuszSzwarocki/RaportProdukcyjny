@@ -38,13 +38,13 @@
                 res.moves.forEach(m => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td>${m.surowiec_nazwa || ''}</td>
-                        <td class="font-bold">${m.ilosc}</td>
-                        <td>${m.lokalizacja || ''}</td>
-                        <td>${m.zbiornik || ''}</td>
-                        <td>${m.plan_id || ''}</td>
-                        <td>${m.autor_login || ''}</td>
-                        <td>${m.autor_data || ''}</td>
+                        <td>${agroEscapeHtml(m.surowiec_nazwa || '')}</td>
+                        <td class="font-bold">${agroEscapeHtml(m.ilosc)}</td>
+                        <td>${agroEscapeHtml(m.lokalizacja || '')}</td>
+                        <td>${agroEscapeHtml(m.zbiornik || '')}</td>
+                        <td>${agroEscapeHtml(m.plan_id || '')}</td>
+                        <td>${agroEscapeHtml(m.autor_login || '')}</td>
+                        <td>${agroEscapeHtml(m.autor_data || '')}</td>
                     `;
                     body.appendChild(tr);
                 });

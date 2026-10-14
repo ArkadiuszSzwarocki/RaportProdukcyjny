@@ -278,7 +278,7 @@
         if (!jobId || !toastHandle) return;
 
         var startTime = Date.now();
-        var maxDurationMs = 20000; // 20s timeout
+        var maxDurationMs = 45000; // Allow printer batch confirmation to finish.
         var intervalMs = 800;
 
         function poll() {
@@ -308,9 +308,9 @@
                 var retryCount = (job.retry_count || 0) + 1;
 
                 if (currentStatus === 'DONE') {
-                    var successNote = 'Wydrukowano pomyślnie';
-                    if (job.error_message && job.error_message.indexOf('Licznik') !== -1) {
-                        successNote = 'Wydrukowano (potwierdzone przez czujnik)';
+                    var successNote = 'Zlecenie wysłane do drukarki';
+                    if (job.error_message && job.error_message.indexOf('POTWIERDZONO_LICZNIKIEM:') === 0) {
+                        successNote = 'Partia zakończona — potwierdzona licznikiem drukarki';
                     }
                     toastHandle.update({
                         status: 'success',

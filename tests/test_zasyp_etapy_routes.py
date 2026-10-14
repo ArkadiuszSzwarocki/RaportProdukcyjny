@@ -1,6 +1,38 @@
 import pytest
+# cspell:words autouse
 from datetime import date
 from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture(autouse=True)
+def authorized_zasyp_resource():
+    """Service-flow tests start with an existing plan and an explicit page grant."""
+    connection = MagicMock()
+    connection.cursor.return_value.fetchone.return_value = ('Zasyp',)
+    with patch('app.core.production_permissions.get_db_connection', return_value=connection), patch(
+            'app.core.contexts.inject_role_permissions', return_value={
+                'role_has_access': lambda page: page in {'agro.zasyp', 'psd.zasyp'},
+                'role_is_readonly': lambda page: False}):
+        yield
+
+
+@pytest.mark.parametrize('mixing_stage,next_stage', [(2, 3), (4, 31), (41, 32), (410, 311)])
+def test_confirmed_batch_addition_starts_dosypka_instead_of_emptying(client, mixing_stage, next_stage):
+    connection = MagicMock()
+    connection.cursor.return_value.fetchone.return_value = ('Zasyp', 'w toku', date(2026, 10, 11), 'Produkt', 'NORMAL')
+    with client.session_transaction() as state:
+        state.update(zalogowany=True, login='test', rola='pracownik', grupa='AGRO')
+    with patch('app.blueprints.routes_production.get_db_connection', return_value=connection), patch(
+        'app.blueprints.routes_production.ZasypEtapyService.stop_etap', return_value=(True, 'OK')), patch(
+        'app.blueprints.routes_production.ZasypEtapyService.get_etapy', return_value={
+            'etapy': [{'etap': next_stage, 'exists': True, 'czas_start': None}]}), patch(
+        'app.blueprints.routes_production.ZasypEtapyService.start_etap', return_value=(True, 'OK')) as start, patch(
+        'app.blueprints.routes_production.audit_log'), patch('app.blueprints.routes_production.generate_tts_async'):
+        response = client.post('/zasyp_etap_stop', data={
+            'plan_id': 323, 'szarza_nr': 3, 'etap': mixing_stage, 'linia': 'AGRO', 'next_action': 'oprozniamy'})
+    assert response.status_code == 302
+    assert start.call_args.kwargs['etap'] == next_stage
+    assert int(start.call_args.kwargs['szarza_nr']) == 3
 
 
 @pytest.mark.usefixtures("app")

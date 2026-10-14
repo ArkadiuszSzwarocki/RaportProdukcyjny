@@ -16,9 +16,21 @@ def _backups_dir():
     return os.path.join(_project_root(), 'backups')
 
 
+def _is_valid_backup_filename(filename):
+    """Only expose application-created SQL backup files."""
+    name = os.path.basename(str(filename or ''))
+    return (
+        name == filename
+        and name.startswith('db-backup-')
+        and name.endswith('.sql')
+        and '/' not in name
+        and '\\' not in name
+    )
+
+
 def register_admin_backup_routes(admin_bp):
     @admin_bp.route('/admin/ustawienia/backups/create', methods=['POST'])
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('ustawienia.backups')
     def admin_ustawienia_backups_create():
         script_path = os.path.join(_project_root(), 'scripts', 'backup_database.py')
         python_executable = sys.executable
@@ -33,28 +45,33 @@ def register_admin_backup_routes(admin_bp):
                 text=True,
                 env=env,
                 cwd=_project_root(),
+                timeout=300,
+                check=False,
             )
 
             if result.returncode == 0:
                 flash('Kopia zapasowa została utworzona pomyślnie.', 'success')
                 current_app.logger.info('[BACKUP] Ręczny backup wykonany pomyślnie przez %s', session.get('login'))
             else:
-                flash(f'Błąd podczas tworzenia kopii: {result.stderr}', 'danger')
-                current_app.logger.error('[BACKUP] Błąd ręcznego backupu: %s', result.stderr)
-        except Exception as error:
-            flash(f'Wystąpił błąd krytyczny: {str(error)}', 'danger')
-            current_app.logger.exception('[BACKUP] Wyjątek podczas ręcznego backupu: %s', error)
+                flash('Nie udało się utworzyć kopii zapasowej. Szczegóły zapisano w logu serwera.', 'danger')
+                current_app.logger.error('[BACKUP] Ręczny backup zakończył się kodem %s.', result.returncode)
+        except subprocess.TimeoutExpired:
+            flash('Tworzenie kopii zapasowej przekroczyło limit czasu.', 'danger')
+            current_app.logger.error('[BACKUP] Ręczny backup przekroczył limit 300 s.')
+        except Exception:
+            flash('Wystąpił błąd podczas tworzenia kopii zapasowej.', 'danger')
+            current_app.logger.exception('[BACKUP] Wyjątek podczas ręcznego backupu.')
 
         return redirect(url_for('admin.admin_ustawienia_backups'))
 
     @admin_bp.route('/admin/ustawienia/backups')
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('ustawienia.backups')
     def admin_ustawienia_backups():
         files = []
         try:
             if os.path.exists(_backups_dir()):
                 for name in os.listdir(_backups_dir()):
-                    if not name.startswith('db-backup-'):
+                    if not _is_valid_backup_filename(name):
                         continue
                     full_path = os.path.join(_backups_dir(), name)
                     if os.path.isfile(full_path):
@@ -75,8 +92,10 @@ def register_admin_backup_routes(admin_bp):
         return render_template('ustawienia_backups.html', backups=files)
 
     @admin_bp.route('/admin/ustawienia/backups/download/<path:filename>')
-    @dynamic_role_required('ustawienia')
+    @dynamic_role_required('ustawienia.backups')
     def admin_ustawienia_backups_download(filename):
+        if not _is_valid_backup_filename(filename):
+            abort(404)
         requested = os.path.normpath(os.path.join(_backups_dir(), filename))
         if not requested.startswith(os.path.normpath(_backups_dir()) + os.sep):
             abort(404)

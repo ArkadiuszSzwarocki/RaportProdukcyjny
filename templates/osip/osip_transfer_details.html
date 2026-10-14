@@ -617,7 +617,7 @@
     </div>
     {% endif %}
 
-    {% if pending_count > 0 and transfer.status in ['PLANNED', 'IN_TRANSIT'] %}
+    {% if pending_count > 0 and transfer.status in ['PLANNED', 'IN_TRANSIT', 'RECEIVING'] %}
     <!-- BEZOBSŁUGOWY PANEL SKANERA (PROMINENT HIGH-VISIBILITY SCANNER) -->
     <div class="scanner-hero-card">
         <div class="scanner-hero-body">

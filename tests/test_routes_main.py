@@ -1,3 +1,4 @@
+# cspell:words autouse
 """Tests for main application routes."""
 
 import pytest
@@ -125,7 +126,8 @@ class TestIndexRoute:
         response = authenticated_client.get('/')
         
         # Should render dashboard (or redirect if database fails)
-        assert response.status_code in [200, 302, 500]
+        assert response.status_code == 302
+        assert 'sekcja=Zasyp' in response.headers['Location']
     
     def test_index_with_sekcja_parameter(self, authenticated_client, mock_query_helper):
         """Test index with sekcja parameter."""
@@ -139,14 +141,16 @@ class TestIndexRoute:
         response = authenticated_client.get('/?data=2026-02-07')
         
         # Should handle date parameter
-        assert response.status_code in [200, 302, 500]
+        assert response.status_code == 302
+        assert 'sekcja=Zasyp' in response.headers['Location']
     
     def test_index_with_invalid_date(self, authenticated_client, mock_query_helper):
         """Test index with invalid date format."""
         response = authenticated_client.get('/?data=invalid-date')
         
         # Should use today's date as fallback
-        assert response.status_code in [200, 302, 500]
+        assert response.status_code == 302
+        assert 'sekcja=Zasyp' in response.headers['Location']
     
     def test_index_calls_query_helper(self, authenticated_client, mock_query_helper):
         """Test that index calls QueryHelper methods."""
@@ -284,14 +288,14 @@ class TestErrorHandling:
 class TestRouteIntegration:
     """Integration tests for multiple routes."""
     
-    def test_health_check_before_auth_routes(self, client, authenticated_client):
+    def test_health_check_before_auth_routes(self, app, client, authenticated_client):
         """Test that health check works without auth while other routes need it."""
         # Health check should work
         response = client.get('/health')
         assert response.status_code == 200
         
-        # Auth routes should require login
-        response = client.get('/')
+        # Use a separate anonymous client; authenticated_client shares the client fixture.
+        response = app.test_client().get('/')
         assert response.status_code in [302, 401]
         
         # But work with auth
@@ -311,3 +315,16 @@ class TestRouteIntegration:
         # Admin can attempt
         response = admin_client.post('/zamknij_zmiane')
         assert response.status_code in [200, 302, 500]
+
+
+@pytest.fixture(autouse=True)
+def explicit_worker_page_policy():
+    # Route tests must not inherit the operator's saved UI permission settings.
+    from pathlib import Path
+    import json
+    policy = json.loads((Path(__file__).parents[1] / 'config/role_permissions.json').read_text(encoding='utf-8'))
+    policy.setdefault('psd.zasyp', {})['pracownik'] = {'access': True, 'readonly': False}
+    policy.setdefault('dashboard', {})['pracownik'] = {'access': False, 'readonly': False}
+    with patch('app.core.contexts._get_role_permissions', return_value=policy), patch(
+            'app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_override', return_value=None):
+        yield

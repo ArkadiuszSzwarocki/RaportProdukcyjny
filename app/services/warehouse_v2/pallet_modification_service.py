@@ -1,3 +1,4 @@
+from flask import g, has_request_context
 from datetime import datetime
 from app.db import get_db_connection, get_table_name
 from app.services.warehouse_v2.pallet_status_service import PalletStatusService
@@ -51,6 +52,10 @@ class PalletModificationService:
             target_sscc = str(sscc).strip() if sscc else None
             cursor.execute(f"SELECT {col}, nr_palety FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
             row = cursor.fetchone()
+
+            if not row and has_request_context() and getattr(g, 'warehouse_resource', None):
+                # A verified HTTP resource must never fall back to another warehouse.
+                return False, 'Paleta nie istnieje w zweryfikowanym magazynie.'
 
             if not row and not any(k in p_type_norm for k in ('surow', 'opakow', 'dodat')):
                 # Check buffer tables

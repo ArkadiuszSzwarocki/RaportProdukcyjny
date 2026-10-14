@@ -23,7 +23,7 @@
             {% if p[7] and p[7]|int > 0 %}
             <div style="white-space: nowrap; font-size: 0.9em;"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>
             {% endif %}
-            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola != 'laborant' %}
+            {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola != 'laborant' and false %}
             <div style="white-space: nowrap; font-size: 0.9em; display:flex; align-items:center; gap:5px; margin-left:10px;">
                 <strong class="text-danger" style="display:flex; align-items:center;" title="Odrzuty na przesiewaczu">🗑️ Odrzuty:</strong>
                 <input type="number" 
@@ -57,12 +57,12 @@
 
         <div class="header-actions" style="display: flex; align-items: center; gap: 8px; margin: 0;">
             {% set role_lc = rola|string|trim|lower %}
-            {% if sekcja in ['Workowanie', 'Zasyp'] %}
+            {% if sekcja in ['Workowanie', 'Zasyp'] and role_lc not in ['laborant', 'laboratorium'] %}
             <a href="{{ url_for('production.zglos_przestoj_page', plan_id=p[0], linia=linia, sekcja=sekcja) }}"
                style="background: #dc2626; color: #ffffff; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; border: none; box-shadow: 0 2px 5px rgba(220,38,38,0.25); white-space: nowrap; line-height: 1.2;"
                title="Zgłoś przestój maszyny / {{ sekcja|lower }}">⚠️ Przestój</a>
             {% endif %}
-            {% if p[3] == 'zaplanowane' and not is_readonly %}
+            {% if p[3] == 'zaplanowane' and not is_readonly and not unfinished_section_orders|default([]) %}
             {% set can_start_role = role_lc not in ['laborant', 'laboratorium'] %}
             {% set product_active = (active_products is defined and active_products and sekcja in active_products and p[1] in active_products[sekcja]) %}
             {% if not can_start_role %}
@@ -159,6 +159,7 @@
         
     </div>
 
+    {% include 'dashboard/_masteradmin_start_override.html' %}
     <div class="card-body" style="display: flex; gap: 40px; padding-top: 8px;">
         <div style="min-width: 200px; display: flex; flex-direction: column; gap: 4px;">
             <div class="card-row"><strong>Plan:</strong> <span class="text-success">{{ p[2]|int }} kg</span></div>

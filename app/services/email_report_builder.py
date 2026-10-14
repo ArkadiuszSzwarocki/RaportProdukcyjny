@@ -3,6 +3,7 @@ Serwis do budowania profesjonalnych, graficznych szablonów wiadomości e-mail (
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime, date
+from html import escape
 
 
 class EmailReportBuilder:
@@ -25,6 +26,11 @@ class EmailReportBuilder:
         """Generuje pełny graficzny szablon HTML wiadomości e-mail z kartami KPI i tabelą."""
         if 'palety_count' in kwargs and not palety_count:
             palety_count = int(kwargs['palety_count'] or 0)
+        linia = escape(str(linia))
+        date_str = escape(str(date_str))
+        lider_name = escape(str(lider_name))
+        notes_text = escape(str(notes_text or ''))
+        attachments_names = [escape(str(name)) for name in (attachments_names or [])]
         
         dt_hours = total_downtime_min // 60
         dt_mins = total_downtime_min % 60
@@ -60,14 +66,14 @@ class EmailReportBuilder:
         downtime_rows_html = ""
         if downtimes:
             for idx, dt in enumerate(downtimes, 1):
-                sek = dt.get('sekcja') or 'Produkcja'
-                kat = dt.get('kategoria') or 'Inne'
-                op = dt.get('opis') or ''
-                g_start = str(dt.get('godzina_start') or '')[:5]
-                g_stop = str(dt.get('godzina_stop') or '')[:5] if dt.get('godzina_stop') else 'trwa'
+                sek = escape(str(dt.get('sekcja') or 'Produkcja'))
+                kat = escape(str(dt.get('kategoria') or 'Inne'))
+                op = escape(str(dt.get('opis') or ''))
+                g_start = escape(str(dt.get('godzina_start') or '')[:5])
+                g_stop = escape(str(dt.get('godzina_stop') or '')[:5]) if dt.get('godzina_stop') else 'trwa'
                 dur = dt.get('czas_trwania_min')
-                dur_txt = f"{dur} min" if dur is not None else "w toku"
-                prod = dt.get('produkt') or ''
+                dur_txt = escape(f"{dur} min") if dur is not None else "w toku"
+                prod = escape(str(dt.get('produkt') or ''))
 
                 bg_color = "#ffffff" if idx % 2 != 0 else "#f8fafc"
                 

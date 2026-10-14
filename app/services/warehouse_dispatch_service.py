@@ -1,3 +1,4 @@
+# cspell:words sscc
 """
 Serwis obsługi wydań zewnętrznych na samochód (Załadunki ZZA/ZZL).
 
@@ -158,167 +159,65 @@ class WarehouseDispatchService:
         return list(groups_map.values())
 
     def dispatch_pallet_to_vehicle(self, payload, magazynier_login):
-        """Wykonuje wydanie zewnętrzne jednej lub wielu palet na samochód.
-
-        Args:
-            payload (dict): Dane załadunku (pallets lub pojedyncza paleta + dane transportowe).
-            magazynier_login (str): Login magazyniera.
-
-        Returns:
-            tuple[bool, str]: (sukces, komunikat).
-        """
-        pallets = payload.get('pallets')
-        nr_rejestracyjny = payload.get('nr_rejestracyjny', '').strip() or None
-        kierowca = payload.get('kierowca', '').strip() or None
-        odbiorca = payload.get('odbiorca', '').strip() or None
-        nr_dokumentu_wz = payload.get('nr_dokumentu_wz', '').strip() or None
-        uwagi = payload.get('uwagi', '').strip() or None
-        linia = payload.get('linia', 'AGRO')
-
-        # Walidacja partii i kompletności
-        required_batch = payload.get('required_batch') or payload.get('wymagana_partia')
-        expected_count = payload.get('expected_count') or payload.get('oczekiwana_ilosc_palet')
-        if expected_count is not None:
+        """Validate server-owned pallets and commit the entire loading together."""
+        import math
+        from flask import has_request_context
+        from app.core.production_permissions import _page_allowed
+        from app.services.lab_quality_service import LabQualityService
+        if not isinstance(payload, dict):
+            return False, 'Wymagane dane załadunku.'
+        items = payload.get('pallets', [payload])
+        if not isinstance(items, list) or not items or len(items) > 1000:
+            return False, 'Nieprawidłowa lista palet.'
+        expected = payload.get('expected_count', payload.get('oczekiwana_ilosc_palet'))
+        if expected is not None:
             try:
-                expected_count = int(expected_count)
-            except Exception:
-                expected_count = None
-
-        # Jeśli przekazano listę wielu palet do zbiorczego załadunku
-        if isinstance(pallets, list) and len(pallets) > 0:
-            # 1. Walidacja kompletności załadunku
-            if expected_count is not None and len(pallets) < expected_count:
-                missing = expected_count - len(pallets)
-                return False, f"Blokada wysyłki: Niekompletny załadunek! Zeskanowano {len(pallets)} z {expected_count} wymaganych palet (Brakuje {missing} palet)."
-
-            # 2. Walidacja zgodności partii (Batch Lock)
-            if required_batch:
-                norm_req_batch = str(required_batch).strip().upper()
-                for p in pallets:
-                    p_batch = str(p.get('batch') or p.get('nr_partii') or '').strip().upper()
-                    if p_batch and p_batch != '-' and p_batch != norm_req_batch:
-                        p_code = p.get('nr_palety') or p.get('displayId')
-                        return False, f"Blokada wysyłki: Niezgodność partii! Paleta {p_code} posiada partię '{p_batch}', a zlecenie wymaga partii '{norm_req_batch}'."
-
-            # 3. Walidacja blokad laboratoryjnych (Blokada LAB)
-            from app.services.lab_quality_service import LabQualityService
-            for p in pallets:
-                p_code = str(p.get('nr_palety') or p.get('displayId') or '').strip()
-                lab_status = LabQualityService.check_pallet_lab_status(p_code)
-                if lab_status.get('is_blocked'):
-                    return False, f"Blokada wysyłki: {lab_status.get('message')}"
-
-            dispatched_count = 0
-            total_kg = 0.0
-            from app.repositories.warehouse_movement_ledger_repository import WarehouseMovementLedgerRepository
-
-            for p in pallets:
-                nr_palety = str(p.get('nr_palety') or p.get('displayId') or '').strip()
-                nazwa_produktu = str(p.get('nazwa_produktu') or p.get('productName') or '').strip()
-                if not nr_palety or not nazwa_produktu:
-                    continue
-
-                ilosc_kg = float(p.get('ilosc_kg') or p.get('amount') or 0.0)
-                typ_palety = p.get('typ_palety') or p.get('type') or 'Surowiec'
-                pallet_id = p.get('pallet_id') or p.get('id')
-                p_linia = p.get('linia') or linia
-                src_table = p.get('src_table')
-                p_batch = str(p.get('batch') or p.get('nr_partii') or '').strip()
-
-                if pallet_id and ilosc_kg > 0:
-                    try:
-                        self._repository.deduct_pallet_stock(
-                            pallet_id=int(pallet_id),
-                            typ_palety=typ_palety,
-                            linia=p_linia,
-                            ilosc_kg=ilosc_kg,
-                            src_table=src_table
-                        )
-                    except Exception:
-                        pass
-
-                data = {
-                    'nr_palety': nr_palety,
-                    'nazwa_produktu': nazwa_produktu,
-                    'typ_palety': typ_palety,
-                    'ilosc_kg': ilosc_kg,
-                    'nr_rejestracyjny': nr_rejestracyjny,
-                    'kierowca': kierowca,
-                    'odbiorca': odbiorca,
-                    'nr_dokumentu_wz': nr_dokumentu_wz,
-                    'uwagi': uwagi,
+                if int(expected) != len(items) or int(expected) <= 0:
+                    return False, 'Blokada wysyłki: Niekompletny załadunek.'
+            except (ValueError, TypeError):
+                return False, 'Nieprawidłowa oczekiwana liczba palet.'
+        required_batch = str(payload.get('required_batch') or payload.get('wymagana_partia') or '').strip().upper()
+        entries, seen = [], set()
+        try:
+            for item in items:
+                if not isinstance(item, dict):
+                    return False, 'Nieprawidłowe dane palety.'
+                code = str(item.get('nr_palety') or item.get('displayId') or '').strip()
+                if not code:
+                    return False, 'Wymagany jest numer palety do załadunku.'
+                pallet = self.lookup_pallet_for_dispatch(code, preferred_line=payload.get('linia') or 'AGRO')
+                if not pallet or pallet.get('duplicate_sscc'):
+                    return False, 'Nie znaleziono jednoznacznej aktywnej palety.'
+                key = (pallet['src_table'], pallet['id'])
+                if key in seen:
+                    return False, 'Ta sama paleta występuje wielokrotnie w załadunku.'
+                seen.add(key)
+                if has_request_context() and not _page_allowed(str(pallet['linia']).upper(), 'magazyn', write=True):
+                    return False, 'Brak uprawnień do magazynu tej palety.'
+                quantity = float(item.get('ilosc_kg', item.get('amount', 0)))
+                if not math.isfinite(quantity) or quantity <= 0 or quantity > pallet['amount']:
+                    return False, 'Nieprawidłowa ilość lub niewystarczający stan palety.'
+                if required_batch and str(pallet.get('batch') or '').upper() != required_batch:
+                    return False, 'Blokada wysyłki: Niezgodność partii.'
+                quality = LabQualityService.check_pallet_lab_status(pallet['nr_palety'])
+                if quality.get('is_blocked'):
+                    return False, 'Blokada wysyłki: ' + str(quality.get('message') or 'Blokada LAB.')
+                entries.append({
+                    'pallet_id': pallet['id'], 'src_table': pallet['src_table'],
+                    'nr_palety': pallet['nr_palety'], 'nazwa_produktu': pallet['nazwa_produktu'],
+                    'typ_palety': pallet['type'], 'linia': pallet['linia'], 'ilosc_kg': quantity,
+                    'batch': pallet.get('batch'), 'required_batch': required_batch,
                     'magazynier': magazynier_login,
-                    'linia': p_linia
-                }
-                did = self._repository.create_dispatch(data)
-                if did:
-                    dispatched_count += 1
-                    total_kg += ilosc_kg
-                    # Record WZ movement in unified warehouse ledger
-                    try:
-                        WarehouseMovementLedgerRepository.record_movement(
-                            movement_type='WZ',
-                            pallet_id=pallet_id,
-                            pallet_code=nr_palety,
-                            product_name=nazwa_produktu,
-                            batch_number=p_batch,
-                            source_location=f"MAGAZYN_{p_linia}",
-                            target_location=f"SAMOCHOD_{nr_rejestracyjny or 'WZ'}",
-                            quantity=ilosc_kg,
-                            unit='szt' if typ_palety == 'Opakowanie' else 'kg',
-                            user_login=magazynier_login,
-                            reference_id=nr_dokumentu_wz or str(did),
-                            notes=f"Wydanie zewnętrzne WZ: {nr_dokumentu_wz or ''}, Odbiorca: {odbiorca or ''}, Auto: {nr_rejestracyjny or ''}".strip()
-                        )
-                    except Exception as m_err:
-                        print("Błąd zapisu ruchu WZ:", m_err)
-
-            if dispatched_count > 0:
-                return True, f"Zarejestrowano załadunek {dispatched_count} palet na samochód (łączna waga: {total_kg:.2f} kg)."
-            return False, "Nie udało się zapisać palet z listy załadunku."
-
-        # Pojedyncza paleta (kompatybilność wsteczna)
-        nr_palety = payload.get('nr_palety')
-        nazwa_produktu = payload.get('nazwa_produktu')
-
-        if not nr_palety or not str(nr_palety).strip():
-            return False, "Wymagany jest numer palety do załadunku."
-
-        if not nazwa_produktu or not str(nazwa_produktu).strip():
-            return False, "Wymagana jest nazwa produktu."
-
-        ilosc_kg = float(payload.get('ilosc_kg', 0.0) or 0.0)
-        typ_palety = payload.get('typ_palety', 'Surowiec')
-        pallet_id = payload.get('pallet_id')
-
-        data = {
-            'nr_palety': str(nr_palety).strip(),
-            'nazwa_produktu': str(nazwa_produktu).strip(),
-            'typ_palety': typ_palety,
-            'ilosc_kg': ilosc_kg,
-            'nr_rejestracyjny': nr_rejestracyjny,
-            'kierowca': kierowca,
-            'odbiorca': odbiorca,
-            'nr_dokumentu_wz': nr_dokumentu_wz,
-            'uwagi': uwagi,
-            'magazynier': magazynier_login,
-            'linia': linia
-        }
-
-        # Opcjonalne odliczenie stanu z tabeli źródłowej magazynu
-        if pallet_id and ilosc_kg > 0:
-            try:
-                self._repository.deduct_pallet_stock(
-                    pallet_id=int(pallet_id),
-                    typ_palety=typ_palety,
-                    linia=linia,
-                    ilosc_kg=ilosc_kg,
-                    src_table=payload.get('src_table')
-                )
-            except Exception:
-                pass
-
-        dispatch_id = self._repository.create_dispatch(data)
-        if dispatch_id:
-            return True, f"Załadunek na samochód palety {nr_palety} został zarejestrowany (ID #{dispatch_id})."
-        return False, "Błąd podczas rejestracji załadunku na samochód."
+                    **{field: str(payload.get(field) or '').strip() or None for field in
+                       ('nr_rejestracyjny', 'kierowca', 'odbiorca', 'nr_dokumentu_wz', 'uwagi')}
+                })
+            ids = self._repository.dispatch_batch(entries)
+            if not ids or len(ids) != len(entries):
+                return False, 'Nie zapisano pełnego załadunku.'
+            if len(ids) == 1:
+                return True, f'Załadunek został zarejestrowany (ID #{ids[0]}).'
+            return True, f'Zarejestrowano załadunek {len(ids)} palet na samochód.'
+        except (ValueError, TypeError, KeyError):
+            return False, 'Nieprawidłowe dane lub zmieniony stan palety. Zeskanuj ponownie.'
+        except Exception:
+            return False, 'Nie zapisano załadunku. Sprawdź stan magazynu i spróbuj ponownie.'

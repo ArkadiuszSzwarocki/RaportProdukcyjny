@@ -325,7 +325,7 @@
             if (!planId) {
                 return;
             }
-            var triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+            var triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]:not([data-szarza-id])');
             triggers.forEach(function (trigger) {
                 var badge = trigger.querySelector('.action-badge');
                 var current = badge ? (parseInt(badge.textContent, 10) || 0) : 0;
@@ -350,12 +350,13 @@
         }
     }
 
-    function _setDosypkiActionBadgeAbsolute(planId, value) {
+    function _setDosypkiActionBadgeAbsolute(planId, value, batchId) {
         try {
             if (!planId) {
                 return;
             }
-            var triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]');
+            var scope = batchId ? '[data-szarza-id="' + String(batchId) + '"]' : ':not([data-szarza-id])';
+            var triggers = document.querySelectorAll('.btn-with-badge[data-plan-id="' + String(planId) + '"]' + scope);
             triggers.forEach(function (trigger) {
                 var badge = trigger.querySelector('.action-badge');
                 var next = Math.max(0, parseInt(value, 10) || 0);
@@ -409,7 +410,9 @@
                             if (!planId) {
                                 return;
                             }
-                            _setDosypkiActionBadgeAbsolute(planId, counts[planId] || 0);
+                            var batchId = button.getAttribute('data-szarza-id');
+                            var batches = (data.batch_counts || {})[planId] || {};
+                            _setDosypkiActionBadgeAbsolute(planId, batchId ? batches[batchId] || 0 : counts[planId] || 0, batchId);
                         } catch (error) {
                         }
                     });
