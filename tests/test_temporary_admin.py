@@ -52,16 +52,16 @@ def test_only_named_leaders_can_elevate_for_exactly_ten_minutes(switch_app, logi
     _, client, _, audit, clock = switch_app
     menu = sign_in(client, login)
     assert menu['eligible'] and not menu['active']
-    assert client.post('/protected').status_code == 403
+    assert client.post('/protected', json={}).status_code == 403
     response = toggle(client, menu['csrf'])
     assert response.status_code == 200
     assert response.headers['X-RP-Temporary-Admin'] == 'active'
     assert response.json['expires_at'] == 10600
-    assert client.post('/protected').status_code == 200
+    assert client.post('/protected', json={}).status_code == 200
     clock.return_value = 10599
-    assert client.post('/protected').status_code == 200
+    assert client.post('/protected', json={}).status_code == 200
     clock.return_value = 10600
-    assert client.post('/protected').status_code == 403
+    assert client.post('/protected', json={}).status_code == 403
     assert client.get('/auth/temporary-masteradmin/status').json['role'] == 'lider'
     assert audit.call_count == 2
 
@@ -71,9 +71,9 @@ def test_expiry_is_enforced_even_when_database_role_check_is_cached(switch_app):
     token = sign_in(client)['csrf']
     toggle(client, token)
     clock.return_value = 10599
-    assert client.post('/protected').status_code == 200
+    assert client.post('/protected', json={}).status_code == 200
     clock.return_value = 10601
-    assert client.post('/protected').status_code == 403
+    assert client.post('/protected', json={}).status_code == 403
 
 
 def test_database_sync_keeps_active_elevation_and_repeated_click_does_not_extend_it(switch_app):
@@ -81,7 +81,7 @@ def test_database_sync_keeps_active_elevation_and_repeated_click_does_not_extend
     token = sign_in(client)['csrf']
     toggle(client, token)
     clock.return_value = 10090
-    assert client.post('/protected').status_code == 200
+    assert client.post('/protected', json={}).status_code == 200
     assert toggle(client, token).json['expires_at'] == 10600
 
 
@@ -91,7 +91,7 @@ def test_manual_return_restores_leader_and_records_audit(switch_app):
     toggle(client, token)
     response = toggle(client, token, 'disable')
     assert response.json['role'] == 'lider' and not response.json['active']
-    assert client.post('/protected').status_code == 403
+    assert client.post('/protected', json={}).status_code == 403
     assert 'Wyłączono ręcznie' in audit.call_args.args[1]
 
 
@@ -119,7 +119,7 @@ def test_activation_rechecks_account_and_rejects_demotion_or_deactivation(switch
     token = sign_in(client)['csrf']
     row[:] = changed
     assert toggle(client, token).status_code in (401, 403)
-    assert client.post('/protected').status_code != 200
+    assert client.post('/protected', json={}).status_code != 200
 
 
 def test_named_database_masteradmin_uses_leader_by_default_without_changing_database(switch_app):
@@ -136,7 +136,7 @@ def test_ordinary_permanent_masteradmin_is_unchanged(switch_app):
     row[0] = 'masteradmin'
     menu = sign_in(client, 'other-admin', 'masteradmin')
     assert not menu['eligible']
-    assert client.post('/protected').status_code == 200
+    assert client.post('/protected', json={}).status_code == 200
 
 
 def test_grant_cannot_be_transferred_to_another_user_or_have_longer_deadline(switch_app):
@@ -147,13 +147,13 @@ def test_grant_cannot_be_transferred_to_another_user_or_have_longer_deadline(swi
         grant = dict(state['_temporary_masteradmin'])
         grant['user_id'] = 99
         state['_temporary_masteradmin'] = grant
-    assert client.post('/protected').status_code == 403
+    assert client.post('/protected', json={}).status_code == 403
     toggle(client, token)
     with client.session_transaction() as state:
         grant = dict(state['_temporary_masteradmin'])
         grant['expires'] += 1
         state['_temporary_masteradmin'] = grant
-    assert client.post('/protected').status_code == 403
+    assert client.post('/protected', json={}).status_code == 403
 
 
 def test_logged_out_session_cannot_elevate(switch_app):
