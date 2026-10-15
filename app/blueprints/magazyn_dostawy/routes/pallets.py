@@ -3,6 +3,7 @@ import traceback
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required
 from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
+from app.services.magazyn_dostawy.commands.delivery_order_validator import is_transit_location
 from app.services.magazyn_dostawy.delivery_command_service import DeliveryCommandService
 from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
 from app.services.magazyn_dostawy.location_service import LocationService
@@ -740,10 +741,19 @@ def get_available_pallets():
                 if pal_id not in (None, '') and pal_type:
                     reserved_ids.add(f"{pal_type}:{pal_id}")
 
+        cursor.execute("SELECT DISTINCT UPPER(ti.nr_palety) AS nr_palety FROM osip_transfer_items ti "
+                       "JOIN osip_transfers t ON ti.transfer_id=t.id "
+                       "WHERE t.status IN ('PLANNED','IN_TRANSIT','RECEIVING') "
+                       "AND COALESCE(ti.status, 'PLANNED') NOT IN ('RECEIVED','CANCELLED')")
+        osip_reserved = {str(row.get('nr_palety') or '').strip().upper() for row in cursor.fetchall()}
+        transit_excluded = False
         filtered_pallets = []
         for pal in pallets:
             pal_nr = str(pal.get('nr_palety') or '').strip().upper()
             pal_id = pal.get('id')
+            if is_transit_location(pal.get('lokalizacja')) or pal_nr in osip_reserved:
+                transit_excluded = True
+                continue
             pal_type = str(pal.get('type') or '').strip().lower()
             pal_key = f"{pal_type}:{pal_id}" if pal_id not in (None, '') and pal_type else ''
 
@@ -818,7 +828,9 @@ def get_available_pallets():
             str(x.get('lokalizacja') or '')
         ))
 
-        return jsonify({"success": True, "pallets": fifo_ordered_pallets})
+        return jsonify({"success": True, "pallets": fifo_ordered_pallets,
+                        "unavailable_reason": ('Paleta jest w tranzycie lub przypisana do aktywnego transferu OSIP. Najpierw zakończ jego odbiór.'
+                                               if transit_excluded and not fifo_ordered_pallets else '')})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:

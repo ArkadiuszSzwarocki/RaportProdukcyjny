@@ -1,7 +1,7 @@
 import json
 from typing import Tuple, List, Dict, Any, Set
 from app.db import get_table_name
-from app.services.magazyn_dostawy.commands.delivery_order_validator import norm_loc, is_route_conflict
+from app.services.magazyn_dostawy.commands.delivery_order_validator import norm_loc, is_route_conflict, is_transit_location
 
 
 class InternalTransferProcessor:
@@ -213,6 +213,8 @@ class InternalTransferProcessor:
 
             # Verify actual physical location from DB
             db_actual_spot = norm_loc(p_res.get('lokalizacja'))
+            if is_transit_location(db_actual_spot):
+                return False, 'Paleta jest w tranzycie. Najpierw zakończ odbiór istniejącego transferu.'
             if not source_spot:
                 source_spot = db_actual_spot
 

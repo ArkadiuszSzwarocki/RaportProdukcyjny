@@ -122,3 +122,50 @@ def test_opening_pending_view_never_moves_stock_or_same_id_neighbour(stock_docum
         cursor.execute('DELETE FROM magazyn_palety WHERE nr_palety=%s',(neighbour,))
         conn.commit()
         conn.close()
+
+
+def test_transit_stock_cannot_enter_second_live_or_final_transfer(stock_document):
+    """Both write paths retain the physical transit state and the empty document."""
+    from app.services.magazyn_dostawy.commands.delivery_save_service import DeliverySaveService
+    doc, numbers = stock_document
+    code = numbers[0]
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE magazyn_surowce SET lokalizacja='W_TRANZYCIE_OSIP',is_blocked=1 WHERE nr_palety=%s",(code,))
+    conn.commit()
+    conn.close()
+    item = dict(id='new',nr_palety=code,sourcePalletNo=code,sourceTable='magazyn_surowce',
+                sourceSpot='MS01',productName=doc,netWeight=100)
+    ok, message = LiveTransferService.add_live_transfer_item(doc,item,linia='AGRO')
+    assert not ok and 'tranzycie' in message
+    for skip in (False,True):
+        ok, message = DeliverySaveService.save_dostawa(dict(id=doc,linia='AGRO',items=[dict(item)],skip_warehouse_lookup=skip))
+        assert not ok and 'tranzycie' in message
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        PalletLockManager.set_pallets_blocked(cursor,[dict(nr_palety=code,sourceTable='magazyn_surowce')],0,exclude_delivery_id=doc)
+        conn.commit()
+        cursor.execute('SELECT items FROM magazyn_dostawy WHERE id=%s',(doc,))
+        assert json.loads(cursor.fetchone()['items']) == []
+        from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+        for source in ('W_TRANZYCIE_OSIP', 'MS01'):
+            legacy_item = dict(item, sourceSpot=source, scannedType='surowiec', packageForm='bags')
+            cursor.execute('UPDATE magazyn_dostawy SET items=%s WHERE id=%s',(json.dumps([legacy_item]),doc))
+            conn.commit()
+            result = AcceptanceService.accept_item(doc,'new','MP01')
+            assert not result[0] and 'tranzycie' in result[1]
+            cursor.execute('SELECT items FROM magazyn_dostawy WHERE id=%s',(doc,))
+            assert not json.loads(cursor.fetchone()['items'])[0].get('accepted')
+            conn.rollback()
+        cursor.execute('SELECT lokalizacja,stan_magazynowy,is_blocked FROM magazyn_surowce WHERE nr_palety=%s',(code,))
+        stock = cursor.fetchone()
+        assert stock['lokalizacja']=='W_TRANZYCIE_OSIP'
+        assert float(stock['stan_magazynowy'])==100
+        assert stock['is_blocked']==1
+        cursor.execute('SELECT lokalizacja,is_blocked FROM magazyn_surowce WHERE nr_palety=%s',(numbers[1],))
+        neighbour = cursor.fetchone()
+        assert neighbour['lokalizacja']=='MS01' and not neighbour['is_blocked']
+    finally:
+        conn.rollback()
+        conn.close()

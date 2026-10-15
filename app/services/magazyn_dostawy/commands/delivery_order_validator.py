@@ -16,6 +16,15 @@ def norm_loc(value: Any) -> str:
     return str(value or '').strip().upper()
 
 
+class TransitPalletError(ValueError):
+    """A physical pallet is still owned by an active transfer."""
+
+
+def is_transit_location(value: Any) -> bool:
+    clean = re.sub(r'[\s_-]', '', norm_loc(value))
+    return clean in {'WTRANZYCIE', 'WTRANZYCIEOSIP'}
+
+
 def as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -81,6 +90,11 @@ class DeliveryOrderValidator:
             is_valid, error_msg = validate_warehouse_location(lokalizacja_do, allow_empty=False)
             if not is_valid:
                 return False, error_msg
+
+        if not is_external:
+            for item in items:
+                if not item.get('accepted') and not item.get('rejected') and is_transit_location(item.get('sourceSpot')):
+                    return False, 'Paleta jest w tranzycie. Najpierw zakończ odbiór istniejącego transferu.'
 
         # Validate source locations
         for source_loc in source_locations:

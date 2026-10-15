@@ -2,6 +2,7 @@
 import json
 from typing import Tuple, List, Dict, Any, Optional
 from app.db import get_db_connection, get_table_name
+from app.services.magazyn_dostawy.commands.delivery_order_validator import is_transit_location, TransitPalletError
 
 
 class PalletLockManager:
@@ -22,6 +23,8 @@ class PalletLockManager:
             'magazyn_palety', 'magazyn_palety_agro', 'magazyn_dodatki',
         }
         for it in items:
+            if blocked_val and (it.get('accepted') or it.get('rejected')):
+                continue
             pid = it.get('sourcePalletId') or it.get('pallet_id') or it.get('surowiec_id')
             pnr = str(it.get('sourcePalletNo') or it.get('nr_palety') or '').strip().upper()
             hint = str(it.get('sourceTable') or '').strip()
@@ -38,7 +41,7 @@ class PalletLockManager:
                 quantity_column = 'waga_netto' if table in ('magazyn_palety', 'magazyn_palety_agro') else 'stan_magazynowy'
                 hall_column = ', linia' if table in ('magazyn_palety', 'magazyn_palety_agro') else ''
                 try:
-                    cursor.execute(f"SELECT id, nr_palety{hall_column} FROM {table} WHERE {predicate} AND {quantity_column} > 0 FOR UPDATE",
+                    cursor.execute(f"SELECT id, nr_palety, lokalizacja{hall_column} FROM {table} WHERE {predicate} AND {quantity_column} > 0 FOR UPDATE",
                                    (pnr if pnr else pid,))
                     matches.extend((table, row) for row in cursor.fetchall())
                 except Exception as exc:
@@ -68,10 +71,24 @@ class PalletLockManager:
             from app.core.logistics_permissions import logistics_stock_write_allowed
             if not logistics_stock_write_allowed(table, row):
                 raise PermissionError('Brak uprawnień do hali wskazanej palety.')
+            if blocked_val:
+                if is_transit_location(row.get('lokalizacja')):
+                    raise TransitPalletError('Paleta jest w tranzycie. Najpierw zakończ odbiór istniejącego transferu.')
+                if cls.has_active_osip_transfer(cursor, row.get('nr_palety')):
+                    raise TransitPalletError('Paleta jest przypisana do aktywnego transferu OSIP. Najpierw zakończ jego odbiór lub anuluj ten transfer.')
+            elif is_transit_location(row.get('lokalizacja')):
+                continue
             if not blocked_val and cls.has_protected_block(cursor, row.get('nr_palety'), exclude_delivery_id):
                 continue
             cursor.execute(f"UPDATE {table} SET is_blocked = %s WHERE id = %s",
                            (blocked_val, row['id']))
+
+    @staticmethod
+    def has_active_osip_transfer(cursor, number):
+        cursor.execute("SELECT ti.id FROM osip_transfer_items ti JOIN osip_transfers t ON ti.transfer_id=t.id "
+                       "WHERE UPPER(ti.nr_palety)=%s AND t.status IN ('PLANNED','IN_TRANSIT','RECEIVING') "
+                       "AND COALESCE(ti.status, 'PLANNED') NOT IN ('RECEIVED','CANCELLED') LIMIT 1", (str(number or '').strip().upper(),))
+        return bool(cursor.fetchone())
 
     @staticmethod
     def has_quality_or_manual_block(cursor, number):
@@ -110,7 +127,7 @@ class PalletLockManager:
                     return True
         cursor.execute("SELECT ti.id FROM osip_transfer_items ti JOIN osip_transfers t ON ti.transfer_id=t.id "
                        "WHERE UPPER(ti.nr_palety)=%s AND t.status IN ('PLANNED','IN_TRANSIT','RECEIVING') "
-                       "AND ti.status NOT IN ('RECEIVED','CANCELLED') LIMIT 1", (number,))
+                       "AND COALESCE(ti.status, 'PLANNED') NOT IN ('RECEIVED','CANCELLED') LIMIT 1", (number,))
         return bool(cursor.fetchone())
 
     @classmethod
