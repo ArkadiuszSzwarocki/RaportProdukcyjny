@@ -66,6 +66,7 @@ def _compute_static_version():
             os.path.join(current_app.static_folder, 'scripts.js'),
             os.path.join(current_app.static_folder, 'js', 'sidebar.js'),
             os.path.join(current_app.static_folder, 'js', 'pwa_init.js'),
+            os.path.join(current_app.static_folder, 'js', 'temporary-admin.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'api.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'state.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'render.js'),

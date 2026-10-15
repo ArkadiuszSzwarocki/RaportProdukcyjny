@@ -9,6 +9,7 @@ from flask import jsonify, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.core.database import get_db_connection
+from app.core.temporary_admin import apply_temporary_role
 
 
 _FORWARDED_ENV_KEYS = (
@@ -142,15 +143,18 @@ def _authoritative_role_sync(app, *, force=False):
             session.clear()
             return False
 
+        session['_account_role'] = db_role
+        session['_account_group'] = db_group
         session['rola'] = db_role
         session['grupa'] = 'ALL' if db_role in _PRIVILEGED_ROLES else db_group
         session['_role_integrity_checked_at'] = now
+        apply_temporary_role()
 
         tracking_id = session.get('session_tracking_id')
         if tracking_id:
             cursor.execute(
                 "UPDATE aktywne_sesje SET rola = %s WHERE session_id = %s AND user_id = %s",
-                (db_role, tracking_id, user_id),
+                (session['rola'], tracking_id, user_id),
             )
             conn.commit()
         return True
@@ -186,6 +190,7 @@ def register_role_integrity_check(app):
     @app.before_request
     def _sync_authenticated_role_before_request():
         _authoritative_role_sync(app, force=False)
+        apply_temporary_role()
         return None
 
     @app.after_request

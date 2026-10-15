@@ -92,6 +92,7 @@
 
     <!-- GLOBAL SCRIPTS -->
     {% include 'includes/_layout_footer_scripts.html' %}
+    <script src="{{ url_for('static', filename='js/temporary-admin.js') }}?v={{ static_version }}"></script>
     {% block footer_scripts %}{% endblock %}
     <script src="{{ url_for('static', filename='js/watchdog_tracker.js') }}"></script>
 </body>

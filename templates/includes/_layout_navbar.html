@@ -15,6 +15,12 @@
     <span id="topBarPageTitle" style="font-size:16px;font-weight:700;color:var(--text-secondary,#e2e8f0);margin-right:auto;padding-left:16px;display:none;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
 
     <div class="top-bar-right">
+        {% if temporary_admin and temporary_admin.eligible %}
+        <span id="temporaryAdminBanner" {% if not temporary_admin.active %}hidden{% endif %}
+              style="font-size:12px;font-weight:700;color:#fbbf24;white-space:nowrap;">
+            MasterAdmin · <span id="temporaryAdminTimer">10:00</span>
+        </span>
+        {% endif %}
         {% if is_test_db %}
         <div class="top-user-meta" style="margin-right: 6px;">
             <span class="user-role" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);">
@@ -42,13 +48,24 @@
                     <div class="user-profile-meta">
                         <div class="user-profile-name">{{ session.get('imie_nazwisko') or session.get('login') or 'Użytkownik' }}</div>
                         <div class="user-profile-sub">
-                            <span class="user-profile-badge">{{ session.get('role') or session.get('rola') or 'Użytkownik' }}</span>
+                            <span class="user-profile-badge">{{ session.get('rola') or session.get('role') or 'Użytkownik' }}</span>
                             <span class="user-profile-login">@{{ session.get('login') }}</span>
                         </div>
                     </div>
                 </div>
                 <div class="user-profile-menu-divider"></div>
                 <div class="user-profile-menu-items">
+                    {% if temporary_admin and temporary_admin.eligible %}
+                    <div id="temporaryAdminSwitch" data-active="{{ 'true' if temporary_admin.active else 'false' }}"
+                         data-expires="{{ temporary_admin.expires_at or '' }}" data-server-now="{{ temporary_admin.server_now }}"
+                         data-csrf="{{ temporary_admin.csrf }}"
+                         data-status-url="{{ url_for('temporary_admin.status') }}"
+                         data-enable-url="{{ url_for('temporary_admin.toggle', action='enable') }}"
+                         data-disable-url="{{ url_for('temporary_admin.toggle', action='disable') }}">
+                        <button type="button" id="temporaryAdminButton" class="user-profile-menu-item">{{ 'Wróć do lidera' if temporary_admin.active else 'Włącz MasterAdmin na 10 minut' }}</button>
+                        <div id="temporaryAdminError" role="alert" style="color:#b91c1c;padding:0 12px;font-size:12px;"></div>
+                    </div>
+                    {% endif %}
                     <button type="button" class="user-profile-menu-item" onclick="openUserProfileModal('profile')">
                         <span class="material-icons" style="color: #3b82f6;">person</span>
                         <span>Ustawienia Profilu & E-mail</span>

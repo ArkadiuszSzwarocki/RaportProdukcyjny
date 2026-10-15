@@ -80,12 +80,18 @@ async function getCachedNavigation(request) {
     const userId = await getActiveUser();
     if (!userId) return null;
     const cache = await caches.open(pageCacheName(userId));
-    return cache.match(request);
+    const cached = await cache.match(request);
+    if (cached && cached.headers.get('X-RP-Temporary-Admin') === 'active') {
+        await cache.delete(request);
+        return null;
+    }
+    return cached;
 }
 
 async function cacheNavigationForUser(request, response, userId) {
     const normalized = normalizeUserId(userId);
     if (!normalized || !response || !response.ok) return;
+    if (response.headers.get('X-RP-Temporary-Admin') === 'active') return;
     const contentType = String(response.headers.get('Content-Type') || '').toLowerCase();
     if (!contentType.includes('text/html')) return;
 

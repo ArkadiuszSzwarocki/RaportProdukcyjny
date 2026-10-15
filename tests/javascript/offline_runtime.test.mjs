@@ -185,8 +185,15 @@ test('service worker serves only the active owner and rejects stale tab takeover
         waitUntil(promise) { work = promise; } });
     await work;
     assert.equal(await context.getActiveUser(), '29');
+    context.fetch = async () => new Response('temporary administrator screen', { headers: {
+        'Content-Type': 'text/html', 'X-RP-Offline-User': '29', 'X-RP-Temporary-Admin': 'active',
+    } });
+    assert.equal(await (await context.navigationResponse(request)).text(), 'temporary administrator screen');
     context.fetch = async () => { throw new Error('offline'); };
     assert.equal(await (await context.navigationResponse(request)).text(), 'user B screen');
+    const ownerCache = await context.caches.open(context.pageCacheName('29'));
+    await ownerCache.put(request, new Response('expired elevated page', {headers: {'X-RP-Temporary-Admin': 'active'}}));
+    assert.equal(await context.getCachedNavigation(request), null);
     listeners.get('message')({ data: { type: 'RP_SET_OFFLINE_USER', userId: '17' },
         waitUntil(promise) { work = promise; } });
     await work;

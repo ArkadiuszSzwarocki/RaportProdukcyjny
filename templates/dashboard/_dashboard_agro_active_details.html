@@ -1,6 +1,6 @@
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
 {% set role_lc = rola|string|trim|lower %}
-{% set can_cancel_confirmed_dosypka = (role_lc|replace(' ', '')|replace('_', '')|replace('-', '') == 'masteradmin' or session.get('login') in ['SzwarArk', 'BoczkMar']) and not is_readonly %}
+{% set can_cancel_confirmed_dosypka = (role_lc|replace(' ', '')|replace('_', '')|replace('-', '') == 'masteradmin') and not is_readonly %}
 {% if role_lc in ['laborant', 'laboratorium'] and linia == 'AGRO' and sekcja == 'Workowanie' %}
     {% set is_readonly = true %}
 {% endif %}

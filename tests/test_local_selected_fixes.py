@@ -15,7 +15,8 @@ from app.repositories.station_warehouse_material_repository import StationWareho
 @pytest.mark.parametrize('role,login,allowed', [
     ('masteradmin', 'ordinary', True), ('Master Admin', 'ordinary', True),
     ('zarzad', 'ordinary', True), ('zarząd', 'ordinary', True),
-    ('pracownik', 'SzwarArk', True), ('laborant', 'BOCZKMAR', True),
+    ('pracownik', 'SzwarArk', False), ('laborant', 'BOCZKMAR', False),
+    ('lider', 'SzwarArk', False), ('masteradmin', 'BoczkMar', True),
     ('admin', 'ordinary', False), ('lider', 'ordinary', False),
     ('laborant', 'ordinary', False), ('pracownik', 'ordinary', False),
     ('', 'SzwarArk-extra', False),
