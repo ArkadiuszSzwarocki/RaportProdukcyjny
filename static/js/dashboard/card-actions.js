@@ -591,7 +591,37 @@
         }
     }
 
+    function cancelConfirmedDosypka(button) {
+        if (button.disabled) return;
+        var message = 'Anulować tę potwierdzoną dosypkę? Zostanie skorygowana waga zasypu i tonaż zlecenia. W historii laboratorium pozostanie informacja o anulowaniu.';
+        var confirmation = global.AppDialog && typeof global.AppDialog.confirm === 'function'
+            ? global.AppDialog.confirm(message) : Promise.resolve(global.confirm(message));
+        Promise.resolve(confirmation).then(function (accepted) {
+            if (!accepted || button.disabled) return;
+            button.disabled = true;
+            return fetch(button.getAttribute('data-url'), {
+                method: 'POST', credentials: 'same-origin',
+                headers: {'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json'}
+            }).then(function (response) {
+                return response.json().then(function (data) {
+                    if (!response.ok || !data.success) throw new Error(data.message || 'Nie udało się anulować dosypki.');
+                    global.location.reload();
+                });
+            }).catch(function (error) {
+                button.disabled = false;
+                notify(error.message || 'Błąd połączenia podczas anulowania dosypki.', 'danger');
+            });
+        });
+    }
+
     function handleClick(event) {
+        var dosypkaButton = event.target.closest('[data-action="cancel-confirmed-dosypka"]');
+        if (dosypkaButton) {
+            event.preventDefault();
+            cancelConfirmedDosypka(dosypkaButton);
+            return;
+        }
+
         var paletButton = event.target.closest('[data-action="edit-palet"], [data-action="delete-palet"]');
         if (paletButton) {
             event.preventDefault();

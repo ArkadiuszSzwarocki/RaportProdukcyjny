@@ -500,7 +500,7 @@ def cancel_confirmed_dosypka(dosypka_id: int, cancelled_by_login: str, linia: st
         cursor = conn.cursor()
 
         cursor.execute(
-            f"SELECT id, plan_id, nazwa, kg, potwierdzone, COALESCE(anulowana, 0) FROM {table_dosypki} WHERE id=%s",
+            f"SELECT id, plan_id, nazwa, kg, potwierdzone, COALESCE(anulowana, 0) FROM {table_dosypki} WHERE id=%s FOR UPDATE",
             (dosypka_id,),
         )
         row = cursor.fetchone()
@@ -511,9 +511,12 @@ def cancel_confirmed_dosypka(dosypka_id: int, cancelled_by_login: str, linia: st
         if anulowana == 1:
             return False, 'Dosypka została już wcześniej anulowana', plan_id
 
-        audit_note = f"{cancelled_by_login} (MasterAdmin - usunięto zatwierdzoną)"
+        if not potwierdzone:
+            return False, 'Ta dosypka nie została potwierdzona', plan_id
+
+        audit_note = f"{cancelled_by_login} (MasterAdmin - anulowano zatwierdzoną)"
         cursor.execute(
-            f"UPDATE {table_dosypki} SET potwierdzone=0, anulowana=1, data_anulowania=NOW(), anulowal_login=%s WHERE id=%s",
+            f"UPDATE {table_dosypki} SET anulowana=1, data_anulowania=NOW(), anulowal_login=%s WHERE id=%s",
             (audit_note, dosypka_id),
         )
 
