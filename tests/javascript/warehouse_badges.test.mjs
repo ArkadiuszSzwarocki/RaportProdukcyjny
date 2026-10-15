@@ -46,7 +46,7 @@ test('offline message stays inside navbar and clears on recovery', async () => {
   const bar = {querySelector() {return {};}, insertBefore(element) {banner = element;},
     classList: {toggle(name, enabled) {if (enabled) classes.add(name); else classes.delete(name);}}};
   const context = vm.createContext({
-    navigator: {onLine: false}, localStorage: {setItem() {}}, console, setInterval() {}, AbortSignal,
+    navigator: {onLine: false}, localStorage: {setItem() {}}, console, setInterval() {}, AbortSignal, AbortController, setTimeout, clearTimeout,
     window: {location: {pathname: '/scanner', search: ''}, addEventListener(name, callback) {listeners[name] = callback;}},
     document: {addEventListener(name, callback) {listeners[name] = callback;},
       getElementById() {return banner;}, querySelector() {return bar;},

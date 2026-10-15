@@ -315,7 +315,7 @@
                 </div>
                 {% if etap.czas_start_str %}
                 <div class="small text-muted">
-                    Start: <strong>{{ etap.czas_start_str }}</strong>
+                    Start: <strong>{% if etap.data_start_str %}{{ etap.data_start_str }} {% endif %}{{ etap.czas_start_str }}</strong>
                     {% if etap.start_login %}
                     <span class="badge-info" style="font-size:0.75em;" title="Kto START">👤 {{ etap.start_login }}</span>
                     {% endif %}
@@ -323,7 +323,7 @@
                 {% endif %}
                 {% if etap.czas_stop_str %}
                 <div class="small text-muted">
-                    Stop: <strong>{{ etap.czas_stop_str }}</strong>
+                    Stop: <strong>{% if etap.data_stop_str %}{{ etap.data_stop_str }} {% endif %}{{ etap.czas_stop_str }}</strong>
                     {% if etap.stop_login %}
                     <span class="badge-info" style="font-size:0.75em;" title="Kto STOP">👤 {{ etap.stop_login }}</span>
                     {% endif %}

@@ -14,7 +14,7 @@
         </span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="mag-sub" class="nav-sub {% if request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner', 'traceability'] or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
+    <div id="mag-sub" class="nav-sub {% if (request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner', 'traceability'] and request.endpoint != 'warehouse_v2.kompletacja') or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
         {% if role_has_access('magazyn.view') %}
         <a href="{{ url_for('warehouse_v2.index', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.index' %}active{% endif %}">Wszystkie Magazyny</a>
         <a href="{{ url_for('warehouse_v2.racks_3d_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.racks_3d_view' %}active{% endif %}">Widok 3D Regałów</a>
@@ -99,14 +99,6 @@
                 <span class="nav-sub-text">Zamówienia</span>
                 <span id="sidebarOrdersBadge" class="nav-pending-badge" aria-label="Nowe zamówienia" style="{% if not pending_orders_count or pending_orders_count == 0 %}display: none;{% endif %}">
                     {{ pending_orders_count if pending_orders_count else 0 }}
-                </span>
-            </span>
-        </a>
-        <a href="{{ url_for('warehouse_v2.kompletacja', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.kompletacja' %}active{% endif %}">
-            <span class="nav-sub-label">
-                <span class="nav-sub-text">Dyspozycje Kompletacji</span>
-                <span id="sidebarPickingBadge" class="nav-pending-badge" aria-label="Aktywne kompletacje" style="background:#0284c7; {% if not pending_picking_count or pending_picking_count == 0 %}display: none;{% endif %}">
-                    {{ pending_picking_count if pending_picking_count else 0 }}
                 </span>
             </span>
         </a>

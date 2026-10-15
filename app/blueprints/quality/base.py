@@ -186,7 +186,7 @@ def jakosc_podsumowanie_zasypow():
             z_ids = [z['zasyp_id'] for z in zasypy]
             format_strings = ','.join(['%s'] * len(z_ids))
             cursor.execute(f"""
-                SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana, szarza_id 
+                SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana, szarza_id, anulowal_login, data_anulowania, data_potwierdzenia
                 FROM {table_dosypki} 
                 WHERE szarza_id IN ({format_strings}) 
                 ORDER BY data_zlecenia ASC
@@ -302,7 +302,7 @@ def jakosc_podsumowanie_zasypow_fragment():
             z_ids = [z['zasyp_id'] for z in zasypy]
             format_strings = ','.join(['%s'] * len(z_ids))
             cursor.execute(f"""
-                SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana, szarza_id 
+                SELECT id, nazwa, kg, data_zlecenia, potwierdzone, anulowana, szarza_id, anulowal_login, data_anulowania, data_potwierdzenia
                 FROM {table_dosypki} 
                 WHERE szarza_id IN ({format_strings}) 
                 ORDER BY data_zlecenia ASC

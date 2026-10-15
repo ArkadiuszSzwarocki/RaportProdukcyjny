@@ -1,5 +1,6 @@
 {% set is_readonly = role_is_readonly(linia|lower ~ '.dashboard') %}
 {% set role_lc = rola|string|trim|lower %}
+{% set can_cancel_confirmed_dosypka = (role_lc|replace(' ', '')|replace('_', '')|replace('-', '') == 'masteradmin' or session.get('login') in ['SzwarArk', 'BoczkMar']) and not is_readonly %}
 {% if role_lc in ['laborant', 'laboratorium'] and linia == 'AGRO' and sekcja == 'Workowanie' %}
     {% set is_readonly = true %}
 {% endif %}
@@ -36,7 +37,7 @@
             <div class="active-order-szarze-item">
                 <div class="active-order-szarze-line">
                     <div class="active-order-szarze-left" style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
-                        <span>#{{ disp_lp }} • {{ pal[1] }}</span>
+                        <span>#{{ disp_lp }} • {% if sekcja == 'Zasyp' and pal|length > 10 and pal[10] %}{{ pal[10] }} {% endif %}{{ pal[1] }}</span>
                         {% if pal|length > 8 and pal[8] %}
                             {% set raw_sscc = pal[8]|string|trim %}
                             {% if raw_sscc %}
@@ -135,6 +136,12 @@
                             <span style="font-size:11px; color:#475569; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 5px; border-radius:4px;" title="Zaplanowane przez laboranta">plan: <strong>{{ dosypka_item[2] }} kg</strong></span>
                             {% endif %}
                             <span style="color:#047857; font-weight:800; background:#ecfdf5; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px;" title="Faktycznie wydozowane przez operatora">{{ dosypka_item[1] }} kg</span>
+                            {% if can_cancel_confirmed_dosypka and dosypka_item|length > 3 %}
+                            <button type="button" class="btn-action btn-danger"
+                                    data-action="cancel-confirmed-dosypka"
+                                    data-url="{{ url_for('production.usun_zatwierdzona_dosypke', dosypka_id=dosypka_item[3], linia=linia) }}"
+                                    title="Anuluj potwierdzoną dosypkę #{{ dosypka_item[3] }}. Zapis pozostanie w historii laboratorium.">Anuluj #{{ dosypka_item[3] }}</button>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}

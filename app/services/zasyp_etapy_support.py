@@ -52,6 +52,17 @@ def _format_hhmm(dt: Any) -> str:
     return ''
 
 
+def _format_date(value: Any) -> str:
+    """Format the actual event date, never the planned production date."""
+    if not value:
+        return ''
+    try:
+        event_date = value if isinstance(value, (date, datetime)) else date.fromisoformat(str(value)[:10])
+        return event_date.strftime('%d.%m.%Y')
+    except (TypeError, ValueError):
+        return ''
+
+
 def _format_duration(seconds: int) -> str:
     if seconds <= 0:
         return '0m'

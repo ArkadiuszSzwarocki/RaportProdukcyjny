@@ -6,7 +6,7 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name, list_unconfirmed_dosypki, sync_dosypka_notifications
-from app.decorators import roles_required
+from app.decorators import roles_required, _normalize_role
 from app.services.zasyp_etapy_service import ZasypEtapyService
 from app.repositories.production_repository import cancel_confirmed_dosypka
 
@@ -37,7 +37,7 @@ def register_production_dosypki_routes(
         return role_lc in ['admin', 'masteradmin', 'master_admin', 'zarzad', 'zarząd']
 
     def _is_masteradmin_or_super():
-        role = str(session.get('rola') or '').strip().lower().replace(' ', '_').replace('-', '_')
+        role = _normalize_role(session.get('rola'))
         login = str(session.get('login') or '').strip()
         return role == 'masteradmin' or login in ('SzwarArk', 'BoczkMar')
 
@@ -572,7 +572,7 @@ def register_production_dosypki_routes(
         try:
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT id, plan_id FROM {table_dosypki} WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0",
+                f"SELECT id, plan_id FROM {table_dosypki} WHERE id=%s AND potwierdzone=0 AND COALESCE(anulowana, 0)=0 FOR UPDATE",
                 (dosypka_id,),
             )
             row = cursor.fetchone()
@@ -588,6 +588,10 @@ def register_production_dosypki_routes(
             )
             conn.commit()
             mark_dosypki_updated(linia)
+            try:
+                audit_log('Anulował dosypkę', f'id={dosypka_id}, plan_id={row[1]}, anulowal={anulowal_login}')
+            except Exception:
+                current_app.logger.debug('audit_log failed for dosypka cancel', exc_info=True)
             if is_ajax:
                 return jsonify(
                     {
@@ -598,10 +602,6 @@ def register_production_dosypki_routes(
                     }
                 )
             flash('Dosypka została anulowana.', 'success')
-            try:
-                audit_log('Anulował dosypkę', f'id={dosypka_id}, plan_id={row[1]}, anulowal={anulowal_login}')
-            except Exception:
-                current_app.logger.debug('audit_log failed for dosypka cancel', exc_info=True)
         except Exception as e:
             try:
                 conn.rollback()
@@ -634,6 +634,11 @@ def register_production_dosypki_routes(
 
         linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
         anulowal_login = session.get('login') or session.get('imie_nazwisko') or 'MasterAdmin'
+
+        linia = str(linia).strip().upper()
+        submitted_lines = {str(value).strip().upper() for value in (request.args.get('linia'), request.form.get('linia')) if value}
+        if linia not in {'AGRO', 'PSD'} or len(submitted_lines) > 1:
+            return jsonify({'success': False, 'message': 'Nieprawidłowe wskazanie hali.'}), 400
 
         success, msg, plan_id = cancel_confirmed_dosypka(dosypka_id, anulowal_login, linia=linia)
         if not success:

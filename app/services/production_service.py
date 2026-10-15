@@ -8,6 +8,7 @@ from typing import Dict, List, Tuple, Any, Optional
 from app.db import get_db_connection, get_table_name, refresh_bufor_queue
 from app.utils.queries import QueryHelper
 from app.services.warehouse_service import WarehouseService
+from app.services.zasyp_etapy_support import _format_date
 
 _logger = logging.getLogger(__name__)
 
@@ -333,7 +334,8 @@ class ProductionService:
                         s.status,
                         COALESCE(p.imie_nazwisko, s.pracownik_id),
                         COALESCE(s.uwagi, ''),
-                        s.nr_szarzy
+                        s.nr_szarzy,
+                        s.data_dodania
                     FROM {table_szarze} s
                     LEFT JOIN pracownicy p ON s.pracownik_id = p.id
                     WHERE s.plan_id IN ({fmt_ids})
@@ -376,7 +378,7 @@ class ProductionService:
 
                 cursor.execute(
                     f"""
-                    SELECT d.szarza_id, d.nazwa, COALESCE(d.kg_wydozowane, d.kg), COALESCE(d.kg_planowane, d.kg)
+                    SELECT d.szarza_id, d.nazwa, COALESCE(d.kg_wydozowane, d.kg), COALESCE(d.kg_planowane, d.kg), d.id
                     FROM {table_dosypki} d
                     WHERE d.plan_id IN ({fmt_ids})
                       AND d.szarza_id IS NOT NULL
@@ -388,7 +390,7 @@ class ProductionService:
                 )
                 dosypki_rows = cursor.fetchall() or []
 
-                dosypki_by_szarza: Dict[int, List[Tuple[str, float, float]]] = {}
+                dosypki_by_szarza: Dict[int, List[Tuple[str, float, float, int]]] = {}
                 dosypki_sum_by_szarza: Dict[int, float] = {}
                 for d_row in dosypki_rows:
                     try:
@@ -398,7 +400,7 @@ class ProductionService:
                     nazwa = str(d_row[1] or '').strip()
                     kg_wyd = float(d_row[2] or 0)
                     kg_plan = float(d_row[3] or d_row[2] or 0)
-                    dosypki_by_szarza.setdefault(szarza_id, []).append((nazwa, kg_wyd, kg_plan))
+                    dosypki_by_szarza.setdefault(szarza_id, []).append((nazwa, kg_wyd, kg_plan, int(d_row[4])))
                     dosypki_sum_by_szarza[szarza_id] = float(dosypki_sum_by_szarza.get(szarza_id, 0.0)) + kg_wyd
 
                 # Load dumped Wiaderka z Maluchami
@@ -482,6 +484,7 @@ class ProductionService:
                             wiaderka_by_szarza.get(szarza_id, []),
                             nr_sz,
                             is_emptied,
+                            _format_date(row[8] if len(row) > 8 else None),
                         ]
                     )
 

@@ -6,6 +6,14 @@
         <strong aria-label="Temperatura">{{ '%.1f'|format(measurements.latest.temperature) if measurements.latest and measurements.latest.temperature is not none else '—' }}<small> °C</small></strong>
         <strong aria-label="Wilgotność">{{ '%.1f'|format(measurements.latest.humidity) if measurements.latest and measurements.latest.humidity is not none else '—' }}<small> %</small></strong>
     </span>
+    {% if measurements.latest %}
+    <time class="measurement-timestamp{% if measurements.stale %} text-warning{% endif %}"
+          datetime="{{ measurements.latest.utc }}" title="Data i godzina pomiaru · czas polski">
+        Pomiar: {{ measurements.latest.time }}
+    </time>
+    {% else %}
+    <span class="measurement-timestamp">Brak pomiaru</span>
+    {% endif %}
 </summary>
 <div class="measurement-detail">
     <strong>{{ measurements.name }} · pomiary z {{ measurements.day }}</strong>

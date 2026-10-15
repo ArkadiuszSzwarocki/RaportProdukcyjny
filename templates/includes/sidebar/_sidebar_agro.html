@@ -4,7 +4,7 @@
         <span>PRODUKCJA AGRO</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="agro-sub" class="nav-sub {% if request.args.get('linia')|upper == 'AGRO' or (not request.args.get('linia') and effective_hall == 'AGRO') or 'agro' in request.path|lower or (request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia')|upper == 'AGRO') %}open{% endif %}">
+    <div id="agro-sub" class="nav-sub {% if request.args.get('linia')|upper == 'AGRO' or (not request.args.get('linia') and effective_hall == 'AGRO') or request.endpoint == 'warehouse_v2.kompletacja' or 'agro' in request.path|lower or (request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia')|upper == 'AGRO') %}open{% endif %}">
         {% if role_has_access('agro.dashboard') %}
         <a href="{{ url_for('main.index', linia='AGRO') }}"
             class="nav-sub-item {% if (request.path == '/' or request.path == '') and (not request.args.get('sekcja') or request.args.get('sekcja') == 'Dashboard') and (request.args.get('linia')|upper == 'AGRO') %}active{% endif %}">
@@ -100,6 +100,16 @@
         <a href="{{ url_for('agro_warehouse.raport_palet', select=1) }}" 
            class="nav-sub-item {% if request.endpoint == 'agro_warehouse.raport_palet' %}active{% endif %}">
             Raport Palet AGRO
+        </a>
+        {% endif %}
+        {% if role not in ['pracownik', 'laborant', 'laboratorium'] %}
+        <a href="{{ url_for('warehouse_v2.kompletacja', linia='AGRO') }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.kompletacja' %}active{% endif %}">
+            <span class="nav-sub-label">
+                <span class="nav-sub-text">Dyspozycje Kompletacji</span>
+                <span id="sidebarPickingBadge" class="nav-pending-badge" aria-label="Aktywne kompletacje" style="background:#0284c7; {% if not pending_picking_count or pending_picking_count == 0 %}display: none;{% endif %}">
+                    {{ pending_picking_count if pending_picking_count else 0 }}
+                </span>
+            </span>
         </a>
         {% endif %}
     </div>
