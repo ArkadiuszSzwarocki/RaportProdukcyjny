@@ -683,7 +683,7 @@
                                 <span class="ds-badge ds-badge-cancelled">Anulowana</span>
                             {% elif item.potwierdzone %}
                                 <span class="ds-badge ds-badge-confirmed">Potwierdzona</span>
-                                {% if session.get('rola') in ['masteradmin', 'master_admin'] or session.get('login') in ['SzwarArk', 'BoczkMar'] %}
+                                {% if session.get('rola') in ['masteradmin', 'master_admin'] %}
                                 <button type="button" class="ds-btn-cancel-item js-delete-confirmed-dosypka"
                                     data-id="{{ item.id }}" title="Usuń zatwierdzoną dosypkę (MasterAdmin)"
                                     style="background:#fee2e2; color:#b91c1c; border-color:#fca5a5; margin-left:6px;">

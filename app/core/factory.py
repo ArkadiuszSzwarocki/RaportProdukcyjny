@@ -241,6 +241,8 @@ def create_app(config_secret_key=None, init_db=True):
     register_legacy_secret_rejection(app)
     register_middleware(app)
     register_role_integrity_check(app)
+    from app.core.temporary_admin import register_temporary_admin
+    register_temporary_admin(app)
     _register_blueprints(app)
     register_legacy_print_hardening(app)
     register_runtime_security_hardening(app)

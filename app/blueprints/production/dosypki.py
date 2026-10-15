@@ -38,8 +38,7 @@ def register_production_dosypki_routes(
 
     def _is_masteradmin_or_super():
         role = _normalize_role(session.get('rola'))
-        login = str(session.get('login') or '').strip()
-        return role == 'masteradmin' or login in ('SzwarArk', 'BoczkMar')
+        return role == 'masteradmin'
 
     def _check_szarza_emptied(cursor, linia, plan_id, szarza_nr):
         if not szarza_nr:
@@ -621,13 +620,13 @@ def register_production_dosypki_routes(
 
     @production_bp.route('/usun_zatwierdzona_dosypke/<int:dosypka_id>', methods=['POST'])
     def usun_zatwierdzona_dosypke(dosypka_id):
-        """MasterAdmin (or SzwarArk/BoczkMar) cancels an already confirmed dosypka."""
+        """MasterAdmin cancels an already confirmed dosypka."""
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json
         if not _is_masteradmin_or_super():
             if is_ajax:
                 return jsonify({
                     'success': False,
-                    'message': 'Brak uprawnień. Tylko Master Admin / SzwarArk / BoczkMar mogą usuwać zatwierdzone dosypki.'
+                    'message': 'Brak uprawnień. Tylko aktywna rola MasterAdmin może anulować zatwierdzone dosypki.'
                 }), 403
             flash('Brak uprawnień do usunięcia zatwierdzonej dosypki.', 'warning')
             return redirect(bezpieczny_powrot())
