@@ -61,6 +61,7 @@ def test_cancel_releases_only_pending_items(monkeypatch):
 
 def test_stock_lock_uses_number_and_never_colliding_ids():
     cursor = MagicMock()
+    cursor.fetchone.return_value = None
     cursor.fetchall.side_effect = lambda: (
         [{'id': 7, 'nr_palety': 'P1'}] if 'FROM magazyn_surowce ' in cursor.execute.call_args.args[0]
         else [])
@@ -71,6 +72,7 @@ def test_stock_lock_uses_number_and_never_colliding_ids():
 
 def test_agro_raw_material_can_be_locked_by_its_resolved_table():
     cursor = MagicMock()
+    cursor.fetchone.return_value = None
     cursor.fetchall.return_value = [{'id': 17, 'nr_palety': 'AGR-RAW-17'}]
     PalletLockManager.set_pallets_blocked(cursor, [{
         'sourceTable': 'magazyn_agro_surowce',

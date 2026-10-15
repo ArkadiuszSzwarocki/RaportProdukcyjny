@@ -148,6 +148,16 @@ def test_transit_stock_cannot_enter_second_live_or_final_transfer(stock_document
         conn.commit()
         cursor.execute('SELECT items FROM magazyn_dostawy WHERE id=%s',(doc,))
         assert json.loads(cursor.fetchone()['items']) == []
+        from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+        for source in ('W_TRANZYCIE_OSIP', 'MS01'):
+            legacy_item = dict(item, sourceSpot=source, scannedType='surowiec', packageForm='bags')
+            cursor.execute('UPDATE magazyn_dostawy SET items=%s WHERE id=%s',(json.dumps([legacy_item]),doc))
+            conn.commit()
+            result = AcceptanceService.accept_item(doc,'new','MP01')
+            assert not result[0] and 'tranzycie' in result[1]
+            cursor.execute('SELECT items FROM magazyn_dostawy WHERE id=%s',(doc,))
+            assert not json.loads(cursor.fetchone()['items'])[0].get('accepted')
+            conn.rollback()
         cursor.execute('SELECT lokalizacja,stan_magazynowy,is_blocked FROM magazyn_surowce WHERE nr_palety=%s',(code,))
         stock = cursor.fetchone()
         assert stock['lokalizacja']=='W_TRANZYCIE_OSIP'

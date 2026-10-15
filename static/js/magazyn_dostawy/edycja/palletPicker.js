@@ -323,11 +323,11 @@ function appendPalletsToItems(selectedPallets) {
         renderItems();
         if (typeof showToast === 'function') {
             if (filledOpenRows > 0 && appendedRows > 0) {
-                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy i dodano ${appendedRows} nowych palet (zablokowano w bazie).`, 'success');
+                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy i dodano ${appendedRows} nowych palet do formularza.`, 'success');
             } else if (filledOpenRows > 0) {
-                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy (zablokowano w bazie).`, 'success');
+                showToast(`Uzupełniono ${filledOpenRows} otwartych wierszy formularza.`, 'success');
             } else {
-                showToast(`Dodano ${appendedRows} palet (zablokowano w bazie).`, 'success');
+                showToast(`Dodano ${appendedRows} palet do formularza.`, 'success');
             }
         }
     }

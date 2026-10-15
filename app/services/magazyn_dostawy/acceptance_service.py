@@ -10,6 +10,8 @@ from app.utils.pallet_id import generate_pallet_id
 from app.utils.location_validator import validate_warehouse_location, is_production_tank_code, normalize_warehouse_location
 
 from app.services.magazyn_dostawy.location_service import LocationService
+from app.services.magazyn_dostawy.commands.delivery_order_validator import is_transit_location
+from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
 from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 class AcceptanceResult(tuple):
@@ -119,6 +121,8 @@ class AcceptanceService:
                 # lub supplier wskazuje na transfer wewnętrzny / przesunięcie.
                 is_transfer = not bool(supplier) or 'PRZESUNI' in supplier.upper() or 'TRANSFER' in supplier.upper()
                 is_external = (bool(supplier) and not is_transfer) or source_spot == 'DOSTAWA' or str(dostawa.get('lokalizacja_z') or '').strip().upper() == 'DOSTAWA'
+                if not is_external and is_transit_location(source_spot):
+                    return False, 'Paleta jest w tranzycie OSIP. Przyjmij ją w jej istniejącym transferze.', None
                 is_manual = target.get('is_manual', False) or target.get('warehouseLookupSkipped', False)
                 if not is_external:
                     destination = normalize_warehouse_location(target.get('targetSpot') or dostawa.get('lokalizacja_do'))
@@ -210,6 +214,14 @@ class AcceptanceService:
 
                 # Reuse existing nr_palety if this was a transfer, otherwise generate new
                 nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if is_opk_pkg else 'surowiec'))
+                if not is_external:
+                    physical_table = (table_opk if is_opk_pkg else ('magazyn_dodatki' if p_type_scanned == 'dodatek' else
+                                      (table_got if p_type_scanned in ['wyrob_gotowy', 'magazyn', 'produkcja'] else table_sur)))
+                    quantity_field = 'waga_netto' if physical_table in allowed_got else 'stan_magazynowy'
+                    cursor.execute(f"SELECT lokalizacja FROM {physical_table} WHERE nr_palety=%s AND {quantity_field}>0 FOR UPDATE", (nr_palety,))
+                    physical = cursor.fetchall()
+                    if any(is_transit_location(row.get('lokalizacja')) for row in physical) or PalletLockManager.has_active_osip_transfer(cursor, nr_palety):
+                        return False, 'Paleta jest w tranzycie lub przypisana do aktywnego transferu OSIP. Przyjmij ją w tym transferze.', None
                 if pkg_form_raw in ('tasma', 'taśma') or 'taśm' in product_name.lower() or 'tasm' in product_name.lower():
                     pkg_form = 'Taśma'
                 elif pkg_form_raw == 'karton':
@@ -371,7 +383,6 @@ class AcceptanceService:
                 target['data_przydatnosci'] = data_przydatnosci
 
                 # Zwalniamy blokadę dla przyjętej palety źródłowej i nowej palety (dla obu linii PSD i AGRO)
-                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
                 PalletLockManager.set_pallets_blocked(cursor, [target], 0, exclude_delivery_id=dostawa_id)
 
                 # 3. Empty the source spot ONLY for internal transfers where source pallet is a SEPARATE row
@@ -454,7 +465,6 @@ class AcceptanceService:
     @staticmethod
     def confirm_moved_pallet(cursor, connection, number, location, login):
         """Confirm a full physical move in the same transaction as its stock."""
-        from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
         number = str(number or '').strip().upper()
         if not number:
             return
@@ -577,7 +587,6 @@ class AcceptanceService:
                 target['rejected_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 target['rejected_reason'] = normalized_reason
                 # Zwalniamy blokadę dla odrzuconej palety
-                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
                 PalletLockManager.set_pallets_blocked(cursor, [target], 0, exclude_delivery_id=dostawa_id)
 
                 if restored:
