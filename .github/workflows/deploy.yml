@@ -5,10 +5,15 @@ on:
   workflow_run:
     workflows: ["Test & Build", "Python tests", "cSpell"]
     types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
   actions: read
+
+concurrency:
+  group: production-image-publication
+  cancel-in-progress: false
 
 jobs:
   scan:
@@ -121,6 +126,23 @@ jobs:
           docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}' > image-digest.txt
           cat image-digest.txt >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Update latest for Watchtower from the scanned image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          IMAGE: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:sha-${{ github.event.workflow_run.head_sha }}
+          LATEST_IMAGE: ghcr.io/arkadiuszszwarocki/raportprodukcyjny:latest
+        run: |
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [ "$current_main" != "$RELEASE_SHA" ]; then
+            echo 'A newer main commit exists; latest remains unchanged.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          docker tag "$IMAGE" "$LATEST_IMAGE"
+          docker push "$LATEST_IMAGE"
+          docker image inspect "$LATEST_IMAGE" --format '{{index .RepoDigests 0}}' > latest-image-digest.txt
+          cat latest-image-digest.txt >> "$GITHUB_STEP_SUMMARY"
+
       - name: Preserve image security evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -130,3 +152,4 @@ jobs:
             image-vulnerabilities.json
             image-sbom.cdx.json
             image-digest.txt
+            latest-image-digest.txt
