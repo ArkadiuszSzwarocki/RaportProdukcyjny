@@ -1,4 +1,4 @@
-# cspell:words szwarark boczkmar
+# cspell:words szwarark boczkmar tojson
 """Time-limited privileges remain subordinate to the authoritative account."""
 from unittest.mock import MagicMock, patch
 
@@ -55,6 +55,7 @@ def test_only_named_leaders_can_elevate_for_exactly_ten_minutes(switch_app, logi
     assert client.post('/protected').status_code == 403
     response = toggle(client, menu['csrf'])
     assert response.status_code == 200
+    assert response.headers['X-RP-Temporary-Admin'] == 'active'
     assert response.json['expires_at'] == 10600
     assert client.post('/protected').status_code == 200
     clock.return_value = 10599

@@ -222,7 +222,7 @@ def api_get_buckets_history():
 @maluchy_bp.route('/api/emergency-dump', methods=['POST'])
 @login_required
 def api_emergency_dump():
-    """Emergency dump of a bucket into a zasyp by MasterAdmin / zarząd / SzwarArk / BoczkMar."""
+    """Emergency dump of a bucket into a zasyp by an active MasterAdmin or zarząd role."""
     login = str(session.get('login') or '').strip().lower()
 
     can_emergency_dump = can_emergency_dump_bucket()

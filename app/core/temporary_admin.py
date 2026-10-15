@@ -64,6 +64,12 @@ def state():
 def register_temporary_admin(app):
     blueprint = Blueprint('temporary_admin', __name__)
 
+    @app.after_request
+    def prevent_elevated_offline_pages(response):
+        if state()['active']:
+            response.headers['X-RP-Temporary-Admin'] = 'active'
+        return response
+
     @app.context_processor
     def inject_switch():
         value = state()
