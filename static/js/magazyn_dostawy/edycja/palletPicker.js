@@ -228,7 +228,10 @@ function generateManualRows(count) {
     }
 
 function appendPalletsToItems(selectedPallets) {
-        const validPallets = selectedPallets || [];
+        const validPallets = (selectedPallets || []).filter(pal => !isTransitLocation(pal.lokalizacja));
+        if (validPallets.length !== (selectedPallets || []).length && typeof showToast === 'function') {
+            showToast('Paleta jest w tranzycie. Najpierw zakończ odbiór istniejącego transferu.', 'warning');
+        }
 
         if (validPallets.length === 0) {
             return;

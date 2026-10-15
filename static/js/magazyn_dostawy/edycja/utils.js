@@ -124,10 +124,15 @@ function isKnownProductName(name) {
     return Boolean(findCanonicalProductName(name));
 }
 
+function isTransitLocation(value) {
+        return ['WTRANZYCIE', 'WTRANZYCIEOSIP'].includes(normalizeLocation(value));
+    }
+
 function isItemComplete(item) {
         const bypassLookup = isWarehouseLookupBypassed();
         return (
-            isFilled(item && item.productName)
+            !(item && !item.accepted && !item.rejected && (isTransitLocation(item.sourceSpot) || item.transfer_error))
+            && isFilled(item && item.productName)
             && isKnownProductName(item && item.productName)
             && (bypassLookup || isFilled(item && item.sourceSpot))
             && isFilled(getItemUnit(item))
@@ -355,6 +360,13 @@ function getSaveBlockers() {
 
         const targetInput = document.getElementById('lokalizacja_do');
         const targetLoc = targetInput ? targetInput.value : '';
+
+        const transitItems = items.filter(item => item && !item.accepted && !item.rejected && isTransitLocation(item.sourceSpot));
+        if (transitItems.length) {
+            blockers.push('Paleta jest w tranzycie. Najpierw zakończ odbiór istniejącego transferu.');
+        }
+        const rejectedAdd = items.find(item => item && item.transfer_error);
+        if (rejectedAdd) blockers.push(rejectedAdd.transfer_error);
 
         const conflictingItems = items.filter(item => isRouteConflictLocation(item && item.sourceSpot, targetLoc));
         if (conflictingItems.length > 0) {

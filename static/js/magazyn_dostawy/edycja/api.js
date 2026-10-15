@@ -131,7 +131,7 @@ async function lookupAndAddPallets() {
             const data = await res.json();
 
             if (!data.success || !Array.isArray(data.pallets) || data.pallets.length === 0) {
-                showToast('Nie znaleziono palet dla podanego kodu/regału.', 'warning');
+                showToast(data.unavailable_reason || 'Nie znaleziono palet dla podanego kodu/regału.', 'warning');
                 return;
             }
 
@@ -375,11 +375,20 @@ async function addLiveTransferItem(item) {
         const data = await res.json();
         if (data.success && data.result && data.result.item_id) {
             item.id = data.result.item_id;
+            delete item.transfer_error;
             saveDraftState();
+            if (typeof updateSaveButtonState === 'function') updateSaveButtonState();
         } else {
-            showToast(data.error || data.message || 'Paleta nie została dopisana do przesunięcia. Zapisz formularz ponownie.', 'danger');
+            item.transfer_error = data.error || data.message || 'Paleta nie została dopisana do przesunięcia. Usuń pozycję i zeskanuj ją ponownie.';
+            saveDraftState();
+            if (typeof updateSaveButtonState === 'function') updateSaveButtonState();
+            showToast(item.transfer_error, 'danger');
         }
     } catch (e) {
+        item.transfer_error = 'Nie potwierdzono dodania palety do przesunięcia. Usuń pozycję i zeskanuj ją ponownie.';
+        saveDraftState();
+        if (typeof updateSaveButtonState === 'function') updateSaveButtonState();
+        showToast(item.transfer_error, 'danger');
         console.warn('Error adding live transfer item:', e);
     }
 }
