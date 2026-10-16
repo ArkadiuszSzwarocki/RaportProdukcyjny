@@ -52,7 +52,7 @@
     }
     document.addEventListener('click', function (event) {
         const link = event.target.closest ? event.target.closest('a[href]') : null;
-        if (link && !event.defaultPrevented && view(link.href) === 'dashboard') remember('dashboard_link');
+        if (link && !event.defaultPrevented && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && event.button === 0 && link.target !== '_blank' && view(link.href) === 'dashboard') remember('dashboard_link');
     });
     window.addEventListener('pagehide', function () { if (!intent) remember('unattributed'); });
     window.addEventListener('pageshow', function (event) { if (event.persisted) intent = null; });

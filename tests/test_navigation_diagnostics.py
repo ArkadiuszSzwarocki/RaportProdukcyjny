@@ -13,7 +13,7 @@ def diagnostic():
     @app.get('/')
     @app.get('/agro/scanner/ui')
     def page():
-        return render_template_string('{{ navigation_diagnostics | tojson }}')
+        return render_template_string('{{ navigation_diagnostics | tojson }}'), 200, {'Content-Type': 'application/json'}
     client = app.test_client()
     with client.session_transaction() as state:
         state.update(zalogowany=True, login='SzwarArk', rola='lider', _account_role='lider')
