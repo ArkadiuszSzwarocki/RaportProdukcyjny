@@ -1,3 +1,4 @@
+# cspell:words caplog Referer tojson
 """Diagnostic evidence is scoped, bounded, authenticated and credential-free."""
 import json
 from flask import Flask, render_template_string, session

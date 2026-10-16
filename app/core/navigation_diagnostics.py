@@ -1,9 +1,11 @@
+# cspell:words szwarark boczkmar
 """Narrow, credential-free evidence for unexpected dashboard navigation."""
 import json
 import logging
 import math
 import secrets
 import time
+from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 from flask import Blueprint, g, jsonify, request, session
@@ -44,7 +46,7 @@ def record_role_event(reason):
 
 
 def _record(phase, **data):
-    value = dict(phase=phase, login=str(session.get('login')).casefold(),
+    value = dict(time_utc=datetime.now(timezone.utc).isoformat(), phase=phase, login=str(session.get('login')).casefold(),
                  role=str(session.get('rola') or ''),
                  account_role=str(session.get('_account_role') or ''), **data)
     logging.getLogger('audit').warning('NAVIGATION_DIAGNOSTIC %s', json.dumps(value, ensure_ascii=True))
@@ -98,7 +100,7 @@ def register_navigation_diagnostics(app):
         event_id = str(payload.get('event_id') or '')
         def number(name):
             raw = payload.get(name)
-            return round(raw, 3) if type(raw) in (int, float) and math.isfinite(raw) and 0 <= raw <= 86400000 else None
+            return round(raw, 3) if type(raw) in (int, float) and 0 <= raw <= 86400000 and math.isfinite(raw) else None
         _record('client_arrival', event_id=event_id if len(event_id) == 16 and all(c in '0123456789abcdef' for c in event_id) else '',
                 reason=reason if isinstance(reason, str) and reason in REASONS else 'unattributed',
                 previous_view=source if isinstance(source, str) and source in VIEWS else 'unknown',
