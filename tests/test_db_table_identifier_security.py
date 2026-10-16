@@ -40,3 +40,15 @@ def test_unknown_line_identifier_is_rejected():
     for line_name in malicious_lines:
         with pytest.raises(ValueError):
             resolve_table_name('magazyn_surowce', line_name)
+
+
+@pytest.mark.parametrize('line', ['PSD', 'AGRO', 'ALL', 'OSIP'])
+def test_shift_notes_keep_the_existing_shared_table(line):
+    assert resolve_table_name('shift_notes', line) == 'shift_notes'
+
+
+def test_shift_notes_do_not_relax_identifier_or_line_validation():
+    with pytest.raises(ValueError):
+        resolve_table_name('shift_notes; DROP TABLE x', 'AGRO')
+    with pytest.raises(ValueError):
+        resolve_table_name('shift_notes', "AGRO'; DROP TABLE x; --")
