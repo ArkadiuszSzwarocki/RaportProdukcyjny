@@ -23,6 +23,7 @@ _SHARED_ALLOWED_TABLES = {
     'magazyn_opakowania',
     'magazyn_dodatki',
     'raporty_koncowe',
+    'shift_notes',
 }
 
 _ALLOWED_BASE_TABLES = set(AGRO_TABLE_MAP) | _SHARED_ALLOWED_TABLES
