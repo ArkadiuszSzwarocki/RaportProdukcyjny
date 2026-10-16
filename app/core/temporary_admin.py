@@ -7,6 +7,7 @@ import time
 from flask import Blueprint, current_app, jsonify, request, session
 
 from app.core.audit import audit_log
+from app.core.navigation_diagnostics import record_role_event
 from app.decorators import _normalize_role
 
 ALLOWED_LOGINS = frozenset({'szwarark', 'boczkmar'})
@@ -29,6 +30,7 @@ def apply_temporary_role():
         if grant:
             session.pop(_GRANT, None)
             audit_log('MasterAdmin tymczasowy: odebrano dostęp', 'Zmiana konta lub roli bazowej')
+            record_role_event('eligibility_lost')
         return
     now = time.time()
     active = False
@@ -50,6 +52,7 @@ def apply_temporary_role():
     if grant and not active:
         session.pop(_GRANT, None)
         audit_log('MasterAdmin tymczasowy: powrót do lidera', 'Koniec ważności uprawnień')
+        record_role_event('deadline_or_invalid_grant')
 
 
 def state():
@@ -107,10 +110,12 @@ def register_temporary_admin(app):
                                    'user_id': session['user_id'], 'login': str(session['login']).casefold()}
                 apply_temporary_role()
                 audit_log('MasterAdmin tymczasowy: włączono', 'Czas dostępu: 10 minut')
+                record_role_event('enabled')
         elif action == 'disable':
             if session.pop(_GRANT, None):
                 apply_temporary_role()
                 audit_log('MasterAdmin tymczasowy: powrót do lidera', 'Wyłączono ręcznie')
+                record_role_event('disabled')
         else:
             return jsonify(success=False, message='Nieprawidłowa operacja.'), 400
         return jsonify(success=True, **state())

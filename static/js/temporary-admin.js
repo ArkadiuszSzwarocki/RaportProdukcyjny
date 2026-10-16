@@ -25,6 +25,7 @@
         timer.textContent = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0');
         if (seconds === 0 && !navigating) {
             navigating = true;
+            if (window.recordDashboardNavigation) window.recordDashboardNavigation('deadline', {previous_active: active});
             window.location.replace('/');
         }
     }
@@ -46,6 +47,7 @@
             if (!data.success || busy || navigating) return;
             if (active !== !!data.active || !data.eligible) {
                 navigating = true;
+                if (window.recordDashboardNavigation) window.recordDashboardNavigation(!data.eligible ? 'eligibility_lost' : (data.active ? 'role_activated_elsewhere' : 'role_disabled_elsewhere'), {previous_active: active, observed_active: !!data.active, observed_eligible: !!data.eligible});
                 window.location.replace('/');
                 return;
             }
@@ -67,7 +69,10 @@
             const data = await response.json();
             if (!response.ok || !data.success) throw new Error(data.message || 'Nie udało się przełączyć roli.');
             navigating = true;
-            if (wasActive) window.location.assign('/');
+            if (wasActive) {
+                if (window.recordDashboardNavigation) window.recordDashboardNavigation('manual_disable', {previous_active: true, observed_active: false});
+                window.location.assign('/');
+            }
             else window.location.reload();
         } catch (reason) {
             error.textContent = reason.message || 'Brak połączenia. Spróbuj ponownie.';

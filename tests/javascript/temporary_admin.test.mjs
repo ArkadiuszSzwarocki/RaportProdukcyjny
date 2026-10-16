@@ -9,6 +9,7 @@ function setup(active = false) {
     const intervals = [];
     const calls = [];
     const navigation = [];
+    const diagnostics = [];
     let now = 9000000; // Browser clock differs from the server clock.
     let reply = {ok: true, data: {success: true, eligible: true, active: true, expires_at: 10600, server_now: 10000}};
     const nodes = {
@@ -18,14 +19,14 @@ function setup(active = false) {
         temporaryAdminTimer: {}, temporaryAdminBanner: {}, temporaryAdminError: {}
     };
     const document = {hidden: false, getElementById: id => nodes[id], addEventListener: (name, handler) => {listeners[name] = handler;}};
-    const window = {location: {replace: value => navigation.push(['replace', value]),
+    const window = {recordDashboardNavigation: (reason, details) => diagnostics.push({reason, details}), location: {replace: value => navigation.push(['replace', value]),
         assign: value => navigation.push(['assign', value]), reload: () => navigation.push(['reload'])},
         addEventListener: (name, handler) => { listeners[name] = handler; }};
     vm.runInNewContext(source, {document, window, Date: {now: () => now}, AbortController,
         setTimeout, clearTimeout, setInterval: (handler, delay) => intervals.push({handler, delay}),
         fetch: async (url, options) => {calls.push({url, options}); if (reply.error) throw new Error('offline');
             return {ok: reply.ok, json: async () => reply.data};}});
-    return {nodes, calls, navigation, listeners, document,
+    return {nodes, calls, navigation, diagnostics, listeners, document,
         tick: () => intervals.find(item => item.delay === 1000).handler(),
         poll: () => intervals.find(item => item.delay === 15000).handler(),
         advance: seconds => {now += seconds * 1000;}, reply: value => {reply = value;}};
@@ -88,4 +89,15 @@ test('hidden tabs skip status polling while the deadline remains fixed', async (
     state.advance(600);
     state.tick();
     assert.deepEqual(state.navigation, [['replace', '/']]);
+});
+
+test('inactive scanner records why a background role change sends it home', async () => {
+ const state=setup(false);await state.poll();
+ assert.equal(state.diagnostics[0].reason,'role_activated_elsewhere');
+ assert.equal(state.diagnostics[0].details.previous_active,false);
+ assert.deepEqual(state.navigation,[['replace','/']]);
+});
+test('expiry records its cause before leaving the current page',()=>{
+ const state=setup(true);state.advance(600);state.tick();
+ assert.equal(state.diagnostics[0].reason,'deadline');
 });
