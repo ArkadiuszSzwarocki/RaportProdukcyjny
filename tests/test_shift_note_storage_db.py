@@ -1,3 +1,4 @@
+# cspell:words pytestmark
 """Create, read, edit and delete notes against the isolated CI database."""
 import uuid
 from datetime import date
