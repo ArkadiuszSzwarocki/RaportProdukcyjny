@@ -61,6 +61,9 @@ def register_navigation_diagnostics(app):
     def record_dashboard_arrival():
         if not observed() or request.method != 'GET' or request.path != '/' or view_of(request.url) != 'dashboard':
             return
+        mode = request.headers.get('Sec-Fetch-Mode', '')
+        if mode and mode not in {'navigate', 'nested-navigate'}:
+            return
         g.navigation_diagnostic_id = secrets.token_hex(8)
         _record('server_arrival', event_id=g.navigation_diagnostic_id,
                 previous_view=view_of(request.referrer or ''),

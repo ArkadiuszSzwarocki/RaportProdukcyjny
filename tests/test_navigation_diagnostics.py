@@ -82,3 +82,8 @@ def test_server_redirect_to_dashboard_identifies_source_endpoint(diagnostic,capl
     assert diagnostic.get('/jump').status_code==302
     assert 'server_redirect' in caplog.text and 'jump' in caplog.text
     assert '302' in caplog.text
+
+
+def test_background_dashboard_refresh_is_not_a_page_arrival(diagnostic,caplog):
+    assert diagnostic.get('/',headers={'Sec-Fetch-Mode':'cors'}).json['event_id']==''
+    assert 'server_arrival' not in caplog.text
