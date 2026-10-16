@@ -1,7 +1,7 @@
 # cspell:words caplog Referer tojson
 """Diagnostic evidence is scoped, bounded, authenticated and credential-free."""
 import json
-from flask import Flask, render_template_string, session
+from flask import Flask, render_template_string, session, redirect
 import pytest
 from app.core.navigation_diagnostics import register_navigation_diagnostics
 
@@ -15,6 +15,9 @@ def diagnostic():
     @app.get('/agro/scanner/ui')
     def page():
         return render_template_string('{{ navigation_diagnostics | tojson }}'), 200, {'Content-Type': 'application/json'}
+    @app.get('/jump')
+    def jump():
+        return redirect('/')
     client = app.test_client()
     with client.session_transaction() as state:
         state.update(zalogowany=True, login='SzwarArk', rola='lider', _account_role='lider')
@@ -73,3 +76,9 @@ def test_reports_are_bounded_and_bad_fields_cannot_enter_logs(diagnostic,caplog)
     assert response.status_code==200
     assert 'secret' not in caplog.text
     assert 'unattributed' in caplog.text
+
+
+def test_server_redirect_to_dashboard_identifies_source_endpoint(diagnostic,caplog):
+    assert diagnostic.get('/jump').status_code==302
+    assert 'server_redirect' in caplog.text and 'jump' in caplog.text
+    assert '302' in caplog.text

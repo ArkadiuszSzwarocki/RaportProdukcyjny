@@ -48,7 +48,8 @@ def record_role_event(reason):
 def _record(phase, **data):
     value = dict(time_utc=datetime.now(timezone.utc).isoformat(), phase=phase, login=str(session.get('login')).casefold(),
                  role=str(session.get('rola') or ''),
-                 account_role=str(session.get('_account_role') or ''), **data)
+                 account_role=str(session.get('_account_role') or ''),
+                 endpoint=request.endpoint, method=request.method, **data)
     logging.getLogger('audit').warning('NAVIGATION_DIAGNOSTIC %s', json.dumps(value, ensure_ascii=True))
 
 
@@ -65,6 +66,12 @@ def register_navigation_diagnostics(app):
                 previous_view=view_of(request.referrer or ''),
                 user_activation=request.headers.get('Sec-Fetch-User') == '?1',
                 fetch_mode=request.headers.get('Sec-Fetch-Mode') in {'navigate', 'nested-navigate'})
+
+    @app.after_request
+    def record_server_redirect(response):
+        if observed() and response.status_code in (301, 302, 303, 307, 308) and view_of(response.headers.get('Location', '')) == 'dashboard':
+            _record('server_redirect', status=response.status_code, previous_view=view_of(request.url))
+        return response
 
     @app.context_processor
     def diagnostic_config():
