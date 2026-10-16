@@ -92,6 +92,12 @@
 
     <!-- GLOBAL SCRIPTS -->
     {% include 'includes/_layout_footer_scripts.html' %}
+    {% if navigation_diagnostics %}
+    <span id="navigationDiagnostics" hidden data-owner="{{ navigation_diagnostics.owner }}"
+          data-csrf="{{ navigation_diagnostics.csrf }}" data-event-id="{{ navigation_diagnostics.event_id }}"
+          data-url="{{ url_for('navigation_diagnostics.report') }}"></span>
+    <script src="{{ url_for('static', filename='js/navigation-diagnostics.js') }}?v={{ static_version }}"></script>
+    {% endif %}
     <script src="{{ url_for('static', filename='js/temporary-admin.js') }}?v={{ static_version }}"></script>
     {% block footer_scripts %}{% endblock %}
     <script src="{{ url_for('static', filename='js/watchdog_tracker.js') }}"></script>
