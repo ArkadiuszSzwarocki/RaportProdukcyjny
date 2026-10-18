@@ -1,4 +1,5 @@
 """Read attendance and approved requests without omitting or duplicating leave."""
+# cspell:words nieobecno
 import re
 from datetime import timedelta
 import unicodedata

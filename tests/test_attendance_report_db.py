@@ -1,4 +1,5 @@
 """Exercise real MySQL row locking and roster lookup in an isolated database."""
+# cspell:words lastrowid pytestmark zalegly
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 import threading

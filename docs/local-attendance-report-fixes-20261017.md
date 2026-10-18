@@ -1,4 +1,5 @@
 # Attendance and report release
+<!-- cspell:words Inno -->
 
 Attendance submissions are serialized per employee and duplicate assignments
 do not create additional history. Leave approval updates the request, attendance
