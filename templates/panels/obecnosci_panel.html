@@ -226,9 +226,9 @@
   <script>
     /* ---- Klikalne komórki kalendarza → dialog ---- */
     (function () {
-      var panel = document.querySelector('.panel-obecnosci');
-      if (!panel) return;
-      panel.addEventListener('click', function (e) {
+      if (window.absenceCalendarBound) return;
+      window.absenceCalendarBound = true;
+      document.addEventListener('click', function (e) {
         var cell = e.target.closest('td.abs-day-cell');
         if (!cell) return;
         var date = cell.dataset.date;
@@ -243,41 +243,41 @@
         document.getElementById('absQdDataOd').value = date;
         document.getElementById('absQdDataDo').value = date;
         document.getElementById('absQdTitle').textContent = 'Dodaj nieobecność — ' + empName;
-        // Wire form submit via fetch (manual, since dialog is outside popup rebind scope)
-        var form = document.getElementById('absQuickAddForm');
-        form.onsubmit = null; // reset previous
-        form.addEventListener('submit', function handleQdSubmit(evt) {
-          evt.preventDefault();
-          form.removeEventListener('submit', handleQdSubmit);
-          var btn = form.querySelector('button[type="submit"]');
-          if (btn) { btn.disabled = true; btn.textContent = '⏳...'; }
-          var body = new URLSearchParams(new FormData(form));
-          fetch(form.action, {
-            method: 'POST', body: body,
-            credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            redirect: 'manual'
-          }).then(function (resp) {
-            document.getElementById('absQuickAddDialog').close();
-            // Refresh the panel in-place
-            return fetch('{{ url_for('panels.panel_obecnosci_page') }}?fragment=true', {
-              headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-          }).then(function (r) { return r.text(); })
-            .then(function (html) {
-              var target = document.querySelector('.panel-obecnosci');
-              if (target) {
-                var tmp = document.createElement('div'); tmp.innerHTML = html;
-                var fresh = tmp.querySelector('.panel-obecnosci');
-                if (fresh) target.outerHTML = fresh.outerHTML;
-              }
-            }).catch(function (err) {
-              console.error('absQuickAddDialog submit error', err);
-              if (btn) { btn.disabled = false; btn.textContent = 'Zapisz wpis'; }
-            });
-        });
         document.getElementById('absQuickAddDialog').showModal();
       });
+      document.addEventListener('submit', async function (evt) {
+        var form = evt.target;
+        if (form.id !== 'absQuickAddForm') return;
+        evt.preventDefault();
+        evt.stopImmediatePropagation();
+        if (form.dataset.saving === 'true') return;
+        form.dataset.saving = 'true';
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn) btn.disabled = true;
+        try {
+          var response = await fetch(form.action, {
+            method: 'POST', body: new URLSearchParams(new FormData(form)),
+            credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          var result = await response.json();
+          if (!response.ok || !result.success) throw new Error(result.message || 'Nie zapisano wpisu.');
+          var refreshed = await fetch(form.dataset.refreshUrl, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          if (!refreshed.ok) throw new Error('Wpis zapisano, ale nie odświeżono widoku.');
+          var tmp = document.createElement('div'); tmp.innerHTML = await refreshed.text();
+          var fresh = tmp.querySelector('.panel-obecnosci');
+          var target = document.querySelector('.panel-obecnosci');
+          if (!fresh || !target) throw new Error('Wpis zapisano, ale nie odświeżono widoku.');
+          document.getElementById('absQuickAddDialog').close();
+          target.replaceWith(fresh);
+        } catch (err) {
+          window.alert(err.message || 'Nie udało się zapisać wpisu.');
+        } finally {
+          delete form.dataset.saving;
+          if (btn) btn.disabled = false;
+        }
+      }, true);
     })();
 
     function toggleAbsTimePanel() {

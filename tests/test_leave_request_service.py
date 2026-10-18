@@ -105,7 +105,8 @@ class TestApproveLeaveRequest:
             
             # Mock first query to get request details
             cursor_mock.fetchone.side_effect = [
-                (1, date(2026, 2, 10), date(2026, 2, 14), 'Urlop'),
+                (1, date(2026, 2, 10), date(2026, 2, 14), 'Urlop', 'pending'),
+                (1,), None, None, None, None, None,
             ]
             
             success, message = LeaveRequestService.approve_leave_request(1, 5)
@@ -120,7 +121,8 @@ class TestApproveLeaveRequest:
             mock_conn.return_value.cursor.return_value = cursor_mock
             
             cursor_mock.fetchone.side_effect = [
-                (2, date(2026, 2, 10), date(2026, 2, 14), 'Urlop zaległy'),
+                (2, date(2026, 2, 10), date(2026, 2, 14), 'Urlop zaległy', 'pending'),
+                (1,), None, None, None, None, None,
             ]
             
             success, message = LeaveRequestService.approve_leave_request(2, 5)
@@ -267,7 +269,8 @@ class TestUpdateLeaveCounters:
             # This is a private method, test indirectly via approve_leave_request
             # which calls _update_leave_counters
             cursor_mock.fetchone.side_effect = [
-                (1, date(2026, 2, 10), date(2026, 2, 14), 'Urlop'),
+                (1, date(2026, 2, 10), date(2026, 2, 14), 'Urlop', 'pending'),
+                (1,), None, None, None, None, None,
             ]
             
             LeaveRequestService.approve_leave_request(1, 5)
@@ -284,7 +287,8 @@ class TestUpdateLeaveCounters:
             conn_mock.cursor.return_value = cursor_mock
             
             cursor_mock.fetchone.side_effect = [
-                (1, date(2026, 2, 10), date(2026, 2, 14), 'Urlop zaległy 2025'),
+                (1, date(2026, 2, 10), date(2026, 2, 14), 'Urlop zaległy 2025', 'pending'),
+                (1,), None, None, None, None, None,
             ]
             
             LeaveRequestService.approve_leave_request(1, 5)

@@ -49,6 +49,9 @@ def register_main_reporting_routes(main_bp):
         # 2. Wygeneruj pliki raportu (XLS, PDF)
         xls_path, _, pdf_path = _generate_report_files(date_str, uwagi + uwagi_extra, lider_name, linia=linia)
 
+        if not pdf_path or not os.path.isfile(pdf_path):
+            flash("Nie wygenerowano PDF. Przy wysyłce system spróbuje go przygotować; bez PDF raport nie zostanie wysłany.", "danger")
+
         # 3. Lista załączników z metadanymi
         attachments_info = []
         for p, label, icon in [
@@ -249,6 +252,14 @@ def register_main_reporting_routes(main_bp):
             'rola': session.get('rola')
         }
         lider_name, _ = _get_leader_name(session_data, {}, linia=linia, date_str=date_str)
+        from app.services.report_attachment_service import ensure_manual_pdf
+        try:
+            valid_attachments = ensure_manual_pdf(valid_attachments, date_str, linia, notes_text, lider_name)
+        except ValueError as exc:
+            flash(str(exc), 'danger')
+            return redirect(url_for('main.raport_zakoncz_zmiane_page', linia=linia, data=date_str))
+        att_filenames = [os.path.basename(p) for p in valid_attachments]
+
 
         # Zbuduj bogaty graficzny szablon HTML
         body_html = EmailReportBuilder.build_shift_report_html(

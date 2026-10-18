@@ -297,6 +297,16 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
         FROM pracownicy p
         JOIN obsada_zmiany oz2 ON oz2.pracownik_id = p.id AND oz2.data_wpisu = %s AND (UPPER(COALESCE(oz2.linia, 'PSD')) = UPPER(%s) OR (%s = 'PSD' AND (oz2.linia IS NULL OR oz2.linia = '')))
         LEFT JOIN obecnosc o ON o.pracownik_id = p.id AND o.data_wpisu = %s
+            AND (LOWER(TRIM(o.typ)) IN ('obecny','obecność','obecnosc') OR LOWER(o.typ) LIKE 'wyj%%')
+        WHERE NOT EXISTS (
+            SELECT 1 FROM obecnosc absent WHERE absent.pracownik_id=p.id AND absent.data_wpisu=oz2.data_wpisu
+            AND LOWER(TRIM(absent.typ)) NOT IN ('obecny','obecność','obecnosc','nadgodziny')
+            AND LOWER(absent.typ) NOT LIKE 'wyj%%'
+        ) AND NOT EXISTS (
+            SELECT 1 FROM wnioski_wolne leave_request WHERE leave_request.pracownik_id=p.id
+            AND leave_request.status='approved' AND oz2.data_wpisu BETWEEN leave_request.data_od AND leave_request.data_do
+            AND LOWER(leave_request.typ) NOT LIKE 'wyj%%'
+        )
         GROUP BY p.id, p.imie_nazwisko, o.typ, o.ilosc_godzin, o.komentarz
         ORDER BY sekcja, p.imie_nazwisko
     """, conn, params=(data_raportu, linia, linia, data_raportu, linia, linia, data_raportu), columns=['pracownik', 'sekcja', 'typ', 'ilosc_godzin', 'komentarz'])
@@ -304,70 +314,9 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
     print(f"[GENERATOR] OK HR data: {len(df_hr)}")
 
     # 3. Nieobecni, Urlopy i Wyjścia prywatne — typ inny niż 'obecny' dla pracowników danej linii + zatwierdzone wnioski wolne
-    df_nieobecni = db_query_to_df("""
-        SELECT DISTINCT
-            p.imie_nazwisko AS pracownik,
-            CASE 
-                WHEN INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0 THEN o.typ
-                WHEN LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'zwolnienie lekarskie') THEN 'L4'
-                WHEN INSTR(LOWER(TRIM(o.typ)), 'opiek') > 0 THEN 'Opieka'
-                WHEN INSTR(LOWER(TRIM(o.typ)), 'wyj') > 0 THEN 'Wyjście prywatne'
-                WHEN LOWER(TRIM(o.typ)) IN ('nieobecnosc', 'nieobecność') THEN 'Nieobecność'
-                ELSE COALESCE(o.typ, 'Nieobecność')
-            END AS typ,
-            CASE
-                WHEN INSTR(LOWER(TRIM(o.typ)), 'wyj') > 0
-                     AND o.wyjscie_od IS NOT NULL AND o.wyjscie_do IS NOT NULL
-                THEN CONCAT(
-                    IF(o.komentarz IS NOT NULL AND TRIM(o.komentarz) != '', CONCAT(TRIM(o.komentarz), ' '), ''),
-                    '(', SUBSTRING(o.wyjscie_od, 1, 5), ' - ', SUBSTRING(o.wyjscie_do, 1, 5), ')'
-                )
-                ELSE COALESCE(o.komentarz, '')
-            END AS komentarz
-        FROM obecnosc o
-        JOIN pracownicy p ON o.pracownik_id = p.id
-        WHERE o.data_wpisu = %s
-          AND (
-              INSTR(LOWER(TRIM(o.typ)), 'urlop') > 0
-              OR LOWER(TRIM(o.typ)) IN ('l4', 'chorobowe', 'opieka', 'nieobecnosc', 'nieobecność', 'zwolnienie', 'kwarantanna', 'inne', 'wyjscie prywatne', 'wyjście prywatne')
-              OR INSTR(LOWER(TRIM(o.typ)), 'wyj') > 0
-              OR LOWER(TRIM(o.typ)) NOT IN ('obecny', 'obecność', 'obecnosc')
-          )
-          AND (
-              %s = 'ALL'
-              OR (%s = 'AGRO' AND (p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') OR COALESCE(p.widoczny_agro, 0) = 1))
-              OR (%s = 'PSD' AND p.id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') AND COALESCE(p.widoczny_agro, 0) = 0)
-          )
-
-        UNION
-
-        SELECT DISTINCT
-            p.imie_nazwisko AS pracownik,
-            CASE 
-                WHEN INSTR(LOWER(TRIM(w.typ)), 'urlop') > 0 THEN w.typ
-                WHEN INSTR(LOWER(TRIM(w.typ)), 'wyj') > 0 THEN 'Wyjście prywatne'
-                ELSE COALESCE(w.typ, 'Urlop')
-            END AS typ,
-            CASE
-                WHEN INSTR(LOWER(TRIM(w.typ)), 'wyj') > 0 
-                     AND w.czas_od IS NOT NULL AND w.czas_do IS NOT NULL
-                THEN CONCAT(
-                    IF(w.powod IS NOT NULL AND TRIM(w.powod) != '', CONCAT(TRIM(w.powod), ' '), ''),
-                    '(', SUBSTRING(w.czas_od, 1, 5), ' - ', SUBSTRING(w.czas_do, 1, 5), ')'
-                )
-                ELSE COALESCE(w.powod, 'Zatwierdzony wniosek')
-            END AS komentarz
-        FROM wnioski_wolne w
-        JOIN pracownicy p ON w.pracownik_id = p.id
-        WHERE w.status = 'approved'
-          AND %s BETWEEN w.data_od AND w.data_do
-          AND (
-              %s = 'ALL'
-              OR (%s = 'AGRO' AND (p.id IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') OR COALESCE(p.widoczny_agro, 0) = 1))
-              OR (%s = 'PSD' AND p.id NOT IN (SELECT pracownik_id FROM obsada_zmiany WHERE data_wpisu = %s AND UPPER(linia) = 'AGRO') AND COALESCE(p.widoczny_agro, 0) = 0)
-          )
-        ORDER BY typ, pracownik
-    """, conn, params=(data_raportu, linia, linia, data_raportu, linia, data_raportu, data_raportu, linia, linia, data_raportu, linia, data_raportu), columns=['pracownik', 'typ', 'komentarz'])
+    from scripts.reports.attendance_data import load_daily_absences
+    df_nieobecni = pd.DataFrame(load_daily_absences(conn, data_raportu, linia),
+                              columns=['pracownik', 'typ', 'komentarz'])
     logger.info(f"[GENERATOR] Nieobecni data: {len(df_nieobecni)} rows")
 
     # Bufor — co zostało do spakowania

@@ -1051,52 +1051,8 @@ def start_daemon_threads(app, cleanup_enabled=False):
     except Exception:
         _safe_log_exception('Failed to start AGRO pallet auto-register thread')
 
-    # Start scheduled auto-report daemon (one attempt per day)
-    try:
-        def _auto_report_scheduler_loop():
-            _safe_log_info('Auto-report daemon loop started (scheduled minute Europe/Warsaw, no retries)')
-            leader_lock_name = 'auto_report_daemon_leader'
-            leader_lock_conn = None
-            next_lock_retry_at = 0.0
-            warehouse_report_dispatcher = None
-
-            while True:
-                try:
-                    # Zapewnij, że tylko jedna instancja/worker wykonuje harmonogram auto-raportów
-                    if not leader_lock_conn:
-                        now_ts = time.time()
-                        if now_ts >= next_lock_retry_at:
-                            leader_lock_conn = _acquire_named_lock(leader_lock_name, timeout_seconds=0)
-                            next_lock_retry_at = now_ts + 5.0
-                            if leader_lock_conn:
-                                _safe_log_info('Auto-report daemon became lock leader (instance=%s)', _INSTANCE_ID)
-
-                    if not leader_lock_conn:
-                        time.sleep(5.0)
-                        continue
-                    else:
-                        try:
-                            leader_lock_conn.ping(reconnect=False, attempts=1, delay=0)
-                        except Exception:
-                            _release_named_lock(leader_lock_conn, leader_lock_name)
-                            leader_lock_conn = None
-                            time.sleep(2.0)
-                            continue
-
-                    from zoneinfo import ZoneInfo
-                    from app.services.daily_report_scheduler import run_daily_reports
-                    with app.app_context():
-                        run_daily_reports(datetime.now(ZoneInfo('Europe/Warsaw')))
-
-                except Exception as _e:
-                    _safe_log_exception(f'Error in auto-report scheduler loop: {_e}')
-                
-                time.sleep(10.0) # Check every 10 seconds
-
-        report_thread = threading.Thread(target=_auto_report_scheduler_loop, daemon=True)
-        report_thread.start()
-        _safe_log_info('Started Dynamic Auto-Report daemon thread')
-    except Exception:
-        _safe_log_exception('Failed to start Auto-Report daemon thread')
+    # Report scheduling has its own explicit opt-in and startup checks.
+    from app.core.report_daemon import start_report_scheduler
+    start_report_scheduler(app)
 
     _safe_log_info('Periodic refresh_bufor_queue thread disabled (event-driven mode)')

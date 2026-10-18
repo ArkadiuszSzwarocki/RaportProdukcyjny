@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from app.db import get_db_connection
 from flask import current_app
 import logging
+from app.services.attendance_write_service import lock_employee, insert_attendance_once
 
 logger = logging.getLogger(__name__)
 
@@ -81,32 +82,33 @@ class LeaveRequestService:
             conn = get_db_connection()
             cursor = conn.cursor()
             try:
-                # Update request status
                 cursor.execute(
-                    """UPDATE wnioski_wolne 
-                       SET status='approved', decyzja_dnia=NOW(), lider_id=%s 
-                       WHERE id=%s""",
-                    (lider_id, request_id)
-                )
-                conn.commit()
-
-                # Get request details for day counting
-                cursor.execute(
-                    """SELECT pracownik_id, data_od, data_do, typ 
-                       FROM wnioski_wolne WHERE id=%s""",
-                    (request_id,)
+                    "SELECT pracownik_id,data_od,data_do,typ,status FROM wnioski_wolne WHERE id=%s FOR UPDATE",
+                    (request_id,),
                 )
                 row = cursor.fetchone()
-                if row:
-                    pracownik_id, data_od, data_do, typ = row
-                    LeaveRequestService._update_leave_counters(
-                        cursor, conn, pracownik_id, data_od, data_do, typ
-                    )
-                    LeaveRequestService._create_absence_records(
-                        cursor, conn, pracownik_id, data_od, data_do, typ, request_id
-                    )
-
+                if not row:
+                    conn.rollback()
+                    return False, "Nie znaleziono wniosku."
+                pracownik_id, data_od, data_do, typ, status = row
+                if status == 'approved':
+                    conn.rollback()
+                    return True, "Wniosek już zatwierdzony."
+                if status != 'pending':
+                    conn.rollback()
+                    return False, "Wniosek nie oczekuje na zatwierdzenie."
+                lock_employee(cursor, pracownik_id)
+                LeaveRequestService._update_leave_counters(cursor, conn, pracownik_id, data_od, data_do, typ)
+                LeaveRequestService._create_absence_records(cursor, conn, pracownik_id, data_od, data_do, typ, request_id)
+                cursor.execute(
+                    "UPDATE wnioski_wolne SET status='approved',decyzja_dnia=NOW(),lider_id=%s WHERE id=%s",
+                    (lider_id, request_id),
+                )
+                conn.commit()
                 return True, "Wniosek zatwierdzony."
+            except Exception:
+                conn.rollback()
+                raise
             finally:
                 conn.close()
 
@@ -369,111 +371,36 @@ class LeaveRequestService:
             data_do: End date
             typ: Leave type
         """
-        try:
-            # Calculate inclusive number of days
-            try:
-                days = (data_do - data_od).days + 1 if (data_od and data_do) else 0
-            except (TypeError, AttributeError):
-                days = 0
-
-            if days > 0:
-                # Ensure columns exist
-                try:
-                    cursor.execute("ALTER TABLE pracownicy ADD COLUMN IF NOT EXISTS urlop_biezacy INT DEFAULT 0")
-                    cursor.execute("ALTER TABLE pracownicy ADD COLUMN IF NOT EXISTS urlop_zalegly INT DEFAULT 0")
-                except Exception:
-                    # Some MySQL versions may not support IF NOT EXISTS
-                    try:
-                        cursor.execute("ALTER TABLE pracownicy ADD COLUMN urlop_biezacy INT DEFAULT 0")
-                        cursor.execute("ALTER TABLE pracownicy ADD COLUMN urlop_zalegly INT DEFAULT 0")
-                    except Exception:
-                        pass
-
-                # Decide which counter to increment
-                if typ and 'zaleg' in typ.lower():
-                    cursor.execute(
-                        """UPDATE pracownicy 
-                           SET urlop_zalegly = COALESCE(urlop_zalegly,0) + %s 
-                           WHERE id=%s""",
-                        (days, pracownik_id)
-                    )
-                else:
-                    cursor.execute(
-                        """UPDATE pracownicy 
-                           SET urlop_biezacy = COALESCE(urlop_biezacy,0) + %s 
-                           WHERE id=%s""",
-                        (days, pracownik_id)
-                    )
-                conn.commit()
-
-        except Exception as e:
-            current_app.logger.exception("Error updating leave counters: %s", str(e))
-            try:
-                conn.rollback()
-            except Exception:
-                pass
+        if not typ or 'urlop' not in typ.lower() or not data_od or not data_do:
+            return
+        days = (data_do - data_od).days + 1
+        if days <= 0:
+            raise ValueError("Nieprawidłowy zakres dat.")
+        # Schema belongs to migrations. DDL here would implicitly commit the lock.
+        column = 'urlop_zalegly' if 'zaleg' in typ.lower() else 'urlop_biezacy'
+        cursor.execute(
+            f"UPDATE pracownicy SET {column}=COALESCE({column},0)+%s WHERE id=%s",
+            (days, pracownik_id),
+        )
 
     @staticmethod
     def _create_absence_records(cursor, conn, pracownik_id: int, data_od: date,
                                 data_do: date, typ: str, wniosek_id: int):
-        """
-        Automatically insert prezence records of absence type into `obecnosc`
-        for each day of an approved leave request.
-        Skips L4 and Wyjście prywatne (partial-day absences).
-        """
-        try:
-            if not typ:
-                return
-            typ_lower = typ.strip().lower()
-            # L4 i wyjście prywatne nie trafiają automatycznie na listę nieobecnych
-            if typ_lower in ('l4', 'wyjscie prywatne', 'wyjście prywatne',
-                             'wyjście prywatne'):
-                return
-
-            # Mapowanie typu wniosku → typ w tabeli obecnosc
-            if 'urlop' in typ_lower:
-                obecnosc_typ = 'Urlop'
-            elif 'nieobecno' in typ_lower:
-                obecnosc_typ = 'Nieobecnosc'
-            elif 'opieka' in typ_lower:
-                obecnosc_typ = 'Opieka'
-            else:
-                # Nieznany typ — użyj oryginalnej wartości (max 50 znaków)
-                obecnosc_typ = typ[:50]
-
-            if not data_od or not data_do:
-                return
-
-            current = data_od
-            while current <= data_do:
-                # Wstaw tylko jeśli nie istnieje już rekord tego samego typu w tym dniu
-                cursor.execute(
-                    """SELECT COUNT(1) FROM obecnosc
-                       WHERE pracownik_id=%s AND data_wpisu=%s AND typ=%s""",
-                    (pracownik_id, current, obecnosc_typ)
-                )
-                if cursor.fetchone()[0] == 0:
-                    cursor.execute(
-                        """INSERT INTO obecnosc
-                               (pracownik_id, data_wpisu, typ, ilosc_godzin, komentarz)
-                           VALUES (%s, %s, %s, 0, %s)""",
-                        (pracownik_id, current, obecnosc_typ,
-                         f'Auto z wniosku #{wniosek_id}')
-                    )
-                current += timedelta(days=1)
-            conn.commit()
-
-        except Exception as e:
-            current_app.logger.exception("Error creating absence records: %s", str(e))
-            try:
-                conn.rollback()
-            except Exception:
-                pass
+        """Materialize full-day leave within the caller's locked transaction."""
+        if not typ or not data_od or not data_do or typ.strip().lower().startswith('wyj'):
+            return
+        current = data_od
+        while current <= data_do:
+            insert_attendance_once(cursor, current, pracownik_id, typ[:50], 0,
+                                   f'Auto z wniosku #{wniosek_id}')
+            current += timedelta(days=1)
 
     @staticmethod
     def _decrement_leave_counters(cursor, conn, pracownik_id: int, data_od: date,
                                    data_do: date, typ: str):
         """Reverse of _update_leave_counters — subtract days used by a revoked request."""
+        if not typ or 'urlop' not in typ.lower():
+            return
         try:
             try:
                 days = (data_do - data_od).days + 1 if (data_od and data_do) else 0

@@ -11,6 +11,8 @@ services:
       PORT: 8082
       FLASK_ENV: production
       FLASK_DEBUG: "false"
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required for stored SMTP settings}
+      ENABLE_AUTO_REPORT_SCHEDULER: "false"
     ports:
       - "5005:8082"
     volumes:
