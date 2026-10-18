@@ -207,6 +207,11 @@ def _maybe_start_background_daemons(app, is_reloader_parent):
         app.logger.debug('Skipping background daemons under pytest')
         return
 
+    if is_reloader_parent:
+        return
+    from app.core.report_daemon import start_report_scheduler
+    start_report_scheduler(app)
+
     default_enabled = not _is_production()
     enabled = _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)
     if not enabled:

@@ -763,7 +763,7 @@
         } catch (err) {
             actionPath = String(form.getAttribute('action') || '').toLowerCase();
         }
-        if (actionPath.includes('/start_zlecenie/')) return;
+        if (actionPath.includes('/start_zlecenie/') || form.id === 'absQuickAddForm') return;
         
         // Only intercept forms inside #mainContent
         if (!form.closest('#mainContent')) return;

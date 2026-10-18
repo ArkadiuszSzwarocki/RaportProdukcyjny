@@ -2,6 +2,7 @@
 Serwis do weryfikacji połączenia z serwerem SMTP oraz do wysyłania wiadomości e-mail (w tym raportów produkcyjnych z załącznikami).
 """
 import os
+import mimetypes
 import smtplib
 import ssl
 from email.mime.multipart import MIMEMultipart
@@ -155,7 +156,8 @@ class EmailService:
                     if os.path.isfile(file_path):
                         filename = os.path.basename(file_path)
                         with open(file_path, 'rb') as file_handle:
-                            part = MIMEBase('application', 'octet-stream')
+                            content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+                            part = MIMEBase(*content_type.split('/', 1))
                             part.set_payload(file_handle.read())
                         encoders.encode_base64(part)
                         part.add_header('Content-Disposition', f'attachment; filename="{filename}"')

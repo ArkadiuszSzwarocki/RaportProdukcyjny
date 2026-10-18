@@ -5,6 +5,7 @@ from datetime import date, datetime, timedelta
 from app.db import get_db_connection
 from app.decorators import login_required, roles_required
 from app.utils.validation import require_field
+from app.services.attendance_write_service import lock_employee, insert_attendance_once
 
 schedule_bp = Blueprint('schedule', __name__)
 
@@ -12,8 +13,6 @@ schedule_bp = Blueprint('schedule', __name__)
 @schedule_bp.route('/dodaj_obecnosc', methods=['POST'])
 @login_required
 def dodaj_obecnosc():
-    conn = get_db_connection()
-    cursor = conn.cursor()
     typ = request.form.get('typ')
     pracownik_id = request.form.get('pracownik_id')
     godziny = request.form.get('godziny', 0)
@@ -56,12 +55,18 @@ def dodaj_obecnosc():
         data_wpisu = date.today()
 
     # Zapisz też osobne kolumny wyjscie_od/wyjscie_do (mogą być NULL jeśli nie dotyczy)
-    cursor.execute(
-        "INSERT INTO obecnosc (data_wpisu, pracownik_id, typ, ilosc_godzin, komentarz, wyjscie_od, wyjscie_do) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-        (data_wpisu, pracownik_id, typ, godziny_val, komentarz, od, do)
-    )
-    conn.commit()
-    conn.close()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        lock_employee(cursor, pracownik_id)
+        insert_attendance_once(cursor, data_wpisu, pracownik_id, typ,
+                               godziny_val, komentarz, od, do)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({'success': True, 'message': 'Wpis zapisany pomyślnie'})
@@ -99,18 +104,9 @@ def dodaj_l4_zakres():
     added = 0
     cur_d = d_od
     try:
+        lock_employee(cursor, pid)
         while cur_d <= d_do:
-            cursor.execute(
-                "SELECT id FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s AND typ='L4'",
-                (pid, cur_d)
-            )
-            if not cursor.fetchone():
-                cursor.execute(
-                    "INSERT INTO obecnosc (data_wpisu, pracownik_id, typ, ilosc_godzin, komentarz) "
-                    "VALUES (%s, %s, 'L4', 8, %s)",
-                    (cur_d, pid, komentarz)
-                )
-                added += 1
+            added += int(insert_attendance_once(cursor, cur_d, pid, 'L4', 8, komentarz))
             cur_d += timedelta(days=1)
         conn.commit()
         current_app.logger.info(
@@ -162,18 +158,9 @@ def dodaj_obecnosc_zakres():
     added = 0
     cur_d = d_od
     try:
+        lock_employee(cursor, pid)
         while cur_d <= d_do:
-            cursor.execute(
-                "SELECT id FROM obecnosc WHERE pracownik_id=%s AND data_wpisu=%s AND typ=%s",
-                (pid, cur_d, typ)
-            )
-            if not cursor.fetchone():
-                cursor.execute(
-                    "INSERT INTO obecnosc (data_wpisu, pracownik_id, typ, ilosc_godzin, komentarz) "
-                    "VALUES (%s, %s, %s, %s, %s)",
-                    (cur_d, pid, typ, godziny_val, komentarz)
-                )
-                added += 1
+            added += int(insert_attendance_once(cursor, cur_d, pid, typ, godziny_val, komentarz))
             cur_d += timedelta(days=1)
         conn.commit()
         current_app.logger.info(
@@ -183,9 +170,13 @@ def dodaj_obecnosc_zakres():
     except Exception:
         conn.rollback()
         current_app.logger.exception('Error in dodaj_obecnosc_zakres')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify(success=False, message='Błąd podczas dodawania wpisu.'), 500
         flash('Błąd podczas dodawania wpisu.', 'error')
     finally:
         conn.close()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify(success=True, added=added)
     return redirect(url_for('panels.panel_obecnosci_page'))
 
 
