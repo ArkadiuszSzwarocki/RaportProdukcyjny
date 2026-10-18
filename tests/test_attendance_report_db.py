@@ -15,6 +15,27 @@ pytestmark = pytest.mark.require_db
 DAY = date(2040,1,16)
 
 
+@pytest.fixture(scope='module', autouse=True)
+def attendance_test_schema():
+    # The minimal CI bootstrap omits columns already used by attendance routes.
+    conn = get_db_connection(); cursor = conn.cursor()
+    try:
+        cursor.execute('SELECT DATABASE()')
+        assert cursor.fetchone()[0].startswith('rp_pr17_'), 'Isolated test database required'
+        for table, columns in (
+            ('obecnosc', (('wyjscie_od', 'TIME NULL'), ('wyjscie_do', 'TIME NULL'))),
+            ('obsada_zmiany', (('linia', 'VARCHAR(10) NULL'),)),
+        ):
+            cursor.execute(f'SHOW COLUMNS FROM {table}')
+            existing = {row[0] for row in cursor.fetchall()}
+            for column, definition in columns:
+                if column not in existing:
+                    cursor.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @pytest.fixture
 def employee():
     conn = get_db_connection(); cursor = conn.cursor()
