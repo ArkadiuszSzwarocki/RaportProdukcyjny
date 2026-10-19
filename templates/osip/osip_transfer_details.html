@@ -540,17 +540,23 @@
             <div>
                 <h1 class="receipt-title">
                     <i class="fas fa-boxes text-primary"></i>
-                    Formularz Przyjęcia Przesunięcia OSIP
+                    Transfer — {{ transfer.source_warehouse }} → {{ transfer.destination_warehouse }}
                 </h1>
                 <p class="receipt-subtitle">
-                    Magazynier potwierdza przyjęcie poszczególnych palet i wpisuje lokalizację odstawienia w hali OSIP.
+                    Magazynier potwierdza palety i lokalizację odstawienia w magazynie docelowym: {{ transfer.destination_warehouse }}.
                 </p>
                 <div class="stage-pill">
                     <i class="fas fa-dolly"></i>
-                    Dwuetapowy proces: Odbiór na OSIP
+                    Załadunek → odbiór w {{ transfer.destination_warehouse }}
                 </div>
             </div>
             <div class="hero-actions">
+                {% if transfer.status == 'IN_TRANSIT' %}
+                <button type="button" class="hero-back-btn" onclick="beginTransferReceipt()">Odbierz / Przyjmij</button>
+                {% endif %}
+                {% if transfer.status == 'PLANNED' %}
+                <a href="{{ url_for('osip.edit_transfer_view', transfer_id=transfer.id) }}" class="hero-back-btn">Edytuj przed załadunkiem</a>
+                {% endif %}
                 {% if 'OS' in (transfer.destination_warehouse|string|upper) or 'OSIP' in (transfer.destination_warehouse|string|upper) or 'OS' in (transfer.source_warehouse|string|upper) or 'OSIP' in (transfer.source_warehouse|string|upper) %}
                 <button type="button" class="hero-back-btn" id="btnSendOsipTransferEmail" onclick="sendOsipTransferReportEmail({{ transfer.id }})" style="background: #2563eb; color: #ffffff; border-color: #1d4ed8;">
                     <i class="fas fa-paper-plane"></i> Wyślij raport E-mail
@@ -617,7 +623,7 @@
     </div>
     {% endif %}
 
-    {% if pending_count > 0 and transfer.status in ['PLANNED', 'IN_TRANSIT', 'RECEIVING'] %}
+    {% if pending_count > 0 and transfer.status == 'RECEIVING' %}
     <!-- BEZOBSŁUGOWY PANEL SKANERA (PROMINENT HIGH-VISIBILITY SCANNER) -->
     <div class="scanner-hero-card">
         <div class="scanner-hero-body">
@@ -628,12 +634,12 @@
                     </div>
                     <div>
                         <h3 class="scanner-title">
-                            Skaner Przyjęcia OSIP
+                            Skaner przyjęcia — {{ transfer.destination_warehouse }}
                         </h3>
                         <div class="scanner-step-flow" id="scan-step-hint">
                             <span class="step-badge step-active"><i class="fas fa-box mr-1"></i> 1. Skanuj Paletę (SUR...)</span>
                             <i class="fas fa-chevron-right text-muted"></i>
-                            <span class="step-badge"><i class="fas fa-map-marker-alt mr-1"></i> 2. Skanuj Aleję (A01–A99, BFOS)</span>
+                            <span class="step-badge"><i class="fas fa-map-marker-alt mr-1"></i> 2. Skanuj lokalizację magazynu docelowego</span>
                         </div>
                     </div>
                 </div>
@@ -648,7 +654,7 @@
                 <div class="scanner-input-wrapper">
                     <i class="fas fa-qrcode scanner-input-icon"></i>
                     <input type="text" id="osip-scanner-input" class="scanner-field" 
-                           placeholder="Zeskanuj kod palety (SUR...) lub aleję odstawienia (A01–A99, BFOS)..." 
+                           placeholder="Zeskanuj paletę, a następnie lokalizację magazynu docelowego..."
                            autocomplete="off" autofocus>
                     <button type="button" class="btn-clear-scan" onclick="clearScannerInput()" title="Wyczyść wpis">
                         <i class="fas fa-times"></i>
@@ -702,14 +708,14 @@
                     ID palety: <span style="font-family: monospace; font-size: 1rem; background: #dcfce7; padding: 3px 10px; border-radius: 6px; border: 1px solid #bbf7d0;">{{ item.nr_palety }}</span>
                 </div>
                 <div style="font-size: 0.9rem; color: #166534; font-weight: 800;">
-                    Przyjęto na lokalizację: <span class="badge badge-success px-3 py-1" style="font-size: 0.9rem;">OSIP</span>
+                    Przyjęto na lokalizację: <span class="badge badge-success px-3 py-1" style="font-size: 0.9rem;">{{ transfer.destination_warehouse }}</span>
                 </div>
             </div>
-            {% else %}
+            {% elif transfer.status == 'RECEIVING' %}
             <div class="bottom-row-grid">
                 <div class="field-box loc">
                     <label for="loc_{{ item.id }}">Lokalizacja odstawienia</label>
-                    <input id="loc_{{ item.id }}" type="text" placeholder="Wpisz lub zeskanuj aleję (np. OS01–OS77)..." value="" class="text-uppercase font-weight-bold">
+                    <input id="loc_{{ item.id }}" type="text" placeholder="Lokalizacja magazynu docelowego..." value="" class="text-uppercase font-weight-bold">
                 </div>
                 <div>
                     <button id="btn_{{ item.id }}" class="btn-confirm" onclick="confirmSingleReceive({{ item.id }}, '{{ item.nr_palety }}')">
@@ -733,6 +739,7 @@
 
 <script>
 const TRANSFER_ID = {{ transfer.id }};
+const RECEIPT_DESTINATION = {{ transfer.destination_warehouse|tojson }};
 let scannedPalletCode = null;
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -754,18 +761,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+function isTransferReceiptLocation(code) {
+    const osipLocation = /^(?:OSIP|BFOS|A\d{2}|OS\d{2})$/.test(code);
+    if (RECEIPT_DESTINATION === 'OSIP') return osipLocation;
+    return !osipLocation && /^(?:R\d+|(?:MS|MP|MGW|MDO|MDM|MOP|BF[A-Z]*)\d*|RAMPA|PSD)$/.test(code);
+}
+
+async function beginTransferReceipt() {
+    const response = await fetch(`/osip/api/transfers/${TRANSFER_ID}/begin_receive`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'
+    });
+    const data = await response.json();
+    if (response.ok && data.success) window.location.reload();
+    else alert(data.message || 'Nie można rozpocząć odbioru.');
+}
+
 function handleScanInput(val) {
     if (!val) return;
     const inputEl = document.getElementById('osip-scanner-input');
     if (inputEl) inputEl.value = '';
 
     const cleanedVal = val.toUpperCase().trim();
-    const isLocationCode = cleanedVal === 'OSIP' || cleanedVal.startsWith('OS');
+    const isLocationCode = isTransferReceiptLocation(cleanedVal);
 
     if (!scannedPalletCode && !isLocationCode) {
         scannedPalletCode = cleanedVal;
         highlightScannedPalletRow(scannedPalletCode);
-        updateScanStatus('truck-loading', `Zeskanowano paletę: ${scannedPalletCode}. Teraz zeskanuj aleję odstawienia (OS01–OS77).`, '#3b82f6');
+        updateScanStatus('truck-loading', `Zeskanowano paletę: ${scannedPalletCode}. Teraz zeskanuj lokalizację magazynu docelowego.`, '#3b82f6');
         playBeepSound();
     } else if (scannedPalletCode && isLocationCode) {
         const loc = cleanedVal;
@@ -777,7 +799,7 @@ function handleScanInput(val) {
     } else {
         scannedPalletCode = cleanedVal;
         highlightScannedPalletRow(scannedPalletCode);
-        updateScanStatus('truck-loading', `Przełączono na paletę: ${scannedPalletCode}. Zeskanuj aleję odstawienia (OS01–OS77).`, '#3b82f6');
+        updateScanStatus('truck-loading', `Przełączono na paletę: ${scannedPalletCode}. Zeskanuj lokalizację magazynu docelowego.`, '#3b82f6');
         playBeepSound();
     }
 }
@@ -790,7 +812,7 @@ function highlightScannedPalletRow(palletCode) {
     let matchedCard = null;
     document.querySelectorAll('.receipt-item').forEach(card => {
         const code = (card.getAttribute('data-pallet-no') || '').toUpperCase();
-        if (code && (code.includes(palletCode) || palletCode.includes(code))) {
+        if (code && code === palletCode) {
             matchedCard = card;
         }
     });
@@ -805,7 +827,7 @@ function confirmSingleReceive(itemId, nrPalety) {
     const locInput = document.getElementById(`loc_${itemId}`);
     const targetLoc = locInput ? locInput.value.trim().toUpperCase() : '';
     if (!targetLoc) {
-        alert('Wprowadź lub zeskanuj aleję odstawienia w OSIP (np. OS01-OS77).');
+        alert('Wprowadź lub zeskanuj lokalizację magazynu docelowego.');
         if (locInput) locInput.focus();
         return;
     }

@@ -213,48 +213,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let productName = 'Paleta ' + code;
-        let batchNo = '';
-        let prodDate = '';
-        let qty = 1000;
-        let palletId = null;
-
         try {
-            const res = await fetch('/agro/scanner/lookup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: code, linia: 'AGRO' })
-            });
-            if (res.ok) {
-                const json = await res.json();
-                if (json.success && json.pallet) {
-                    const p = json.pallet;
-                    productName = p.nazwa || p.produkt_nazwa || p.name || p.surowiec_nazwa || productName;
-                    batchNo = p.nr_partii || p.batch || p.partia || '';
-                    prodDate = p.data_produkcji || p.data_przydatnosci || '';
-                    qty = parseFloat(p.stan_magazynowy || p.ilosc_kg || p.amount || p.waga_netto || p.ilosc || p.weight || 1000);
-                    palletId = p.id || p.pallet_id || null;
-                    if (p.is_transfer && p.transfer && (p.transfer.status === 'PLANNED' || p.transfer.status === 'IN_TRANSIT' || p.transfer.status === 'RECEIVING')) {
-                        alert(`Paleta ${code} bierze już udział w aktywnym zleceniu transferu ${p.transfer.transfer_code}!`);
-                        _isProcessingScan = false;
-                        return;
-                    }
-                }
+            const source = inputSourceWh ? inputSourceWh.value : 'MS01';
+            const res = await fetch(`/osip/api/transfers/lookup-pallet?source=${encodeURIComponent(source)}&code=${encodeURIComponent(code)}`);
+            const json = await res.json();
+            if (!res.ok || !json.success || !json.pallet) {
+                throw new Error(json.message || 'Nie można odczytać palety z magazynu źródłowego.');
             }
-        } catch (e) {
-            console.warn('[SCAN] Lookup error:', e);
+            const p = json.pallet;
+            addScannedItemRow({
+                nr_palety: p.nr_palety, pallet_id: p.pallet_id, product_name: p.product_name,
+                requested_qty: p.requested_qty, item_type: p.item_type
+            });
+        } catch (error) {
+            alert(error.message || 'Błąd odczytu palety. Ponów skanowanie.');
         } finally {
             _isProcessingScan = false;
         }
-
-        addScannedItemRow({
-            nr_palety: code,
-            pallet_id: palletId,
-            product_name: productName,
-            nr_partii: batchNo,
-            data_produkcji: prodDate,
-            requested_qty: qty
-        });
     }
 
     function addScannedItemRow(itemData = {}) {
@@ -273,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const div = document.createElement('div');
         div.className = 'card border-0 shadow-sm p-3 mb-3 item-row bg-white';
+        div.dataset.itemType = itemData.item_type || 'raw';
         div.style.borderRadius = '12px';
         div.style.border = '1px solid #cbd5e1';
 
@@ -512,6 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let actionsHtml = '';
             if (t.status === 'PLANNED') {
                 actionsHtml = `
+                    <a class="btn btn-sm btn-outline-warning mr-1" href="/osip/transfers/${encodeURIComponent(t.id)}/edit">Edytuj</a>
                     <button class="btn btn-sm btn-outline-info font-weight-bold action-view-btn mr-1" data-id="${t.id}">
                         <i class="fas fa-eye mr-1"></i> Podgląd
                     </button>
@@ -854,7 +831,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetLocs = {};
             document.querySelectorAll('.target-loc-input').forEach(inp => {
                 const c = inp.getAttribute('data-code');
-                targetLocs[c] = inp.value.trim() || 'A01';
+                targetLocs[c] = inp.value.trim() || (currentReceivingTransfer.destination_warehouse === 'OSIP' ? 'A01' : 'MS01');
             });
 
             const res = await fetch(`/osip/api/transfers/${currentReceivingTransfer.id}/receive`, {
@@ -906,7 +883,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         product_name: p,
                         requested_qty: parseFloat(q),
                         unit: 'kg',
-                        item_type: 'raw'
+                        item_type: row.dataset.itemType || 'raw'
                     });
                 }
             });
@@ -965,6 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         product_name: p,
                         nr_partii: batch,
                         data_produkcji: dateVal,
+                        item_type: row.dataset.itemType || 'raw',
                         requested_qty: q
                     });
                 }

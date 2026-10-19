@@ -1,4 +1,5 @@
 from app.services.warehouse_history.history_indexer import HistoryIndexer
+from app.services.warehouse_history.station_filter import station_search_pattern
 
 class HistoryQueryService:
     @staticmethod
@@ -52,11 +53,12 @@ class HistoryQueryService:
         stacja_cond_legacy = ""
         stacja_params_legacy = []
 
-        if stacja:
-            stacja_cond_ph = " AND (ph.lokalizacja_docelowa LIKE %s OR ph.lokalizacja_zrodlowa LIKE %s OR ph.komentarz LIKE %s)"
-            stacja_params_ph = [f"%{stacja}%", f"%{stacja}%", f"%{stacja}%"]
-            stacja_cond_legacy = " AND (r.zbiornik LIKE %s OR r.lokalizacja LIKE %s OR r.komentarz LIKE %s)"
-            stacja_params_legacy = [f"%{stacja}%", f"%{stacja}%", f"%{stacja}%"]
+        station_pattern = station_search_pattern(stacja)
+        if station_pattern:
+            stacja_cond_ph = " AND (UPPER(ph.lokalizacja_docelowa) REGEXP %s OR UPPER(ph.lokalizacja_zrodlowa) REGEXP %s OR UPPER(ph.komentarz) REGEXP %s)"
+            stacja_params_ph = [station_pattern] * 3
+            stacja_cond_legacy = " AND (UPPER(r.zbiornik) REGEXP %s OR UPPER(r.lokalizacja) REGEXP %s OR UPPER(r.komentarz) REGEXP %s)"
+            stacja_params_legacy = [station_pattern] * 3
 
         sur_cond_ph = ""
         sur_params_ph = []
@@ -289,9 +291,9 @@ class HistoryQueryService:
 
             stacja_cond_conf = ""
             stacja_params_conf = []
-            if stacja:
-                stacja_cond_conf = " AND (lokalizacja LIKE %s)"
-                stacja_params_conf = [f"%{stacja}%"]
+            if station_pattern:
+                stacja_cond_conf = " AND (UPPER(lokalizacja) REGEXP %s)"
+                stacja_params_conf = [station_pattern]
 
             sur_cond_conf = ""
             sur_params_conf = []
