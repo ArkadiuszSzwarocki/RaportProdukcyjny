@@ -704,11 +704,10 @@
                 var wagaVal = wagaInput.value.trim();
 
                 if (!ssccVal) {
-                    var proceedWithout = window.confirm('Nie podano kodu SSCC palety.\n\nCzy na pewno chcesz uruchomić czyszczenie bez pobierania surowca z palety?');
-                    if (!proceedWithout) {
-                        ssccInput.focus();
-                        return;
-                    }
+                    errorBox.textContent = 'Zeskanuj lub wpisz SSCC palety do czyszczenia. Jest wymagany także przy pominięciu kolejki.';
+                    errorBox.style.display = 'block';
+                    ssccInput.focus();
+                    return;
                 } else {
                     if (!wagaVal || isNaN(parseFloat(wagaVal)) || parseFloat(wagaVal) <= 0) {
                         errorBox.textContent = 'Podaj poprawną ilość kg do zużycia z palety!';

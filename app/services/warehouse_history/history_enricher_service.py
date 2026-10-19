@@ -7,6 +7,7 @@ from app.services.warehouse_history.enricher.location_route_resolver import Loca
 from app.services.warehouse_history.enricher.pallet_details_enricher import PalletDetailsEnricher
 from app.services.warehouse_history.enricher.order_details_enricher import OrderDetailsEnricher
 from app.services.warehouse_history.enricher.history_deduplicator import HistoryDeduplicator
+from app.services.warehouse_history.station_filter import matches_station, station_search_pattern
 
 class HistoryEnricherService:
     """Orchestrator service for enriching and deduplicating warehouse movement records."""
@@ -42,10 +43,15 @@ class HistoryEnricherService:
         # 2. Build initial candidate items from newest to oldest
         all_rows.sort(key=MovementClassifier.parse_dt, reverse=True)
         seen_dict = {}
+        station_pattern = station_search_pattern(stacja)
 
         for r in all_rows:
             item = cls._build_candidate_item(r, rec_sigs, split_sigs)
             if not item:
+                continue
+            # Every source must respect the station before deduplication and the limit,
+            # including synthetic finished-product creation events.
+            if station_pattern and not matches_station(item, station_pattern):
                 continue
 
             dt_key = item['data']

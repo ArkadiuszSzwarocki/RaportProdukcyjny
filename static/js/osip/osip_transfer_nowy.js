@@ -2,13 +2,29 @@
  * OSIP TRANSFER NOWY - Logika Dedykowanego Formularza Nowego Transferu
  */
 
-const DRAFT_KEY = 'osip_transfer_nowy_draft_v1';
+const EDIT_TRANSFER = window.OSIP_TRANSFER_EDIT || null;
+const DRAFT_KEY = EDIT_TRANSFER ? 'osip_transfer_edit_' + EDIT_TRANSFER.id : 'osip_transfer_nowy_draft_v1';
 let scannedItems = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     initRouteSelectors();
     initScanner();
-    initDraft();
+    if (EDIT_TRANSFER) {
+        scannedItems = EDIT_TRANSFER.items || [];
+        const editRoute = EDIT_TRANSFER.source === 'OSIP' && EDIT_TRANSFER.destination === 'MS01' ? 'OSIP_MS01' :
+            EDIT_TRANSFER.source === 'MS01' && EDIT_TRANSFER.destination === 'OSIP' ? 'MS01_OSIP' : 'CUSTOM';
+        selectRouteCard(editRoute);
+        document.getElementById('select-custom-source').value = EDIT_TRANSFER.source;
+        document.getElementById('select-custom-dest').value = EDIT_TRANSFER.destination;
+        document.querySelectorAll('input[name="trf_route"], #select-custom-source, #select-custom-dest').forEach(el => { el.disabled = true; });
+        document.getElementById('trf-notes-input').value = EDIT_TRANSFER.notes || '';
+        document.getElementById('btn-submit-transfer').textContent = 'ZAPISZ ZMIANY PRZED ZAŁADUNKIEM';
+        const title = document.querySelector('.trf-header-bar h2');
+        if (title) title.textContent = 'Edycja zaplanowanego transferu';
+        renderScannedTable();
+    } else {
+        initDraft();
+    }
     initSubmission();
 });
 
@@ -17,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 function selectRouteCard(routeVal) {
     const radio = document.querySelector(`input[name="trf_route"][value="${routeVal}"]`);
-    if (radio) {
+    if (radio && !radio.disabled) {
         radio.checked = true;
         radio.dispatchEvent(new Event('change'));
     }
@@ -144,29 +160,24 @@ async function processPalletScan() {
     }
 
     try {
-        const resp = await fetch(`/warehouse-v2/api/zaladunki/lookup_pallet?code=${encodeURIComponent(rawCode)}`);
+        const resp = await fetch(`/osip/api/transfers/lookup-pallet?source=${encodeURIComponent(currentSourceWarehouse())}&code=${encodeURIComponent(rawCode)}`);
         const data = await resp.json();
 
         let palletObj = null;
 
-        if (data.success && data.pallet) {
-            const p = data.pallet;
-            palletObj = {
-                pallet_id: p.pallet_id || p.id || null,
-                nr_palety: p.nr_palety || codeUpper,
-                nazwa_produktu: p.nazwa_produktu || p.productName || p.nazwa || 'Surowiec / Towar',
-                typ_palety: p.typ_palety || p.type || 'Surowiec',
-                ilosc_kg: parseFloat(p.ilosc_kg || p.amount || p.stan_magazynowy || 0.0)
-            };
-        } else {
-            // W przypadku nieznalezienia w bazie centralnej - pozwalamy dodać tymczasową pozycję ze skanera
-            palletObj = {
-                pallet_id: null,
-                nr_palety: codeUpper,
-                nazwa_produktu: 'Paleta Zeskanowana',
-                typ_palety: 'Surowiec',
-                ilosc_kg: 0.0
-            };
+        if (!resp.ok || !data.success || !data.pallet) {
+            throw new Error(data.message || 'Nie można odczytać palety z magazynu źródłowego.');
+        }
+        const p = data.pallet;
+        palletObj = {
+            pallet_id: p.pallet_id,
+            nr_palety: p.nr_palety,
+            nazwa_produktu: p.product_name,
+            typ_palety: p.item_type,
+            ilosc_kg: Number(p.requested_qty)
+        };
+        if (!Number.isFinite(palletObj.ilosc_kg) || palletObj.ilosc_kg <= 0) {
+            throw new Error('Paleta nie ma dodatniego stanu do transferu.');
         }
 
         // Re-check unikalności przed dodaniem
@@ -184,18 +195,10 @@ async function processPalletScan() {
         }
     } catch (err) {
         console.error('Błąd weryfikacji palety:', err);
-        // Fallback w razie problemów z siecią
-        const fallbackObj = {
-            pallet_id: null,
-            nr_palety: codeUpper,
-            nazwa_produktu: 'Paleta Zeskanowana',
-            typ_palety: 'Surowiec',
-            ilosc_kg: 0.0
-        };
-        if (!scannedItems.some(it => String(it.nr_palety).toUpperCase() === String(fallbackObj.nr_palety).toUpperCase())) {
-            scannedItems.push(fallbackObj);
-            renderScannedTable();
-            saveDraftToStorage();
+        showTrfToast('error', err.message || 'Nie udało się odczytać palety. Ponów skanowanie.');
+        if (statusMsg) {
+            statusMsg.textContent = err.message || 'Błąd odczytu palety. Ponów skanowanie.';
+            statusMsg.style.color = '#b91c1c';
         }
     } finally {
         isScanProcessing = false;
@@ -247,7 +250,7 @@ function renderScannedTable() {
             <td style="font-weight: 800; color: #94a3b8;">#${idx + 1}</td>
             <td><span class="badge-sscc">${escapeHtml(item.nr_palety || '-')}</span></td>
             <td style="font-weight: 800; color: #0f172a;">${escapeHtml(item.nazwa_produktu || '-')}</td>
-            <td><span style="background:#f1f5f9; border:1px solid #cbd5e1; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:700;">${escapeHtml(item.typ_palety || 'Surowiec')}</span></td>
+            <td><span style="background:#f1f5f9; border:1px solid #cbd5e1; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:700;">${escapeHtml(({raw:'Surowiec',raw_agro:'Surowiec',fg:'Wyrób gotowy',fg_agro:'Wyrób gotowy',packaging:'Opakowanie',packaging_agro:'Opakowanie',dodatek:'Dodatek'})[item.typ_palety] || item.typ_palety || 'Surowiec')}</span></td>
             <td style="text-align: right; font-weight: 800; color: #16a34a;">${parseFloat(item.ilosc_kg || 0).toFixed(2)} kg</td>
             <td style="text-align: center;">
                 <button type="button" class="btn-remove-row" onclick="removeScannedItem(${idx})" title="Usuń tę paletę ze zlecenia">
@@ -393,6 +396,10 @@ async function submitTransferOrder() {
         return;
     }
 
+    if (scannedItems.some(it => !Number.isFinite(Number(it.ilosc_kg)) || Number(it.ilosc_kg) <= 0)) {
+        showTrfToast('error', 'Usuń pozycje bez poprawnej wagi i zeskanuj te palety ponownie.');
+        return;
+    }
     const notesVal = document.getElementById('trf-notes-input')?.value || '';
 
     const payload = {
@@ -412,8 +419,8 @@ async function submitTransferOrder() {
     try {
         if (submitBtn) submitBtn.disabled = true;
 
-        const resp = await fetch('/osip/api/transfers', {
-            method: 'POST',
+        const resp = await fetch(EDIT_TRANSFER ? `/osip/api/transfers/${EDIT_TRANSFER.id}` : '/osip/api/transfers', {
+            method: EDIT_TRANSFER ? 'PUT' : 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
@@ -479,4 +486,11 @@ function escapeHtml(text) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+function currentSourceWarehouse() {
+    if (EDIT_TRANSFER) return EDIT_TRANSFER.source;
+    const route = document.querySelector('input[name="trf_route"]:checked')?.value || 'MS01_OSIP';
+    if (route === 'CUSTOM') return document.getElementById('select-custom-source')?.value || 'OSIP';
+    return route === 'OSIP_MS01' ? 'OSIP' : 'MS01';
 }

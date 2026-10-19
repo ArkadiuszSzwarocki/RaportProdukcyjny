@@ -101,6 +101,18 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 )
 
                 if is_czyszczenie:
+                    skan_sscc = str(request.form.get('skan_sscc') or '').strip()
+                    if sekcja in ('Zasyp', 'Czyszczenie') and status_obecny != 'w toku' and not skan_sscc:
+                        # Resuming an identified pallet must not consume it a second time.
+                        saved_sscc = None
+                        if status_obecny in ('zawieszone', 'wstrzymane'):
+                            cursor.execute(f"SELECT skan_sscc FROM {table_plan} WHERE id=%s", (id,))
+                            saved_row = cursor.fetchone()
+                            saved_sscc = saved_row[0] if saved_row else None
+                        if not str(saved_sscc or '').strip():
+                            flash('❌ Start zablokowany: zeskanuj lub wpisz SSCC palety do czyszczenia. Pominięcie kolejki nie pomija tego wymagania.', 'error')
+                            return redirect(bezpieczny_powrot())
+
                     typ_pakowania = request.form.get('typ_pakowania')
                     if typ_pakowania == 'Worki':
                         nowe_opakowanie_id = request.form.get('opakowanie_id')
@@ -111,7 +123,6 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                             flash('❌ Start zablokowany: dla Czyszczenia w workach musisz wybrać rolkę folii.', 'error')
                             return redirect(bezpieczny_powrot())
 
-                    skan_sscc = request.form.get('skan_sscc')
                     skan_sscc_waga = request.form.get('skan_sscc_waga')
                     if skan_sscc and skan_sscc.strip():
                         sscc_clean = skan_sscc.strip()

@@ -83,6 +83,13 @@ class OsipTransferService:
     @classmethod
     def _stock_spec(cls, item):
         kind = str(cls._value(item, 'item_type', 'raw') or 'raw').strip().lower()
+        extra_sources = {
+            'raw_agro': ('magazyn_agro_surowce', 'stan_magazynowy', 'surowiec'),
+            'fg_agro': ('magazyn_palety_agro', 'waga_netto', 'wyrob_gotowy'),
+            'packaging_agro': ('magazyn_agro_opakowania', 'stan_magazynowy', 'opakowanie'),
+        }
+        if kind in extra_sources:
+            return extra_sources[kind]
         if kind in ('raw', 'surowiec'):
             return 'magazyn_surowce', 'stan_magazynowy', 'surowiec'
         if kind in ('fg', 'wyrób gotowy', 'wyrob gotowy', 'wyrob_gotowy', 'magazyn'):
@@ -179,6 +186,7 @@ class OsipTransferService:
             raise ValueError("Podaj różne magazyny źródłowy i docelowy")
         conn = get_db_connection()
         try:
+            self._validate_planned_pallets(conn, source_warehouse, items)
             transfer = self.repository.create_transfer(source_warehouse, destination_warehouse, created_by, notes, external_conn=conn)
             self.repository.add_transfer_items(transfer.id, items, external_conn=conn)
             conn.commit()
@@ -187,6 +195,122 @@ class OsipTransferService:
             raise
         finally:
             conn.close()
+        return self.repository.get_transfer_by_id(transfer.id)
+
+    @classmethod
+    def lookup_transfer_pallet(cls, code, source_warehouse):
+        """Resolve a physical pallet in the source warehouse, independently of its production line."""
+        from mysql.connector.errors import ProgrammingError
+        from app.services.scanner_service import ScannerService
+        raw_code = str(code or '').strip()
+        code = (ScannerService._normalize_scanned_code(raw_code)
+                if raw_code.startswith(('{', ']')) or '(00)' in raw_code else raw_code.upper())
+        if not code:
+            raise ValueError('Zeskanuj pełny numer palety.')
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            matches = []
+            for kind in ('raw', 'fg', 'packaging', 'dodatek', 'raw_agro', 'fg_agro', 'packaging_agro'):
+                table, quantity, _ = cls._stock_spec({'item_type': kind})
+                name = 'produkt' if quantity == 'waga_netto' else 'nazwa'
+                try:
+                    cursor.execute(f'SELECT id,nr_palety,{name} AS product_name,{quantity} AS quantity,lokalizacja '
+                                   f'FROM {table} WHERE UPPER(TRIM(nr_palety))=%s AND {quantity}>0', (code.upper(),))
+                except ProgrammingError as error:
+                    # Older installations keep AGRO stock in the shared tables.
+                    if error.errno == 1146 and kind in ('raw_agro', 'fg_agro', 'packaging_agro'):
+                        continue
+                    raise
+                for row in cursor.fetchall():
+                    if str(row.get('lokalizacja') or '').upper() == cls.IN_TRANSIT_LOCATION:
+                        continue
+                    if is_osip_location(source_warehouse) != is_osip_location(row.get('lokalizacja')):
+                        continue
+                    matches.append(dict(pallet_id=row['id'], nr_palety=row['nr_palety'],
+                                        product_name=row['product_name'], item_type=kind,
+                                        requested_qty=float(row['quantity']), location=row.get('lokalizacja')))
+            if len(matches) != 1:
+                raise ValueError('Nie znaleziono jednej aktywnej palety w magazynie źródłowym. Sprawdź pełny SSCC i kierunek transferu.')
+            return matches[0]
+        finally:
+            cursor.close()
+            conn.close()
+
+    @classmethod
+    def _validate_planned_pallets(cls, conn, source, items, exclude_transfer_id=0):
+        cursor = conn.cursor(dictionary=True)
+        seen = set()
+        try:
+            for item in sorted(items, key=lambda value: str(value.get('nr_palety') or value.get('pallet_id') or '')):
+                # Legacy unassigned product requests remain assignable at loading.
+                if not item.get('nr_palety') and not item.get('pallet_id'):
+                    continue
+                table, quantity, _ = cls._stock_spec(item)
+                conditions, params = [], []
+                if item.get('nr_palety'):
+                    conditions.append('UPPER(TRIM(nr_palety))=%s')
+                    params.append(str(item['nr_palety']).strip().upper())
+                if item.get('pallet_id'):
+                    conditions.append('id=%s')
+                    params.append(item['pallet_id'])
+                cursor.execute(f'SELECT id,nr_palety,lokalizacja,is_blocked,{quantity} AS quantity '
+                               f"FROM {table} WHERE {' AND '.join(conditions)} FOR UPDATE", tuple(params))
+                rows = cursor.fetchall()
+                if len(rows) != 1:
+                    raise ValueError('Nie znaleziono jednoznacznej palety. Zeskanuj ją ponownie.')
+                row = rows[0]
+                key = (table, row['id'])
+                if key in seen:
+                    raise ValueError('Ta sama paleta występuje w transferze więcej niż raz.')
+                seen.add(key)
+                if str(row.get('lokalizacja') or '').upper() == cls.IN_TRANSIT_LOCATION:
+                    raise ValueError('Paleta jest już w tranzycie.')
+                if is_osip_location(source) != is_osip_location(row.get('lokalizacja')):
+                    raise ValueError('Paleta nie znajduje się w magazynie źródłowym transferu.')
+                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+                if row.get('is_blocked') or PalletLockManager.has_quality_or_manual_block(cursor, row['nr_palety']):
+                    raise ValueError('Paleta ma blokadę LAB lub ręczną.')
+                requested = float(item.get('requested_qty') or 0)
+                available = float(row.get('quantity') or 0)
+                if not math.isfinite(requested) or not math.isfinite(available) or available <= 0 or abs(requested - available) > 0.001:
+                    raise ValueError('Transfer musi obejmować pełny stan palety. Zeskanuj aktualny stan lub najpierw podziel paletę.')
+                cursor.execute("SELECT t.id FROM osip_transfers t JOIN osip_transfer_items i ON i.transfer_id=t.id "
+                               "WHERE t.status IN ('PLANNED','IN_TRANSIT','RECEIVING') AND t.id!=%s "
+                               "AND UPPER(TRIM(i.nr_palety))=%s AND i.status NOT IN ('RECEIVED','CANCELLED') LIMIT 1",
+                               (exclude_transfer_id, str(row['nr_palety']).strip().upper()))
+                if cursor.fetchone():
+                    raise ValueError('Paleta jest przypisana do innego aktywnego transferu.')
+        finally:
+            cursor.close()
+
+    def update_planned_transfer(self, transfer_id, items, notes, login):
+        if not items:
+            raise ValueError('Transfer musi zawierać co najmniej jedną paletę.')
+        if any(not item.get('nr_palety') for item in items):
+            raise ValueError('Każda paleta musi mieć pełny numer SSCC. Zeskanuj brakujące palety.')
+        conn = get_db_connection()
+        try:
+            transfer = self._locked_transfer(conn, transfer_id, ('PLANNED',))
+            if any(self._value(item, 'status') != 'PLANNED' or float(self._value(item, 'loaded_qty', 0)) != 0
+                   for item in self._extract_items(transfer)):
+                raise ValueError('Załadunek już się rozpoczął. Nie można edytować transferu.')
+            self._validate_planned_pallets(conn, transfer.source_warehouse, items, transfer.id)
+            cursor = conn.cursor()
+            try:
+                cursor.execute('UPDATE osip_transfers SET notes=%s WHERE id=%s', (notes, transfer.id))
+                cursor.execute('DELETE FROM osip_transfer_items WHERE transfer_id=%s', (transfer.id,))
+            finally:
+                cursor.close()
+            self.repository.add_transfer_items(transfer.id, items, external_conn=conn)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        from app.core.audit import audit_log
+        audit_log('OSIP_TRANSFER_EDIT', f'transfer={transfer.id}, user={login}, pallets={len(items)}')
         return self.repository.get_transfer_by_id(transfer.id)
 
     def dispatch_transfer(self, transfer_id: Any, loaded_pallets: List[Dict[str, Any]], user_login: str) -> OsipTransferModel:

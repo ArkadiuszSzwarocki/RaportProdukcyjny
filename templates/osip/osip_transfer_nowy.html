@@ -13,7 +13,7 @@
                 <span class="material-icons">swap_horiz</span>
             </div>
             <div>
-                <h2>Nowe Zlecenie Transferu Międzymagazynowego</h2>
+                <h2>{{ 'Edycja zaplanowanego transferu' if transfer_edit|default(none) else 'Nowe Zlecenie Transferu Międzymagazynowego' }}</h2>
                 <p>Formularz rejestracji i skanowania palet na transport (Centrala MS01 &harr; OSIP).</p>
             </div>
         </div>
@@ -230,5 +230,6 @@
 <!-- TOAST CONTAINER -->
 <div id="trfToastContainer" class="trf-toast-container"></div>
 
-<script src="{{ url_for('static', filename='js/osip/osip_transfer_nowy.js') }}?v=1.1.0"></script>
+<script>window.OSIP_TRANSFER_EDIT = {{ transfer_edit|default(none)|tojson }};</script>
+<script src="{{ url_for('static', filename='js/osip/osip_transfer_nowy.js') }}?v={{ static_version }}"></script>
 {% endblock %}

@@ -1,3 +1,4 @@
+# cspell:words FDNR
 """Application-side client and queue service for the authenticated print bridge."""
 
 import json
@@ -374,6 +375,7 @@ class PrintServer:
     def build_finished_product_label_zpl(self, label_data: dict, copies: int = 1) -> str:
         payload = dict(label_data or {})
         pallet_id = _zpl_text(payload.get('nrPalety') or payload.get('nr_palety') or '---', 64)
+        pallet_number = _zpl_text(payload.get('nr_palety_lp') or '---', 20)
         name = _zpl_text(payload.get('nazwa') or 'Brak nazwy', 80)
         production = _zpl_text(
             payload.get('data') or payload.get('data_produkcji') or datetime.now().strftime('%Y-%m-%d'), 30
@@ -387,6 +389,7 @@ class PrintServer:
         qr_data = json.dumps({
             'typ': title,
             'sscc': pallet_id,
+            'lp': pallet_number,
             'prod': name,
             'partia': batch,
             'ilosc': quantity,
@@ -401,6 +404,7 @@ class PrintServer:
 ^FO40,150^A0N,65,65^FB720,3,0,C^FD{name}^FS
 ^FO250,320^BQN,2,12^FDQA,{pallet_id}^FS
 ^FO40,650^A0N,55,55^FB720,1,0,C^FD{pallet_id}^FS
+^FO40,750^A0N,50,50^FDNR PALETY: {pallet_number}^FS
 ^FO40,825^A0N,45,45^FDPRODUKCJA: {production}^FS
 ^FO40,890^A0N,45,45^FDNR PARTII: {batch}^FS
 {expiry_line}

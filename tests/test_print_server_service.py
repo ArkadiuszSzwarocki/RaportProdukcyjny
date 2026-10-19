@@ -1,6 +1,37 @@
+# cspell:words FDNR FDQA XZJA
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.services.print_server import PrintServer
+
+
+@pytest.mark.parametrize('line', ['AGRO', 'PSD'])
+def test_finished_product_label_keeps_sequence_separate_from_sscc_and_batch(line):
+    zpl = PrintServer().build_finished_product_label_zpl({
+        'linia': line,
+        'nrPalety': 'AGR000001234567890123',
+        'nr_palety_lp': 27,
+        'nr_partii': '26-292',
+        'ilosc': 1000,
+    }, copies=2)
+
+    assert '^FO40,750^A0N,50,50^FDNR PALETY: 27^FS' in zpl
+    assert '^FDQA,AGR000001234567890123^FS' in zpl
+    assert '^FDNR PARTII: 26-292^FS' in zpl
+    assert '"lp": "27"' in zpl
+    assert '^PQ2' in zpl
+
+
+def test_finished_product_label_does_not_invent_missing_sequence():
+    zpl = PrintServer().build_finished_product_label_zpl({'nrPalety': 'AGR-123'})
+    assert '^FDNR PALETY: ---^FS' in zpl
+
+
+def test_finished_product_label_sanitizes_sequence_as_zpl_text():
+    zpl = PrintServer().build_finished_product_label_zpl({'nr_palety_lp': '27^XZ~JA'})
+    assert '^FDNR PALETY: 27XZJA^FS' in zpl
+    assert zpl.count('^XZ') == 1
 
 
 def test_send_to_bridge_success_returns_ok_message():

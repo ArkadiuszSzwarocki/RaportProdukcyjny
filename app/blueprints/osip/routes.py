@@ -103,6 +103,51 @@ def transfer_nowy_view():
     return render_template('osip/osip_transfer_nowy.html', user_role=user_role, user_subrole=user_subrole, pre_source=source, pre_dest=dest, scope=scope)
 
 
+@osip_bp.route('/transfers/<transfer_id>/edit', methods=['GET'])
+@login_required
+def edit_transfer_view(transfer_id):
+    transfer = transfer_service.get_transfer_by_id(transfer_id)
+    if not transfer or transfer.status != 'PLANNED':
+        flash('Edycja jest możliwa tylko przed załadunkiem zaplanowanego transferu.', 'warning')
+        return redirect(url_for('osip.transfers_view'))
+    from app.core.production_permissions import _page_allowed
+    hall = 'OSIP' if transfer.source_warehouse == 'OSIP' else 'AGRO'
+    if not _page_allowed(hall, 'magazyn', write=True):
+        return jsonify(success=False, message='Brak uprawnień do edycji transferu.'), 403
+    edit = dict(id=transfer.id, source=transfer.source_warehouse, destination=transfer.destination_warehouse,
+                notes=transfer.notes or '', items=[dict(pallet_id=item.pallet_id, nr_palety=item.nr_palety,
+                nazwa_produktu=item.product_name, typ_palety=item.item_type, ilosc_kg=item.requested_qty)
+                for item in transfer.items])
+    return render_template('osip/osip_transfer_nowy.html', transfer_edit=edit)
+
+
+@osip_bp.route('/api/transfers/lookup-pallet', methods=['GET'])
+@login_required
+def lookup_transfer_pallet_api():
+    from app.core.production_permissions import _page_allowed
+    source = str(request.args.get('source') or 'MS01').strip().upper()
+    hall = 'OSIP' if source == 'OSIP' else 'AGRO'
+    if not _page_allowed(hall, 'magazyn', write=False):
+        return jsonify(success=False, message='Brak uprawnień do magazynu źródłowego.'), 403
+    try:
+        pallet = transfer_service.lookup_transfer_pallet(request.args.get('code'), source)
+        return jsonify(success=True, pallet=pallet)
+    except ValueError as error:
+        return jsonify(success=False, message=str(error)), 400
+
+
+@osip_bp.route('/api/transfers/<transfer_id>', methods=['PUT'])
+@login_required
+def update_transfer_api(transfer_id):
+    payload = request.get_json() or {}
+    try:
+        transfer = transfer_service.update_planned_transfer(
+            transfer_id, payload.get('items', []), payload.get('notes'), session.get('login'))
+        return jsonify(success=True, message=f'Zapisano zmiany transferu {transfer.transfer_code}', transfer_id=transfer.id)
+    except ValueError as error:
+        return jsonify(success=False, message=str(error)), 400
+
+
 @osip_bp.route('/transfers/<transfer_id>', methods=['GET'])
 @login_required
 def transfer_details_view(transfer_id):
@@ -212,7 +257,7 @@ def receive_transfer_api(transfer_id):
     """API realizujące przyjęcie zlecenia (masowe lub wg mapy) w magazynie docelowym."""
     payload = request.get_json() or {}
     target_locations = payload.get('target_locations', {})  # Dict[pallet_id/nr_palety/item_id -> loc]
-    default_loc = payload.get('default_location') or payload.get('location') or 'OS01'
+    default_loc = payload.get('default_location') or payload.get('location')
     if not isinstance(target_locations, dict):
         target_locations = {}
     if default_loc and 'default' not in target_locations:
@@ -243,7 +288,7 @@ def scan_receive_api(transfer_id):
     """API szybkiego skanowania w locie: przyjęcie pojedynczej palety do lokalizacji."""
     payload = request.get_json() or {}
     pallet_code = payload.get('pallet_code') or payload.get('code') or payload.get('nr_palety')
-    target_location = payload.get('target_location') or payload.get('location') or 'OS01'
+    target_location = payload.get('target_location') or payload.get('location')
     user_login = session.get('login', 'magazynier')
 
     if not pallet_code:
