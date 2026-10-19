@@ -200,6 +200,7 @@ class OsipTransferService:
     @classmethod
     def lookup_transfer_pallet(cls, code, source_warehouse):
         """Resolve a physical pallet in the source warehouse, independently of its production line."""
+        from mysql.connector.errors import ProgrammingError
         from app.services.scanner_service import ScannerService
         raw_code = str(code or '').strip()
         code = (ScannerService._normalize_scanned_code(raw_code)
@@ -213,8 +214,14 @@ class OsipTransferService:
             for kind in ('raw', 'fg', 'packaging', 'dodatek', 'raw_agro', 'fg_agro', 'packaging_agro'):
                 table, quantity, _ = cls._stock_spec({'item_type': kind})
                 name = 'produkt' if quantity == 'waga_netto' else 'nazwa'
-                cursor.execute(f'SELECT id,nr_palety,{name} AS product_name,{quantity} AS quantity,lokalizacja '
-                               f'FROM {table} WHERE UPPER(TRIM(nr_palety))=%s AND {quantity}>0', (code.upper(),))
+                try:
+                    cursor.execute(f'SELECT id,nr_palety,{name} AS product_name,{quantity} AS quantity,lokalizacja '
+                                   f'FROM {table} WHERE UPPER(TRIM(nr_palety))=%s AND {quantity}>0', (code.upper(),))
+                except ProgrammingError as error:
+                    # Older installations keep AGRO stock in the shared tables.
+                    if error.errno == 1146 and kind in ('raw_agro', 'fg_agro', 'packaging_agro'):
+                        continue
+                    raise
                 for row in cursor.fetchall():
                     if str(row.get('lokalizacja') or '').upper() == cls.IN_TRANSIT_LOCATION:
                         continue
