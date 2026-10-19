@@ -1,3 +1,4 @@
+# cspell:words subrole
 from types import SimpleNamespace
 from unittest.mock import patch
 
