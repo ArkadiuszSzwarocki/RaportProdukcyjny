@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+{% block content %}
+<div style="max-width:1500px;margin:24px auto;padding:20px;background:white;border-radius:12px">
+  <h2>Historia wydruków przesunięć</h2>
+  <p>Kliknięcia „Drukuj A4” i wywołania okna drukowania. To zapis żądania wydruku, bez potwierdzenia z drukarki. Czas: Polska.</p>
+  <form method="get" style="display:flex;gap:10px;margin-bottom:20px">
+    <input name="q" value="{{ query }}" placeholder="Numer przesunięcia" class="form-control" style="max-width:360px">
+    <button class="btn btn-primary">Szukaj</button>
+    <a class="btn btn-secondary" href="{{ url_for('magazyn_dostawy.lista_dostaw') }}">Przesunięcia</a>
+  </form>
+  <div style="overflow-x:auto"><table class="table table-striped">
+    <thead><tr><th>Przesunięcie</th><th>Status dokumentu</th><th>Kliknięcia Drukuj</th><th>Ostatnio</th><th>Kto</th><th>E-mail po zakończeniu</th></tr></thead>
+    <tbody>{% for d in documents %}<tr>
+      <td>{{ d.document_ref }} {% if d.document_kind == 'osip' %}(OSIP){% endif %}</td><td>{{ d.status }}</td>
+      <td>{% if d.print_clicks %}{{ d.print_clicks }}{% else %}<strong style="color:#b91c1c">Brak kliknięcia</strong>{% endif %}</td>
+      <td>{{ d.last_click or '—' }}</td><td>{{ d.printed_by or '—' }}</td>
+      <td>{% set names={'SKIPPED':'Pominięto — poza MM w MP01','PENDING':'Oczekuje','SENDING':'Wysyłanie / wymaga sprawdzenia po przerwaniu','SENT':'Wysłano','FAILED':'Błąd — sprawdź przed ponowieniem'} %}{{ names.get(d.email_status,'Brak zlecenia') }}
+      {% if d.email_finished %}<br>{{ d.email_finished }}{% endif %}{% if d.result_note %}<br><small>{{ d.result_note }}</small>{% endif %}</td>
+    </tr>{% else %}<tr><td colspan="6">Brak dokumentów.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if page > 1 %}<a href="{{ url_for('magazyn_dostawy.movement_print_history',q=query,page=page-1) }}">Poprzednia strona</a>{% endif %}
+  {% if documents|length == 100 %}<a href="{{ url_for('magazyn_dostawy.movement_print_history',q=query,page=page+1) }}">Następna strona</a>{% endif %}
+  <h3 style="margin-top:28px">Ostatnie 200 wywołań wydruku</h3>
+  <div style="overflow-x:auto"><table class="table table-striped"><thead><tr><th>Data i godzina</th><th>Przesunięcie</th><th>Użytkownik</th><th>Wywołanie</th></tr></thead>
+    <tbody>{% for click in clicks %}<tr><td>{{ click.created_at }}</td><td>{{ click.document_ref }}</td><td>{{ click.user_login }}</td><td>{{ {'button':'Przycisk Drukuj','browser':'Menu przeglądarki / Ctrl+P','auto':'Automatyczne otwarcie okna'}.get(click.trigger_name,click.trigger_name) }}</td></tr>{% else %}<tr><td colspan="4">Brak zarejestrowanych kliknięć. Historia obejmuje wywołania po włączeniu tej funkcji.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endblock %}

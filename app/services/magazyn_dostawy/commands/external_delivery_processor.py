@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 import math
 from app.db import get_table_name
+from app.utils.pallet_receipt_rules import ensure_unique_stock_code, validate_pallet_dates, delivery_pallet_type
 from app.services.warehouse_history.movement_recorder import MovementRecorder
 
 
@@ -46,9 +47,10 @@ class ExternalDeliveryProcessor:
             for old_it in old_items:
                 old_pid = old_it.get('sourcePalletId')
                 if old_pid and old_pid not in new_pallet_ids and not old_it.get('accepted'):
-                    old_src = str(old_it.get('type') or old_it.get('palletType') or '').lower()
-                    old_pkg = str(old_it.get('packageForm') or '').lower()
-                    del_table = table_opk if old_src == 'opakowanie' or old_pkg in ('packaging', 'tasma', 'taśma', 'karton') or str(old_it.get('unit')).lower() == 'szt' else table_sur
+                    old_type = delivery_pallet_type(old_it)
+                    if old_type == 'wyrob_gotowy':
+                        raise ValueError('Wyroby gotowe obsługuj przez przyjęcie z produkcji.')
+                    del_table = {'surowiec': table_sur, 'opakowanie': table_opk, 'dodatek': 'magazyn_dodatki'}[old_type]
                     cursor.execute(f"SELECT id,lokalizacja,nr_palety FROM {del_table} WHERE id=%s FOR UPDATE", (old_pid,))
                     previous = cursor.fetchone()
                     if previous and (str(previous.get('lokalizacja') or '').upper() not in ('RAMPA','OCZEKUJĄCE','OCZEKUJE') or
@@ -63,14 +65,19 @@ class ExternalDeliveryProcessor:
                 item['id'] = f"item_{idx}_{int(__import__('datetime').datetime.now().timestamp())}"
 
             product_name = item.get('productName') or 'Brak nazwy'
-            nr_palety = item.get('nr_palety')
+            nr_palety = str(item.get('nr_palety') or '').strip().upper()
+            item['nr_palety'] = nr_palety
             nr_partii = item.get('nr_partii')
-            data_produkcji = item.get('data_produkcji') or None
-            data_przydatnosci = item.get('data_przydatnosci') or None
+            data_produkcji, data_przydatnosci = validate_pallet_dates(item.get('data_produkcji'), item.get('data_przydatnosci'))
 
             pkg_val = str(item.get('packageForm') or '').strip().lower()
             unit_val = str(item.get('unit') or '').strip().lower()
-            is_packaging = pkg_val in ('packaging', 'tasma', 'taśma', 'karton') or unit_val == 'szt'
+            pallet_type = delivery_pallet_type(item)
+            if pallet_type == 'wyrob_gotowy':
+                raise ValueError('Wyroby gotowe przyjmuj przez przyjęcie z produkcji, nie jako surowiec dostawy.')
+            is_packaging = pallet_type == 'opakowanie'
+            if not is_packaging and unit_val and unit_val != 'kg':
+                raise ValueError('Ilość surowca lub dodatku podaj w kg.')
 
             if is_packaging:
                 qty = float(item.get('quantity') or item.get('unitsPerPallet') or 0)
@@ -84,30 +91,35 @@ class ExternalDeliveryProcessor:
                     pkg_form = 'Opakowanie'
             else:
                 qty = float(item.get('quantity') or item.get('netWeight') or 0)
-                pallet_type = 'surowiec'
-                target_table = table_sur
+                target_table = 'magazyn_dodatki' if pallet_type == 'dodatek' else table_sur
                 pkg_form = item.get('packageForm', 'bags')
 
             if not math.isfinite(qty) or qty <= 0:
                 raise ValueError('Ilość dostawy musi być dodatnia i skończona.')
 
+            item['type'] = pallet_type
+            item['scannedType'] = pallet_type
+            item['sourceTable'] = target_table
             item['sourceSpot'] = 'DOSTAWA'
             item['productName'] = product_name
             item['nr_partii'] = nr_partii
             item['data_produkcji'] = str(data_produkcji) if data_produkcji else ''
             item['data_przydatnosci'] = str(data_przydatnosci) if data_przydatnosci else ''
             item['quantity'] = qty
-            item['netWeight'] = qty if pallet_type == 'surowiec' else 0
+            item['netWeight'] = qty if pallet_type != 'opakowanie' else 0
             item['unitsPerPallet'] = qty if pallet_type == 'opakowanie' else 0
             item['typ_opakowania'] = pkg_form
             item['pallet_status'] = 'AWAITING_LABEL'
 
             source_pallet_id = item.get('sourcePalletId')
-            if not source_pallet_id and nr_palety:
-                cursor.execute(f"SELECT id FROM {target_table} WHERE nr_palety = %s LIMIT 1", (nr_palety,))
-                p_exist = cursor.fetchone()
-                if p_exist:
-                    raise ValueError('Kod palety już istnieje w magazynie. Dostawa nie może nadpisać jej stanu.')
+            old = old_by_id.get(str(item.get('id')))
+            if source_pallet_id and old and delivery_pallet_type(old) != pallet_type:
+                raise ValueError('Nie można zmienić typu zarejestrowanej palety. Usuń pozycję roboczą i dodaj właściwą.')
+            # A draft may wait for its first SSCC at the label step.
+            if nr_palety:
+                ensure_unique_stock_code(cursor, nr_palety,
+                                         exclude=(target_table, source_pallet_id) if source_pallet_id else None,
+                                         active_only=False)
 
             if source_pallet_id:
                 cursor.execute(f"SELECT id,nr_palety,lokalizacja FROM {target_table} WHERE id=%s FOR UPDATE", (source_pallet_id,))

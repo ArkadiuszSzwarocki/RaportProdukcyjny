@@ -5,3 +5,5 @@ from .api_actions import *
 from .pallets import *
 from .settings import *
 from .mixowanie import *
+
+from .document_monitoring import *

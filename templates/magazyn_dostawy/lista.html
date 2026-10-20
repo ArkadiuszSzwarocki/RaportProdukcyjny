@@ -727,6 +727,9 @@
             </h1>
         </div>
         <div class="transfer-hero-actions">
+            {% if session.get('rola','')|lower == 'masteradmin' %}
+            <a href="{{ url_for('magazyn_dostawy.movement_print_history') }}" class="btn-transfer-secondary" title="Kto i kiedy kliknął Drukuj">Historia wydruków</a>
+            {% endif %}
             <button type="button" class="btn-transfer-secondary btn-transfer-icon" onclick="triggerWarehouseDailyReport()" title="Wyślij raport dzienny" aria-label="Wyślij raport dzienny">
                 <span class="material-icons" style="font-size:18px; color:#2563eb;">send</span>
             </button>

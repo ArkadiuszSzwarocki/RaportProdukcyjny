@@ -2,6 +2,7 @@
 from flask import current_app, g, jsonify, request, session
 from app.core.production_permissions import _page_allowed
 from app.db import get_db_connection, get_table_name
+from app.core.shared_raw_stock_permissions import is_shared_raw_resource, shared_raw_stock_allowed
 
 
 def scanner_resource_read_allowed(resource):
@@ -10,6 +11,9 @@ def scanner_resource_read_allowed(resource):
         return request.endpoint in {'scanner.label', 'scanner.label_location'}
     payload = request.get_json(silent=True) if request.is_json else {}
     payload = payload if isinstance(payload, dict) else {}
+    context_line = payload.get('linia') or request.args.get('linia') or 'AGRO'
+    if is_shared_raw_resource(resource):
+        return shared_raw_stock_allowed(resource, context_line, write=False)
     line = str(resource.get('linia') or payload.get('linia') or
                request.args.get('linia') or 'AGRO').strip().upper()
     return line in {'PSD', 'AGRO', 'OSIP'} and _page_allowed(line, 'magazyn', write=False)
@@ -66,6 +70,13 @@ def enforce_scanner_permissions():
                 g.warehouse_resource = {'table': table, 'id': row['id'], 'nr_palety': row.get('nr_palety')}
         if not row:
             return jsonify(success=False, error='pallet_not_found'), 404
+        raw_stock = (endpoint != 'scanner.restore_pallet' and table == 'magazyn_surowce') or (
+            endpoint == 'scanner.restore_pallet' and str(row.get('typ_palety') or row.get('typ') or row.get('type') or '').casefold() == 'surowiec')
+        if raw_stock:
+            resource = dict(row, lokalizacja=row.get('lokalizacja_ostatnia')) if endpoint == 'scanner.restore_pallet' else row
+            if not shared_raw_stock_allowed(resource, line, write=True):
+                return jsonify(success=False, error='forbidden'), 403
+            return None
         resource_line = str(row.get('linia') or line).strip().upper()
         if resource_line != line:
             # Shared stock retains its source hall when issued to another line.

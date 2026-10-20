@@ -18,6 +18,12 @@ def run_daily_reports(now):
     # Daemon supplies an aware clock. Explicit zone avoids host-dependent schedules.
     now = now.astimezone(ZoneInfo('Europe/Warsaw'))
     date_str = now.strftime('%Y-%m-%d')
+    # The standalone QNAP report owner also calls this entry point directly.
+    from flask import current_app, has_app_context
+    if has_app_context():
+        from app.services.warehouse_reports.completed_movement_mailer import CompletedMovementMailer
+        CompletedMovementMailer.kick(current_app._get_current_object())
+
     from app.services.auto_report_service import AutoReportService
     from app.services.auto_report.auto_report_history_service import AutoReportHistoryService
     from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository

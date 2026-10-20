@@ -431,7 +431,11 @@ def api_workflow_etykiety(dostawa_id):
                 continue
             pkg_val = str(it.get('packageForm') or '').strip().lower()
             unit_val = str(it.get('unit') or '').strip().lower()
-            p_type = 'opakowanie' if pkg_val in ('packaging', 'tasma', 'taśma', 'karton') or unit_val == 'szt' else 'surowiec'
+            from app.utils.pallet_receipt_rules import delivery_pallet_type, ensure_unique_stock_code
+            p_type = delivery_pallet_type(it)
+            if p_type == 'wyrob_gotowy':
+                raise ValueError('Wyroby gotowe przyjmuj przez przyjęcie z produkcji.')
+            previous_code = str(it.get('nr_palety') or '').strip().upper()
             if not it.get('nr_palety'):
                 it['nr_palety'] = generate_pallet_id(linia, type=p_type)
             it['sscc_generated_at'] = now_str
@@ -441,7 +445,18 @@ def api_workflow_etykiety(dostawa_id):
             nr_p = it.get('nr_palety')
             if nr_p:
                 source_pallet_id = it.get('sourcePalletId')
-                target_table = get_table_name('magazyn_opakowania' if p_type == 'opakowanie' else 'magazyn_surowce', linia)
+                target_table = 'magazyn_dodatki' if p_type == 'dodatek' else get_table_name('magazyn_opakowania' if p_type == 'opakowanie' else 'magazyn_surowce', linia)
+                if not source_pallet_id:
+                    raise ValueError('Brak fizycznej pozycji roboczej dostawy. Zapisz dostawę ponownie.')
+                cursor.execute(f'SELECT nr_palety, lokalizacja FROM {target_table} WHERE id=%s FOR UPDATE', (source_pallet_id,))
+                stock = cursor.fetchone()
+                if not stock or str(stock.get('nr_palety') or '').strip().upper() != previous_code:
+                    raise ValueError('Pozycja dostawy nie odpowiada fizycznej palecie.')
+                if str(stock.get('lokalizacja') or '').upper() not in {'RAMPA', 'OCZEKUJĄCE', 'OCZEKUJE'}:
+                    raise ValueError('Paleta opuściła strefę roboczą dostawy.')
+                nr_p = ensure_unique_stock_code(cursor, nr_p, exclude=(target_table, source_pallet_id), active_only=False)
+                it['nr_palety'] = nr_p
+                it['sourceTable'] = target_table
                 qty = float(it.get('quantity') or it.get('netWeight') or it.get('unitsPerPallet') or 0)
                 if source_pallet_id:
                     cursor.execute(
@@ -481,7 +496,7 @@ def api_workflow_etykiety(dostawa_id):
                     qty = float(it.get('quantity') or it.get('netWeight') or 0)
                     it_pkg = str(it.get('packageForm') or '').strip().lower()
                     it_unit = str(it.get('unit') or '').strip().lower()
-                    p_type_print = 'opakowanie' if it_pkg in ('packaging', 'tasma', 'taśma', 'karton') or it_unit == 'szt' else 'surowiec'
+                    p_type_print = delivery_pallet_type(it)
                     payload = PalletPrintDispatcher.build_pallet_payload(
                         printer_name, printer_ip,
                         p_type_print,

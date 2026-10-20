@@ -44,20 +44,7 @@ class AcceptanceService:
 
     @staticmethod
     def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None, expected_status=None, strict_putaway=False):
-            def _clean_date(d_str):
-                if not d_str: return None
-                s = str(d_str).strip()
-                if not s: return None
-                if re.match(r'^\d{4}-\d{2}-\d{2}$', s): return s
-                try:
-                    from dateutil import parser
-                    return parser.parse(s).strftime('%Y-%m-%d')
-                except Exception:
-                    return None
-            
-            data_produkcji = _clean_date(data_produkcji)
-            data_przydatnosci = _clean_date(data_przydatnosci)
-
+            from app.utils.pallet_receipt_rules import validate_pallet_dates, delivery_pallet_type, ensure_unique_stock_code
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
@@ -81,20 +68,10 @@ class AcceptanceService:
                 if not is_valid:
                     return False, error_msg
 
-                # Sprawdzenie ze słownikiem dozwolonych lokalizacji
-                try:
-                    cursor.execute("SELECT nazwa FROM magazyn_dozwolone_lokalizacje")
-                    dozwolone = [row['nazwa'].upper() for row in cursor.fetchall()]
-                    if dozwolone:
-                        is_dict_valid = False
-                        for dozw_lok in dozwolone:
-                            if lokalizacja.startswith(dozw_lok):
-                                is_dict_valid = True
-                                break
-                        if not is_dict_valid:
-                            return False, f"Lokalizacja '{lokalizacja}' nie występuje w dozwolonym słowniku (Baza: Ustawienia).", None
-                except Exception as e:
-                    print(f"Błąd ładowania słownika lokalizacji: {e}")
+                from app.utils.location_validator import validate_registered_warehouse_location
+                valid, error = validate_registered_warehouse_location(cursor, lokalizacja)
+                if not valid:
+                    return False, error, None
 
                 items = json.loads(dostawa['items'] or '[]')
                 linia = dostawa['linia']
@@ -166,10 +143,10 @@ class AcceptanceService:
                     table_got = source_table_hint
 
                 product_name = target.get('productName') or 'Brak nazwy'
-                p_type_scanned = str(target.get('scannedType') or target.get('type') or '').strip().lower()
+                p_type_scanned = delivery_pallet_type(target)
                 pkg_form_raw = str(target.get('packageForm') or '').strip().lower()
                 unit_raw = str(target.get('unit') or '').strip().lower()
-                is_opk_pkg = pkg_form_raw in ('packaging', 'tasma', 'taśma', 'karton') or unit_raw == 'szt' or p_type_scanned == 'opakowanie'
+                is_opk_pkg = p_type_scanned == 'opakowanie'
 
                 # Resolve legacy/inconsistent documents by the physical SSCC
                 # (or source id), not by the document line. This prevents an
@@ -178,6 +155,8 @@ class AcceptanceService:
                 if source_identity and not source_table_hint:
                     if p_type_scanned in ('wyrob_gotowy', 'wyrób gotowy', 'wyrob gotowy', 'magazyn', 'produkcja'):
                         table_candidates, qty_column = sorted(allowed_got), 'waga_netto'
+                    elif p_type_scanned == 'dodatek':
+                        table_candidates, qty_column = ['magazyn_dodatki'], 'stan_magazynowy'
                     elif is_opk_pkg:
                         table_candidates, qty_column = sorted(allowed_opk), 'stan_magazynowy'
                     else:
@@ -213,7 +192,7 @@ class AcceptanceService:
                             table_got = source_table_hint
 
                 # Reuse existing nr_palety if this was a transfer, otherwise generate new
-                nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=('opakowanie' if is_opk_pkg else 'surowiec'))
+                nr_palety = target.get('nr_palety') or generate_pallet_id(linia, type=p_type_scanned)
                 if not is_external:
                     physical_table = (table_opk if is_opk_pkg else ('magazyn_dodatki' if p_type_scanned == 'dodatek' else
                                       (table_got if p_type_scanned in ['wyrob_gotowy', 'magazyn', 'produkcja'] else table_sur)))
@@ -231,11 +210,12 @@ class AcceptanceService:
                 else:
                     pkg_form = target.get('packageForm', 'bags') # bags or big_bag
                 nr_partii = nr_partii or target.get('nr_partii') or None
-                data_produkcji = data_produkcji or _clean_date(target.get('data_produkcji'))
-                data_przydatnosci = data_przydatnosci or _clean_date(target.get('data_przydatnosci'))
+                data_produkcji, data_przydatnosci = validate_pallet_dates(
+                    data_produkcji if data_produkcji is not None else target.get('data_produkcji'),
+                    data_przydatnosci if data_przydatnosci is not None else target.get('data_przydatnosci'))
 
                 open_locations = ['MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MDM01', 'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD', 'R09']
-                is_open = any(lokalizacja.upper().startswith(ol) for ol in open_locations)
+                is_open = lokalizacja.upper() in open_locations or lokalizacja.upper().startswith('R09')
 
                 if not is_open:
                     from app.utils.location_validator import is_rack_location, check_rack_location_availability
@@ -260,7 +240,35 @@ class AcceptanceService:
                 pallet_id = None
                 source_pallet_id = target.get('sourcePalletId')
 
-                raw_qty = target.get('unitsPerPallet') or target.get('quantity') or target.get('netWeight') or target.get('ilosc') or 0
+                physical_table = (table_opk if is_opk_pkg else 'magazyn_dodatki' if p_type_scanned == 'dodatek' else
+                                  table_got if p_type_scanned == 'wyrob_gotowy' else table_sur)
+                if physical_table == 'magazyn_palety_agro':
+                    physical_table = table_got = 'magazyn_palety'
+                # Serialize all receipts before resolving the existing physical row.
+                from app.utils.pallet_receipt_rules import lock_receipt_registry
+                lock_receipt_registry(cursor)
+                active_filter = '' if is_external else (' AND waga_netto>0' if physical_table == table_got else ' AND stan_magazynowy>0')
+                cursor.execute(f'SELECT id FROM {physical_table} WHERE UPPER(TRIM(nr_palety))=%s{active_filter} FOR UPDATE',
+                               (str(nr_palety).strip().upper(),))
+                physical_rows = cursor.fetchall()
+                if len(physical_rows) > 1:
+                    raise ValueError('Niejednoznaczny SSCC w docelowej kartotece.')
+                existing_id = physical_rows[0]['id'] if physical_rows else None
+                if is_external and existing_id is None and source_pallet_id:
+                    cursor.execute(f'SELECT nr_palety, lokalizacja FROM {physical_table} WHERE id=%s FOR UPDATE', (source_pallet_id,))
+                    staging = cursor.fetchone()
+                    if staging and not str(staging.get('nr_palety') or '').strip() and str(staging.get('lokalizacja') or '').upper() in {'RAMPA', 'OCZEKUJĄCE', 'OCZEKUJE'}:
+                        existing_id = source_pallet_id
+                if is_external and existing_id is not None and (not source_pallet_id or str(existing_id) != str(source_pallet_id)):
+                    raise ValueError('SSCC należy do innej palety niż robocza pozycja tej dostawy.')
+                if is_external and source_pallet_id and str(existing_id) != str(source_pallet_id):
+                    raise ValueError('Identyfikator palety nie odpowiada numerowi SSCC.')
+                nr_palety = ensure_unique_stock_code(cursor, nr_palety,
+                    exclude=(physical_table, existing_id) if existing_id is not None else None)
+                if PalletLockManager.has_quality_or_manual_block(cursor, nr_palety):
+                    raise ValueError('Paleta ma blokadę LAB lub ręczną. Przyjęcie zostało zatrzymane.')
+
+                raw_qty = (target.get('unitsPerPallet') if is_opk_pkg else None) or target.get('quantity') or target.get('netWeight') or target.get('ilosc') or 0
                 qty = float(raw_qty) if raw_qty else 0.0
                 if not math.isfinite(qty) or (is_external and qty <= 0):
                     return False, 'Ilość przyjęcia musi być dodatnia i skończona.', None
@@ -442,6 +450,9 @@ class AcceptanceService:
                         dostawa_id
                     )
                 )
+                if all_processed:
+                    from app.repositories.movement_document_repository import MovementDocumentRepository
+                    MovementDocumentRepository.queue_completed(conn, 'delivery', dostawa_id)
                 conn.commit()
                 
                 # Label dispatch is handled by secure_accept_item after this transaction.
@@ -498,6 +509,9 @@ class AcceptanceService:
                            (json.dumps(items),'COMPLETED' if complete else 'OCZEKUJE',
                             complete,login,complete,delivery['id']))
             PalletLockManager.set_pallets_blocked(cursor,received,0,exclude_delivery_id=delivery['id'])
+            if complete:
+                from app.repositories.movement_document_repository import MovementDocumentRepository
+                MovementDocumentRepository.queue_completed(connection, 'delivery', delivery['id'])
 
     @staticmethod
     def auto_accept_by_pallet_no(nr_palety, nowa_lokalizacja, login):
@@ -612,6 +626,9 @@ class AcceptanceService:
                         dostawa_id,
                     )
                 )
+                if all_processed:
+                    from app.repositories.movement_document_repository import MovementDocumentRepository
+                    MovementDocumentRepository.queue_completed(conn, 'delivery', dostawa_id)
                 conn.commit()
 
                 return True, "", {

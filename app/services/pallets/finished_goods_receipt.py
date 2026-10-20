@@ -24,9 +24,13 @@ class FinishedGoodsReceipt:
         # goods have one physical register, regardless of the production line.
         # Do not query the historical AGRO view: it exposes the same records.
         table = get_table_name('magazyn_palety', line)
-        cursor.execute(f'SELECT id FROM {table} WHERE UPPER(nr_palety)=%s AND waga_netto>0 FOR UPDATE', (code,))
-        if cursor.fetchall():
-            raise ValueError(f'Paleta {code} ma już dodatni stan magazynowy; sprawdź wcześniejsze przyjęcie.')
+        from app.utils.pallet_receipt_rules import ensure_unique_stock_code, validate_pallet_dates
+        from app.utils.location_validator import validate_registered_warehouse_location
+        ensure_unique_stock_code(cursor, code)
+        valid, error = validate_registered_warehouse_location(cursor, location)
+        if not valid:
+            raise ValueError(error)
+        production_date, expiry = validate_pallet_dates(production_date, expiry)
         from app.utils.location_validator import check_rack_location_availability
         available, error = check_rack_location_availability(location,current_nr_palety=code,product_name=product,cursor=cursor)
         if not available:

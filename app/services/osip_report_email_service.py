@@ -14,6 +14,7 @@ import threading
 import json
 from datetime import datetime, date
 from app.db import get_db_connection
+from app.services.warehouse_reports.completed_movement_mailer import document_mail_guard
 from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
 from app.services.warehouse_reports.warehouse_document_classifier import WarehouseDocumentClassifier
 from app.services.warehouse_reports.warehouse_status_resolver import WarehouseStatusResolver
@@ -139,6 +140,7 @@ class OsipReportEmailService:
         return WarehouseEmailTemplateBuilder.build_daily_summary_report_html(date_str, activity_data)
 
     # --- WYSYŁKA POJEDYNCZEGO TRANSFERU OSIP ---
+    @document_mail_guard('osip')
     def send_osip_transfer_report(self, transfer_id: Any) -> Tuple[bool, str]:
         """Wysyła raport e-mail po przyjęciu transferu (w tym OSIP) wraz z załącznikiem PDF."""
         dispatch_key = f"transfer_{transfer_id}"
@@ -154,12 +156,15 @@ class OsipReportEmailService:
             if not transfer:
                 return False, f"Nie znaleziono transferu o ID/kodzie: {transfer_id}"
 
+            if str(transfer.status).upper() != 'COMPLETED':
+                return False, 'Raport można wysłać dopiero po zakończeniu przesunięcia.'
+
             if getattr(transfer, 'email_sent_at', None):
                 sent_at = transfer.email_sent_at
                 sent_str = sent_at.strftime('%Y-%m-%d %H:%M') if hasattr(sent_at, 'strftime') else str(sent_at)
                 return False, f"Raport e-mail dla transferu {transfer.transfer_code} został już wcześniej wysłany ({sent_str})."
 
-            config = self.settings_repo.get_settings()
+            config = WarehouseSystemSenderResolver().resolve(self.settings_repo.get_settings())
             if not config.is_active:
                 return False, "Moduł wysyłki e-mail jest wyłączony w ustawieniach."
 
@@ -210,6 +215,7 @@ class OsipReportEmailService:
                 self._active_dispatches.discard(dispatch_key)
 
     # --- WYSYŁKA POJEDYNCZEJ DOSTAWY / PRZESUNIĘCIA ---
+    @document_mail_guard('delivery')
     def send_central_delivery_osip_report(self, dostawa_id: Any) -> Tuple[bool, str]:
         """Wysyła raport e-mail po przyjęciu dostawy lub przesunięcia MM wraz z załącznikiem PDF."""
         dispatch_key = f"delivery_{dostawa_id}"
@@ -232,6 +238,9 @@ class OsipReportEmailService:
             if not dostawa:
                 return False, f"Nie znaleziono przesunięcia/dostawy o ID: {dostawa_id}"
 
+            if str(dostawa.get('status') or '').upper() != 'COMPLETED':
+                return False, 'Raport można wysłać dopiero po zakończeniu dokumentu.'
+
             if dostawa.get('email_sent_at'):
                 sent_at = dostawa.get('email_sent_at')
                 sent_str = sent_at.strftime('%Y-%m-%d %H:%M') if hasattr(sent_at, 'strftime') else str(sent_at)
@@ -242,12 +251,7 @@ class OsipReportEmailService:
             except Exception:
                 items = []
 
-            if self.is_production_movement(dostawa, items):
-                return False, f"Dokument #{dostawa_id} dotyczy przesunięcia z produkcji — pominięto wysyłkę e-mail."
-            if self.is_internal_mp01_movement(dostawa, items):
-                return False, f"Dokument #{dostawa_id} dotyczy przesunięcia wewnątrz strefy MP01 — pominięto wysyłkę e-mail."
-
-            config = self.settings_repo.get_settings()
+            config = WarehouseSystemSenderResolver().resolve(self.settings_repo.get_settings())
             if not config.is_active:
                 return False, "Moduł wysyłki e-mail jest wyłączony w ustawieniach."
             if not config.is_configured:

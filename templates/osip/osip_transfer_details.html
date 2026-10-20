@@ -991,4 +991,13 @@ async function sendOsipTransferReportEmail(transferId) {
     }
 }
 </script>
+
+<div style="display:flex;gap:12px;margin:16px 0">
+    <button type="button" class="btn btn-primary" onclick="printMovementReport()">Drukuj przesunięcie</button>
+    {% if session.get('rola','')|lower == 'masteradmin' %}
+    <a class="btn btn-secondary" href="{{ url_for('magazyn_dostawy.movement_print_history',q=transfer.transfer_code) }}">Historia wydruków</a>
+    {% endif %}
+</div>
+<script type="application/json" id="movement-print-audit">{{ [{'kind':'osip','id':transfer.id|string}]|tojson }}</script>
+<script src="{{ url_for('static',filename='js/movement-print-audit.js') }}"></script>
 {% endblock %}

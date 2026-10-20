@@ -174,7 +174,7 @@
             </div>
         </div>
         <div style="display: flex; gap: 10px;">
-            <button class="print-btn" onclick="window.print()">
+            <button class="print-btn" onclick="printMovementReport()">
                 <span>🖨️</span> Drukuj teraz (Ctrl+P)
             </button>
             <button onclick="window.close()" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 18px; font-weight: 700; cursor: pointer; color: #475569;">
@@ -421,11 +421,13 @@
     </div>
     {% endfor %}
 
+    <script type="application/json" id="movement-print-audit">{{ print_documents|tojson }}</script>
+    <script src="{{ url_for('static',filename='js/movement-print-audit.js') }}"></script>
     <script>
         {% if auto_print %}
         window.addEventListener('load', function() {
             setTimeout(function() {
-                window.print();
+                printMovementReport('auto');
             }, 350);
         });
         {% endif %}

@@ -204,6 +204,8 @@ class LiveTransferService:
                 SET status = 'COMPLETED', potwierdzone_przez = %s, potwierdzone_at = NOW()
                 WHERE id = %s
             """, (login, dostawa_id))
+            from app.repositories.movement_document_repository import MovementDocumentRepository
+            MovementDocumentRepository.queue_completed(conn, 'delivery', dostawa_id)
             conn.commit()
             return True, "Zlecenie zostało pomyślnie zamknięte (status: COMPLETED)"
         except Exception as e:

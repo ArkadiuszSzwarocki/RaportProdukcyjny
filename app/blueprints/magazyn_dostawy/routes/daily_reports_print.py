@@ -87,6 +87,8 @@ def print_daily_report_stream():
         deliveries=filtered_deliveries,
         transfers=filtered_transfers,
         auto_print=auto_print,
+        print_documents=[{'kind': 'osip' if d.get('doc_type') == 'TRANSFER_OSIP' else 'delivery', 'id': str(d['id'])}
+                         for d in filtered_deliveries + filtered_transfers],
         service=service
     )
 
