@@ -213,6 +213,13 @@ def _maybe_start_background_daemons(app, is_reloader_parent):
     start_report_scheduler(app)
 
     default_enabled = not _is_production()
+    if _env_bool('ENABLE_MQTT_BRIDGE', _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)):
+        from app.services.mqtt_service import start_mqtt_bridge
+        try:
+            start_mqtt_bridge()
+        except Exception:
+            app.logger.exception('Failed to start MQTT bridge')
+
     enabled = _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)
     if not enabled:
         app.logger.info('Background daemons disabled for this process')

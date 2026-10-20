@@ -44,7 +44,9 @@ def enforce_scanner_permissions():
             cursor.execute(f'SELECT * FROM magazyn_archiwum WHERE {column}=%s', (identifier,))
             row = cursor.fetchone()
         else:
-            kind = payload.get('pallet_type') if endpoint == 'scanner.dispatch' else payload.get('type')
+            if endpoint == 'scanner.dispatch' and payload.get('type') and payload.get('pallet_type') and payload['type'] != payload['pallet_type']:
+                return jsonify(success=False, error='pallet_type_mismatch'), 400
+            kind = (payload.get('type') or payload.get('pallet_type')) if endpoint == 'scanner.dispatch' else payload.get('type')
             kind = kind or 'Surowiec'
             if kind == 'TRANSFER':
                 kind = 'Surowiec'
@@ -64,8 +66,12 @@ def enforce_scanner_permissions():
                 g.warehouse_resource = {'table': table, 'id': row['id'], 'nr_palety': row.get('nr_palety')}
         if not row:
             return jsonify(success=False, error='pallet_not_found'), 404
-        if str(row.get('linia') or line).upper() != line:
-            return jsonify(success=False, error='forbidden'), 403
+        resource_line = str(row.get('linia') or line).strip().upper()
+        if resource_line != line:
+            # Shared stock retains its source hall when issued to another line.
+            # Authorize the stock and destination independently using stored data.
+            if endpoint != 'scanner.dispatch' or resource_line not in {'PSD', 'AGRO', 'OSIP'} or not _page_allowed(resource_line, 'magazyn', write=True):
+                return jsonify(success=False, error='forbidden'), 403
     except Exception:
         current_app.logger.exception('Scanner resource authorization failed closed')
         return jsonify(success=False, error='authorization_unavailable'), 503
