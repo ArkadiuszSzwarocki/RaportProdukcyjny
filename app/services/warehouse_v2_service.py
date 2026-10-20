@@ -1,3 +1,4 @@
+# cspell:words przyd
 from flask import g, has_request_context
 import re
 import math

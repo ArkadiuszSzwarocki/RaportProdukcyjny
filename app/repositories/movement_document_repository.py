@@ -1,3 +1,4 @@
+# cspell:words PRZESUNI
 """Durable print requests and one completion notification per warehouse document."""
 import threading
 import json

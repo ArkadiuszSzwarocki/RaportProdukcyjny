@@ -1,3 +1,4 @@
+# cspell:words PRZESUNI
 """
 Moduł odpowiedzialny za klasyfikację dokumentów magazynowych oraz weryfikację stref i tras.
 """
