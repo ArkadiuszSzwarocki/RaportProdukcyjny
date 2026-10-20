@@ -352,7 +352,7 @@ async function doMoveFromMainInput(loc) {
           surowiec_nazwa: currentPallet.nazwa || currentPallet.produkt || '',
           surowiec_id: currentPallet.id,
           pallet_type: currentPallet.inventory_type || 'Surowiec',
-          linia: currentPallet.linia || (typeof LINIA !== 'undefined' ? LINIA : 'AGRO')
+          linia: (typeof LINIA !== 'undefined' ? LINIA : 'AGRO')
         })
       });
       const vData = await vRes.json();
@@ -371,6 +371,9 @@ async function doMoveFromMainInput(loc) {
       }
     } catch (err) {
       console.error('Błąd walidacji stacji:', err);
+      setProcessingState(false);
+      showToast('Nie udało się sprawdzić przypisania surowca do stacji. Spróbuj ponownie.', 'danger');
+      return;
     }
     
     setProcessingState(false);
@@ -456,7 +459,9 @@ function doFinalDispatch() {
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({
       surowiec_id: currentPallet.id,
+      nr_palety: currentPallet.nr_palety || currentPallet.sscc,
       type: currentPallet.inventory_type,
+      pallet_type: currentPallet.inventory_type,
       ilosc: qty,
       linia: (typeof LINIA !== 'undefined' ? LINIA : 'AGRO'),
       zbiornik: pendingProductionLoc,

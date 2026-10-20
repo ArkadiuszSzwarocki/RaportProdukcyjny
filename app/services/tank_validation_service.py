@@ -55,7 +55,7 @@ class TankValidationService:
             if is_rule_active and assigned_material and current_prod_material:
                 norm_assigned = _normalize_name_for_comparison(assigned_material)
                 norm_current = _normalize_name_for_comparison(current_prod_material)
-                if norm_assigned != norm_current and norm_assigned not in norm_current and norm_current not in norm_assigned:
+                if norm_assigned != norm_current:
                     is_mismatch = True
 
             items.append({
@@ -229,8 +229,8 @@ class TankValidationService:
         if not norm_scanned:
             return False, f"BŁĄD: Brak nazwy skanowanego surowca do weryfikacji ze zbiornikiem {norm_tank}."
 
-        # Strict match or substring match
-        if norm_assigned == norm_scanned or norm_assigned in norm_scanned or norm_scanned in norm_assigned:
+        # A shared word or a partial name does not identify the assigned material.
+        if norm_assigned == norm_scanned:
             return True, None
 
         # Disallow dispatch

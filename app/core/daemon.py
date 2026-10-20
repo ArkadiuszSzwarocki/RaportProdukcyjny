@@ -6,7 +6,6 @@ import time
 import threading
 from datetime import datetime, timedelta
 from flask import current_app
-from app.services.mqtt_service import start_mqtt_bridge
 
 # Global set to track reminded palety to avoid duplicate log entries
 _reminded_palety = set()
@@ -733,12 +732,6 @@ def start_daemon_threads(app, cleanup_enabled=False):
         _safe_log_info('Started Print Jobs Cleanup daemon thread')
     except Exception:
         _safe_log_exception('Failed to start Print Jobs cleanup thread')
-
-    # Start MQTT Cloud Bridge (Server-side proxy)
-    try:
-        start_mqtt_bridge()
-    except Exception:
-        _safe_log_exception('Failed to start MQTT bridge')
 
     # Start AGRO Pallet Auto-Register thread
     try:

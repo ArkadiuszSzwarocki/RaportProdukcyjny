@@ -231,7 +231,7 @@ def validate_station():
 def dispatch():
     data = request.get_json(silent=True) or {}
     surowiec_id = data.get('surowiec_id')
-    pallet_type = data.get('type')
+    pallet_type = data.get('type') or data.get('pallet_type')
     ilosc       = data.get('ilosc')
     linia       = data.get('linia', 'AGRO')
     plan_id     = data.get('plan_id')
