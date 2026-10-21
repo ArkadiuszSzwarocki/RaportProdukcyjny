@@ -37,8 +37,7 @@ def log_request_info(app):
     def middleware():
         try:
             path = request.path or ''
-            static_path = path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/.well-known')
-            if static_path and response.status_code in (200, 206, 304):
+            if path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/.well-known'):
                 return None
             full_path = getattr(request, 'full_path', None) or path
             app.logger.debug('Incoming request: %s %s', request.method, full_path)
