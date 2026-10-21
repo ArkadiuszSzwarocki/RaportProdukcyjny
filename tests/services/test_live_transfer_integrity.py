@@ -1,7 +1,7 @@
 # cspell:words putaway
 """Regression scenarios for transfer document integrity."""
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -94,7 +94,9 @@ def test_close_resolved_transfer_preserves_quality_and_later_reservations(transf
     conn, cursor, locks = transfer_db
     cursor.fetchone.return_value['items'] = json.dumps([
         {'id': 'a', 'accepted': True}, {'id': 'b', 'rejected': True}])
-    assert module.LiveTransferService.close_live_transfer('doc')[0]
+    with patch('app.repositories.movement_document_repository.MovementDocumentRepository.queue_completed') as queued:
+        assert module.LiveTransferService.close_live_transfer('doc')[0]
+    queued.assert_called_once_with(conn,'delivery','doc')
     conn.commit.assert_called_once()
     locks.assert_not_called()
 

@@ -11,13 +11,13 @@ from app.core.scanner_permissions import enforce_scanner_permissions
 @pytest.mark.parametrize('source_allowed,target_allowed,expected', [
     (True, True, 200), (False, True, 403), (True, False, 403),
 ])
-def test_shared_stock_dispatch_checks_both_halls(role, source_allowed, target_allowed, expected):
+def test_shared_stock_dispatch_checks_physical_warehouse_and_destination(role, source_allowed, target_allowed, expected):
     app = Flask(__name__)
     app.secret_key = 'isolated-test-key'
     app.add_url_rule('/agro/scanner/dispatch', endpoint='scanner.dispatch', view_func=lambda: None, methods=['POST'])
     connection = MagicMock()
     connection.cursor.return_value.fetchone.return_value = {
-        'id': 123, 'nr_palety': 'TEST-123', 'linia': 'PSD',
+        'id': 123, 'nr_palety': 'TEST-123', 'linia': 'AGRO', 'lokalizacja': 'MS01',
     }
     checks = []
 
@@ -31,7 +31,8 @@ def test_shared_stock_dispatch_checks_both_halls(role, source_allowed, target_al
     }):
         session.update(rola=role, zalogowany=True)
         with patch('app.core.scanner_permissions.get_db_connection', return_value=connection), patch(
-                'app.core.scanner_permissions._page_allowed', side_effect=allowed):
+                'app.core.scanner_permissions._page_allowed', side_effect=allowed), patch(
+                'app.core.shared_raw_stock_permissions._page_allowed', side_effect=allowed):
             result = enforce_scanner_permissions()
         response = app.make_response(result if result is not None else jsonify(success=True))
         assert response.status_code == expected

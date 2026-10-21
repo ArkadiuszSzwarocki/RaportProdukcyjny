@@ -116,11 +116,11 @@ def test_authorized_move_uses_validated_hall(warehouse_context):
     connection.close.assert_called_once()
 
 
-def test_record_in_another_hall_is_rejected(warehouse_context):
+def test_raw_stock_ignores_legacy_line_when_warehouse_is_authorized(warehouse_context):
     client, connection, _, move = warehouse_context
     connection.cursor.return_value.fetchone.return_value['linia'] = 'AGRO'
-    assert post_move(client).status_code == 403
-    move.assert_not_called()
+    assert post_move(client).status_code == 200
+    move.assert_called_once()
 
 
 def test_missing_record_cannot_trigger_cross_hall_fallback(warehouse_context):
@@ -266,6 +266,7 @@ def test_removed_verified_pallet_cannot_fall_back_to_foreign_stock(app, module, 
     connection = MagicMock()
     cursor = connection.cursor.return_value
     cursor.fetchone.return_value = None
+    cursor.fetchall.return_value = [{'nazwa':'MGW02'}]
     with app.test_request_context('/'), patch(module + '.get_db_connection', return_value=connection):
         g.warehouse_resource = {'table': 'magazyn_palety', 'id': 123, 'nr_palety': 'TEST-123'}
         if operation == 'move_pallet':

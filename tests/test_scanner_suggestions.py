@@ -4,14 +4,14 @@ from app.services.scanner.scanner_lookup_service import ScannerLookupService
 from app.services.scanner.scanner_suggestions_service import find_pallet_suggestions
 
 
-def test_inventory_lookup_uses_stored_hall_for_shared_stock():
+def test_inventory_lookup_does_not_assign_a_production_owner_to_raw_stock():
     cursor = MagicMock()
-    cursor.fetchone.return_value = {'id': 3387, 'linia': 'PSD'}
+    cursor.fetchone.return_value = {'id': 3387, 'linia': None}
     row = ScannerLookupService.lookup_inventory_row(cursor, 'magazyn_surowce', 'AGRO',
                                                   qty_col='stan_magazynowy', pallet_no='SUR123456')
-    assert row['linia'] == 'PSD'
+    assert row['linia'] is None
     sql = cursor.execute.call_args.args[0]
-    assert "COALESCE(NULLIF(linia, ''), 'AGRO') AS linia" in sql
+    assert "NULL AS linia" in sql
 
 
 def test_suffix_search_returns_all_matches_and_queries_shared_tables_once():
@@ -29,7 +29,7 @@ def test_suffix_search_returns_all_matches_and_queries_shared_tables_once():
     assert cursor.execute.call_count == 4
     for call in cursor.execute.call_args_list:
         sql, params = call.args
-        assert params[1] == '%123456'
+        assert params[-1] == '%123456'
         assert '>0' in sql
         assert 'LIMIT 30' in sql
     connection.close.assert_called_once()

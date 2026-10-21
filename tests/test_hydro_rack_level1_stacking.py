@@ -1,3 +1,4 @@
+from tests.receipt_cursor_data import configure_receipt_cursor
 from unittest.mock import MagicMock, patch
 import pytest
 
@@ -23,6 +24,7 @@ def test_hydro_stacking_on_level_1_empty_slot():
     mock_conn.cursor.return_value = mock_cursor
     mock_cursor.fetchall.return_value = []
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.core.database.get_db_connection', return_value=mock_conn):
         is_valid, err = check_rack_location_availability('R010101', product_name='Hydro')
     assert is_valid is True
@@ -45,6 +47,7 @@ def test_hydro_stacking_allows_second_hydro_pallet_on_level_1():
         [],  # magazyn_palety_agro
     ]
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.core.database.get_db_connection', return_value=mock_conn):
         is_valid, err = check_rack_location_availability(
             'R010101',
@@ -69,6 +72,7 @@ def test_hydro_stacking_rejects_third_hydro_pallet_on_level_1():
         [], [], [], [], [], []
     ]
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.core.database.get_db_connection', return_value=mock_conn):
         is_valid, err = check_rack_location_availability(
             'R010101',
@@ -90,6 +94,7 @@ def test_level_1_rejects_second_pallet_if_not_hydro():
         [], [], [], [], [], []
     ]
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.core.database.get_db_connection', return_value=mock_conn):
         is_valid, err = check_rack_location_availability(
             'R010101',
@@ -111,6 +116,7 @@ def test_level_1_rejects_hydro_if_existing_pallet_is_not_hydro():
         [], [], [], [], [], []
     ]
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.core.database.get_db_connection', return_value=mock_conn):
         is_valid, err = check_rack_location_availability(
             'R010101',
@@ -132,6 +138,7 @@ def test_level_2_rejects_second_hydro_pallet():
         [], [], [], [], [], []
     ]
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.core.database.get_db_connection', return_value=mock_conn):
         is_valid, err = check_rack_location_availability(
             'R010102',
@@ -159,6 +166,7 @@ def test_acceptance_service_allows_second_hydro_pallet_on_level_1():
         'materialName': 'Hydro',
         'productName': 'Hydro',
         'unitsPerPallet': 1000,
+        'quantity': 1000,
         'packageForm': 'big_bag',
         'nr_palety': 'SUR_HYDRO_02'
     }]
@@ -170,7 +178,9 @@ def test_acceptance_service_allows_second_hydro_pallet_on_level_1():
     ]
     mock_cursor.fetchall.return_value = []
 
-    with patch('app.services.magazyn_dostawy.acceptance_service.get_db_connection', return_value=mock_conn), \
+    configure_receipt_cursor(mock_cursor)
+    with patch('app.repositories.movement_document_repository.MovementDocumentRepository.queue_completed'), \
+         patch('app.services.magazyn_dostawy.acceptance_service.get_db_connection', return_value=mock_conn), \
          patch('app.utils.location_validator.check_rack_location_availability', return_value=(True, None)), \
          patch('app.utils.surowiec_validator.is_valid_surowiec', return_value=True), \
          patch('app.services.magazyn_dostawy.acceptance_service.MovementRecorder.record_movement', return_value=True):
@@ -196,7 +206,7 @@ def test_dostawa_fallback_redirect(authenticated_client):
         'lokalizacja_z': 'MP01'
     }
 
-    with patch('app.blueprints.magazyn_dostawy.routes.transfer.get_db_connection', return_value=mock_conn), patch(
+    with patch('app.core.logistics_permissions._page_allowed', return_value=True), patch('app.blueprints.magazyn_dostawy.routes.transfer.get_db_connection', return_value=mock_conn), patch(
             'app.core.logistics_permissions.get_db_connection', return_value=mock_conn):
         res = authenticated_client.get('/magazyn-dostawy/563d2bcb-955e-4d51-b007-665aa35a9d60?linia=ALL')
     
