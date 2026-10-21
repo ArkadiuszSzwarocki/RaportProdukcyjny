@@ -1,4 +1,4 @@
-# cspell:words reportlab certifi
+# cspell:words reportlab certifi cafile pdfgen
 """Offline image checks: native libraries, reports, TLS trust and encryption."""
 from io import BytesIO
 import json

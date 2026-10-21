@@ -1,4 +1,4 @@
-# cspell:words arkadiuszszwarocki raportprodukcyjny cyclonedx
+# cspell:words arkadiuszszwarocki raportprodukcyjny cyclonedx nodev nosuid tmpfs
 name: Docker Build and Push
 
 on:
