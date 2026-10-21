@@ -1,3 +1,4 @@
+# cspell:words nontransactional
 """Warehouse receipt and completion mail boundaries, without production connections."""
 from datetime import date, timedelta
 from unittest.mock import MagicMock
