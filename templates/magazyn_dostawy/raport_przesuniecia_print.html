@@ -958,7 +958,7 @@
     }
     </script>
     <script type="application/json" id="movement-print-audit">{{ [{'kind':'delivery','id':dostawa.id|string}]|tojson }}</script>
-    <script src="{{ url_for('static',filename='js/movement-print-audit.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/movement-print-audit.js',v=static_version) }}"></script>
     {% if session.get('rola','')|lower == 'masteradmin' %}
     <p class="footer-actions"><a href="{{ url_for('magazyn_dostawy.movement_print_history',q=dostawa.order_ref or dostawa.id) }}">Historia kliknięć Drukuj</a></p>
     {% endif %}

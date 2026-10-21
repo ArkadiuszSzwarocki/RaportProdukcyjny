@@ -422,7 +422,7 @@
     {% endfor %}
 
     <script type="application/json" id="movement-print-audit">{{ print_documents|tojson }}</script>
-    <script src="{{ url_for('static',filename='js/movement-print-audit.js') }}"></script>
+    <script src="{{ url_for('static',filename='js/movement-print-audit.js',v=static_version) }}"></script>
     <script>
         {% if auto_print %}
         window.addEventListener('load', function() {

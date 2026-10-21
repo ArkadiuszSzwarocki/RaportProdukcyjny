@@ -37,7 +37,8 @@ def log_request_info(app):
     def middleware():
         try:
             path = request.path or ''
-            if path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/.well-known'):
+            static_path = path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/.well-known')
+            if static_path and response.status_code in (200, 206, 304):
                 return None
             full_path = getattr(request, 'full_path', None) or path
             app.logger.debug('Incoming request: %s %s', request.method, full_path)
@@ -175,7 +176,8 @@ def add_cache_headers(app):
     def middleware(response):
         try:
             path = request.path or ''
-            if path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/.well-known'):
+            static_path = path.startswith('/static/') or path == '/favicon.ico' or path.startswith('/.well-known')
+            if static_path and response.status_code in (200, 206, 304):
                 response.headers['Cache-Control'] = 'public, max-age=86400'
             else:
                 response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
