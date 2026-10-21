@@ -762,7 +762,7 @@
         </div>
 
         <div class="footer-actions">
-            <button onclick="window.print()" class="btn primary">🖨️ Drukuj raport (A4)</button>
+            <button onclick="printMovementReport()" class="btn primary">🖨️ Drukuj raport (A4)</button>
             <button onclick="sendOsipDeliveryReportEmail({{ dostawa.id }})" id="btnSendOsipEmail" class="btn" style="background: #2563eb; color: #ffffff; border: none; font-weight: 700;">
                 📧 Wyślij raport E-mail
             </button>
@@ -957,5 +957,10 @@
         }
     }
     </script>
+    <script type="application/json" id="movement-print-audit">{{ [{'kind':'delivery','id':dostawa.id|string}]|tojson }}</script>
+    <script src="{{ url_for('static',filename='js/movement-print-audit.js') }}"></script>
+    {% if session.get('rola','')|lower == 'masteradmin' %}
+    <p class="footer-actions"><a href="{{ url_for('magazyn_dostawy.movement_print_history',q=dostawa.order_ref or dostawa.id) }}">Historia kliknięć Drukuj</a></p>
+    {% endif %}
 </body>
 </html>

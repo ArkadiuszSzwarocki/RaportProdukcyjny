@@ -8,9 +8,15 @@ def logistics_stock_write_allowed(table, row):
     """Authorize resolved stock, including cross-hall legacy lookup fallbacks."""
     if not has_request_context():
         return True  # Trusted jobs and migrations do not run as browser requests.
+    if table in {'magazyn_surowce', 'magazyn_agro_surowce'}:
+        from app.core.shared_raw_stock_permissions import shared_raw_stock_allowed
+        payload = request.get_json(silent=True) if request.is_json else request.form
+        payload = payload if hasattr(payload, 'get') else {}
+        context_line = payload.get('linia') or request.args.get('linia') or 'AGRO'
+        return shared_raw_stock_allowed(row, context_line, write=True)
     fixed_halls = {
-        'magazyn_surowce': 'PSD', 'magazyn_opakowania': 'PSD',
-        'magazyn_agro_surowce': 'AGRO', 'magazyn_agro_opakowania': 'AGRO',
+        'magazyn_opakowania': 'PSD',
+        'magazyn_agro_opakowania': 'AGRO',
         'magazyn_palety_agro': 'AGRO',
     }
     if table == 'magazyn_dodatki':
@@ -26,6 +32,9 @@ def logistics_stock_write_allowed(table, row):
 
 
 def enforce_logistics_permissions(default_line='ALL'):
+    if request.endpoint in {'magazyn_dostawy.record_document_print', 'magazyn_dostawy.movement_print_history'}:
+        # These routes enforce per-document read ACL / MasterAdmin respectively.
+        return None
     payload = request.get_json(silent=True) if request.is_json else request.form
     if not isinstance(payload, dict) and request.is_json:
         return jsonify(success=False, error='invalid_payload'), 400

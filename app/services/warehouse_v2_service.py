@@ -1,3 +1,4 @@
+# cspell:words przyd
 from flask import g, has_request_context
 import re
 import math
@@ -82,36 +83,14 @@ class WarehouseV2Service:
             if not is_valid:
                 return False, error_msg
 
-            # Sprawdzenie ze słownikiem dozwolonych lokalizacji (jak w głównym skanerze)
-            conn_dict = get_db_connection()
-            try:
-                cur_dict = conn_dict.cursor()
-                cur_dict.execute("SELECT nazwa FROM magazyn_dozwolone_lokalizacje")
-                dozwolone = [row[0].upper() for row in cur_dict.fetchall()]
-            except Exception as e:
-                dozwolone = []
-                print(f"Błąd ładowania słownika lokalizacji: {e}")
-            finally:
-                conn_dict.close()
-
-            if dozwolone:
-                is_dict_valid = False
-                for dozw_lok in dozwolone:
-                    # Dokładne dopasowanie (np. MP01, K001)
-                    if new_location == dozw_lok:
-                        is_dict_valid = True
-                        break
-                    # Prefiksowe dopasowanie dla regałów i alejek (np. R01, A01, OS01, OSIP)
-                    elif (dozw_lok.startswith('R') or dozw_lok.startswith('A') or dozw_lok.startswith('OS')) and new_location.startswith(dozw_lok):
-                        is_dict_valid = True
-                        break
-                
-                if not is_dict_valid:
-                    return False, f"BŁĄD: Lokalizacja '{new_location}' nie występuje w dozwolonym słowniku (Baza: Ustawienia)."
 
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
+            from app.utils.location_validator import validate_registered_warehouse_location
+            valid, error = validate_registered_warehouse_location(cursor, new_location)
+            if not valid:
+                return False, error, None
             
             if pallet_type == 'Surowiec':
                 table = get_table_name('magazyn_surowce', linia)
@@ -705,9 +684,9 @@ class WarehouseV2Service:
             
             # 1. Pobierz rekord z archiwum
             if archive_id:
-                cursor.execute("SELECT * FROM magazyn_archiwum WHERE id = %s", (archive_id,))
+                cursor.execute("SELECT * FROM magazyn_archiwum WHERE id = %s FOR UPDATE", (archive_id,))
             elif nr_palety:
-                cursor.execute("SELECT * FROM magazyn_archiwum WHERE UPPER(TRIM(nr_palety)) = %s ORDER BY id DESC LIMIT 1", (nr_palety.strip().upper(),))
+                cursor.execute("SELECT * FROM magazyn_archiwum WHERE UPPER(TRIM(nr_palety)) = %s ORDER BY id DESC LIMIT 1 FOR UPDATE", (nr_palety.strip().upper(),))
             else:
                 return False, "Nie podano identyfikatora ani numeru palety do przywrócenia.", {}
                 
@@ -716,16 +695,36 @@ class WarehouseV2Service:
                 return False, "Nie znaleziono palety w archiwum (być może została już przywrócona).", {}
                 
             actual_archive_id = arc_row['id']
-            pallet_nr = arc_row.get('nr_palety')
+            pallet_nr = str(arc_row.get('nr_palety') or '').strip().upper()
             pallet_name = arc_row.get('nazwa') or 'Surowiec'
-            typ_palety = (arc_row.get('typ_palety') or 'surowiec').lower()
+            typ_palety = (arc_row.get('typ_palety') or 'surowiec').strip().casefold().replace('wyrób gotowy', 'wyrob_gotowy').replace('wyrob gotowy', 'wyrob_gotowy')
             linia = (arc_row.get('linia') or 'PSD').upper()
             nr_partii = arc_row.get('nr_partii') or ''
             
             loc = (new_location or arc_row.get('lokalizacja_ostatnia') or 'MP01').strip().upper()
             weight = float(new_weight if new_weight is not None else (arc_row.get('waga_ostatnia') or 0.0))
-            if weight < 0:
-                weight = 0.0
+            if not math.isfinite(weight) or weight <= 0:
+                raise ValueError('Przywrócenie wymaga dodatniej, skończonej ilości.')
+            if typ_palety not in {'surowiec', 'opakowanie', 'dodatek', 'wyrob_gotowy'}:
+                raise ValueError('Nieznany typ palety archiwalnej.')
+            from app.utils.pallet_receipt_rules import ensure_unique_stock_code, validate_pallet_dates
+            from app.utils.location_validator import validate_registered_warehouse_location, check_rack_location_availability
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            ensure_unique_stock_code(cursor, pallet_nr, active_only=False)
+            valid, error = validate_registered_warehouse_location(cursor, loc)
+            if not valid:
+                raise ValueError(error)
+            valid, error = check_rack_location_availability(loc, product_name=pallet_name, cursor=cursor)
+            if not valid:
+                raise ValueError(error)
+            if PalletLockManager.has_protected_block(cursor, pallet_nr):
+                raise ValueError('Paleta jest zablokowana lub zarezerwowana. Najpierw wyjaśnij jej blokadę.')
+            if has_request_context() and typ_palety == 'surowiec':
+                from app.core.shared_raw_stock_permissions import shared_raw_stock_allowed
+                from flask import request
+                context_line = (request.get_json(silent=True) or {}).get('linia') or 'AGRO'
+                if not shared_raw_stock_allowed({'lokalizacja': loc}, context_line, write=True):
+                    raise ValueError('Brak uprawnień do docelowego magazynu.')
                 
             # 2. Ustal docelową tabelę i kolumny
             if typ_palety == 'surowiec':
@@ -745,13 +744,6 @@ class WarehouseV2Service:
                 col_amount = 'waga_netto'
                 col_name = 'produkt'
                 
-            # 3. Sprawdź czy taka paleta nie istnieje już w tabeli aktywnej
-            if pallet_nr:
-                cursor.execute(f"SELECT id FROM {table} WHERE nr_palety = %s", (pallet_nr,))
-                existing = cursor.fetchone()
-                if existing:
-                    return False, f"Paleta o numerze {pallet_nr} już istnieje w magazynie aktywnym (ID: {existing['id']})!", {}
-                    
             # 4. Pobierz ewentualne metadane (daty, opakowanie)
             dt_prod = None
             dt_przyd = None
@@ -767,23 +759,21 @@ class WarehouseV2Service:
                 except Exception:
                     pass
 
-            # 5. Wstaw z powrotem do aktywnego magazynu
-            if typ_palety == 'surowiec':
-                cursor.execute(f"""
-                    INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, nr_partii, linia, data_produkcji, data_przydatnosci, typ_opakowania)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (pallet_nr, pallet_name, weight, loc, nr_partii, linia, dt_prod, dt_przyd, typ_opk))
-            elif typ_palety == 'opakowanie':
-                cursor.execute(f"""
-                    INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, nr_partii, linia)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (pallet_nr, pallet_name, weight, loc, nr_partii, linia))
-            else:
-                cursor.execute(f"""
-                    INSERT INTO {table} (nr_palety, {col_name}, {col_amount}, lokalizacja, linia)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, (pallet_nr, pallet_name, weight, loc, linia))
-                
+            dt_prod, dt_przyd = validate_pallet_dates(dt_prod, dt_przyd)
+
+            # Keep restored metadata; the raw register has no production-line owner.
+            restored_values = {
+                'nr_palety': pallet_nr, col_name: pallet_name, col_amount: weight,
+                'lokalizacja': loc, 'nr_partii': nr_partii,
+                'data_produkcji': dt_prod, 'data_przydatnosci': dt_przyd,
+            }
+            if typ_palety != 'surowiec':
+                restored_values['linia'] = linia
+            if typ_palety != 'wyrob_gotowy':
+                restored_values['typ_opakowania'] = typ_opk
+            cursor.execute(f"INSERT INTO {table} ({','.join(restored_values)}) "
+                           f"VALUES ({','.join(['%s'] * len(restored_values))})", tuple(restored_values.values()))
+
             new_id = cursor.lastrowid
             
             # 6. Rejestracja w palety_historia
@@ -804,7 +794,7 @@ class WarehouseV2Service:
                 'waga': weight,
                 'lokalizacja': loc,
                 'typ_palety': typ_palety,
-                'linia': linia,
+                'linia': None if typ_palety == 'surowiec' else linia,
                 'nr_partii': nr_partii
             }
             return True, f"Paleta {pallet_nr or pallet_name} została pomyślnie przywrócona na lokalizację {loc} z wagą {weight} kg.", restored_info

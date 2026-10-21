@@ -1,3 +1,4 @@
+from tests.receipt_cursor_data import configure_receipt_cursor
 import pytest
 from unittest.mock import MagicMock, patch
 from flask import Flask, session
@@ -41,6 +42,7 @@ def test_acceptance_service_triggers_report_on_last_pallet_closed_agro():
 
     mock_cursor.fetchone.side_effect = fake_fetchone
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.services.magazyn_dostawy.acceptance_service.get_db_connection', return_value=mock_conn):
         with patch('app.services.office_print_service.trigger_office_print') as mock_office_print:
             res = AcceptanceService.accept_production_pallet(
@@ -95,6 +97,7 @@ def test_acceptance_service_does_not_trigger_report_if_not_last_pallet():
 
     mock_cursor.fetchone.side_effect = fake_fetchone
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.services.magazyn_dostawy.acceptance_service.get_db_connection', return_value=mock_conn):
         res = AcceptanceService.accept_production_pallet(
             pallet_id=701,
@@ -142,6 +145,7 @@ def test_warehouse_pallet_service_potwierdz_palete_last_pallet_agro_ajax():
     mock_cur.fetchone.side_effect = fake_fetchone
     mock_cur.rowcount = 1
 
+    configure_receipt_cursor(mock_cur)
     with app.test_request_context(method='POST', data={'waga_palety': '1000'}):
         session['rola'] = 'magazynier'
         session['login'] = 'magazynier_test'
@@ -202,6 +206,7 @@ def test_warehouse_pallet_service_potwierdz_palete_last_pallet_agro_non_ajax():
     mock_cur.fetchone.side_effect = fake_fetchone
     mock_cur.rowcount = 1
 
+    configure_receipt_cursor(mock_cur)
     with app.test_request_context(method='POST', data={'waga_palety': '1000'}):
         session['rola'] = 'magazynier'
         session['login'] = 'magazynier_test'

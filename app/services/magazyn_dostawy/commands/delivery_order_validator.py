@@ -134,16 +134,10 @@ class DeliveryOrderValidator:
                     if not is_trf_valid:
                         return False, trf_err
 
-        # Validate item dates
-        today_date = datetime.now().strftime('%Y-%m-%d')
+        from app.utils.pallet_receipt_rules import validate_pallet_dates
         for idx, it in enumerate(items):
-            prod_date = str(it.get('data_produkcji') or '').strip()
-            expiry_date = str(it.get('data_przydatnosci') or '').strip()
-
-            if prod_date and prod_date > today_date:
-                return False, f"Pozycja {idx + 1}: Data produkcji ({prod_date}) jest późniejsza niż dzisiejsza data ({today_date})."
-
-            if prod_date and expiry_date and expiry_date < prod_date:
-                return False, f"Pozycja {idx + 1}: Data przydatności ({expiry_date}) jest wcześniejsza niż data produkcji ({prod_date})."
-
+            try:
+                validate_pallet_dates(it.get('data_produkcji'), it.get('data_przydatnosci'))
+            except ValueError as error:
+                return False, f'Pozycja {idx + 1}: {error}'
         return True, ""

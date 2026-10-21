@@ -9,55 +9,42 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 class LocationService:
 
     OPEN_LOCATIONS_PREFIXES = [
-        'MS01', 'MP01', 'MD01', 'MOP01', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MDM01',
+        'MS01', 'MP01', 'MD01', 'MDO01', 'MOP01', 'BF_MS01', 'BF_MP01', 'BFMS01', 'BFMP01', 'BFOS', 'MDM01',
         'PSD01', 'MGW01', 'MGW02', 'OSIP', 'KO01', 'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'PSD'
     ]
 
     @staticmethod
     def check_location(lokalizacja, linia='PSD'):
-            if any(str(lokalizacja or '').upper().startswith(ol) for ol in LocationService.OPEN_LOCATIONS_PREFIXES):
-                return False, "", [] # Always free for open locations
-
-            conn = get_db_connection()
-            try:
-                cursor = conn.cursor(dictionary=True)
-                table_sur = get_table_name('magazyn_surowce', linia)
-                table_opk = get_table_name('magazyn_opakowania', linia)
-                cursor.execute(f"SELECT nazwa, stan_magazynowy, 'Surowiec' as typ FROM {table_sur} WHERE lokalizacja = %s AND stan_magazynowy > 0", (lokalizacja,))
-                items_sur = cursor.fetchall()
-                cursor.execute(f"SELECT nazwa, stan_magazynowy, 'Opakowanie' as typ FROM {table_opk} WHERE lokalizacja = %s AND stan_magazynowy > 0", (lokalizacja,))
-                items_opk = cursor.fetchall()
-                all_items = items_sur + items_opk
-                if all_items:
-                    content_desc = ", ".join([f"{i['nazwa']} ({i['stan_magazynowy']})" for i in all_items])
-                    return True, content_desc, all_items
-                return False, "", []
-            finally:
-                conn.close()
+        location = str(lokalizacja or '').strip().upper()
+        if LocationService._normalize_location_code(location) in {
+            LocationService._normalize_location_code(value) for value in LocationService.OPEN_LOCATIONS_PREFIXES
+        }:
+            return False, "", []
+        from app.utils.pallet_receipt_rules import stock_at_location
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            items = stock_at_location(cursor, location)
+            description = ', '.join(f"{item['nazwa']} ({item['stan_magazynowy']})" for item in items)
+            return bool(items), description, items
+        finally:
+            conn.close()
 
     @staticmethod
-    def validate_slot_capacity(target_location: str, linia: str = 'PSD', excluding_pallet_code: str = None) -> tuple[bool, str]:
-        """
-        Validates rack slot capacity.
-        Standard high-storage racks (R01-R07) have a hard capacity limit of 1 pallet per slot.
-        Open buffer zones (RAMPA, BUFOR, KO, BB) allow multiple pallets.
-        """
-        norm_loc = LocationService._normalize_location_code(target_location)
-        if not norm_loc:
-            return False, "Nie podano lokalizacji docelowej."
-
-        if any(norm_loc.startswith(p) for p in LocationService.OPEN_LOCATIONS_PREFIXES):
-            return True, "Lokalizacja otwarta - nieograniczona pojemność."
-
-        if LocationService._is_rack_location_code(norm_loc):
-            is_occupied, content_desc, items = LocationService.check_location(target_location, linia)
-            if is_occupied:
-                if excluding_pallet_code:
-                    items = [it for it in items if str(it.get('nr_palety') or '').upper() != excluding_pallet_code.upper()]
-                if items:
-                    return False, f"Gniazdo regałowe {target_location} jest już zajęte przez: {content_desc} (Limit: 1 paleta / gniazdo)."
-
-        return True, "Lokalizacja dostępna."
+    def validate_slot_capacity(target_location: str, linia: str = 'PSD', excluding_pallet_code: str = None,
+                               product_name=None, cursor=None) -> tuple[bool, str]:
+        from app.utils.location_validator import validate_registered_warehouse_location, check_rack_location_availability
+        conn = None if cursor is not None else get_db_connection()
+        try:
+            cur = cursor if cursor is not None else conn.cursor(dictionary=True)
+            valid, error = validate_registered_warehouse_location(cur, target_location)
+            if not valid:
+                return False, error
+            return check_rack_location_availability(target_location, current_nr_palety=excluding_pallet_code,
+                                                     product_name=product_name, cursor=cur)
+        finally:
+            if conn is not None:
+                conn.close()
 
     @staticmethod
     def get_location_suggestions(prefix, linia='PSD', only_free_for_racks=True, limit=40):
@@ -83,10 +70,12 @@ class LocationService:
                     continue
 
                 if only_free_for_racks and LocationService._is_rack_location_code(location):
-                    if location in occupied_locations:
+                    if location in occupied_locations and not location.startswith('R09'):
                         continue
 
-                matched.append(location)
+                valid, _ = validate_warehouse_location(location, allow_empty=False)
+                if valid and not is_production_tank_code(location):
+                    matched.append(location)
 
             matched.sort(key=lambda value: (0, *LocationService._rack_sort_key(value)) if LocationService._is_rack_location_code(value) else (1, value))
             return matched[:safe_limit]
@@ -174,14 +163,14 @@ class LocationService:
                 all_queries = [
                     (f"SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM {table_sur} WHERE lokalizacja IS NOT NULL AND lokalizacja <> ''", ()),
                     (f"SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM {table_opk} WHERE lokalizacja IS NOT NULL AND lokalizacja <> ''", ()),
-                    ("SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM magazyn_dodatki WHERE linia = %s AND lokalizacja IS NOT NULL AND lokalizacja <> ''", (normalized_line,)),
+                    ("SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM magazyn_dodatki WHERE lokalizacja IS NOT NULL AND lokalizacja <> ''", ()),
                     (f"SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM {table_wg} WHERE lokalizacja IS NOT NULL AND lokalizacja <> ''", ()),
                 ]
 
                 occupied_queries = [
                     (f"SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM {table_sur} WHERE stan_magazynowy > 0 AND lokalizacja IS NOT NULL AND lokalizacja <> ''", ()),
                     (f"SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM {table_opk} WHERE stan_magazynowy > 0 AND lokalizacja IS NOT NULL AND lokalizacja <> ''", ()),
-                    ("SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM magazyn_dodatki WHERE linia = %s AND stan_magazynowy > 0 AND lokalizacja IS NOT NULL AND lokalizacja <> ''", (normalized_line,)),
+                    ("SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM magazyn_dodatki WHERE stan_magazynowy > 0 AND lokalizacja IS NOT NULL AND lokalizacja <> ''", ()),
                     (f"SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja FROM {table_wg} WHERE waga_netto > 0 AND lokalizacja IS NOT NULL AND lokalizacja <> ''", ()),
                 ]
 

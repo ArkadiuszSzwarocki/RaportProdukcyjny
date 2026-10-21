@@ -250,7 +250,7 @@ class ScannerLabelService:
 
         return {
             'id': row['id'],
-            'linia': row.get('linia') or linia,
+            'linia': None if prefix == 'SUR' else (row.get('linia') or linia),
             'nr_palety': nr_palety,
             'sscc': nr_palety,
             'nazwa': row.get('nazwa') or 'Brak nazwy',

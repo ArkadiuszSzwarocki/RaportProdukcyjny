@@ -1,3 +1,4 @@
+from tests.receipt_cursor_data import configure_receipt_cursor
 """Unit tests for pallet splitting and partial moves with SSCC generation and mother history inheritance."""
 
 import unittest
@@ -154,7 +155,7 @@ class TestWarehouseV2PartialMove(unittest.TestCase):
                     mother_row if 'SELECT * FROM' in cur.execute.call_args.args[0] else None
                 )
                 cur.fetchall.return_value = list(mother_history_records)
-                return cur
+                return configure_receipt_cursor(cur, locations=('MS01','MP01','R02','R03'))
             return mock_cursor
 
         mock_conn.cursor = cursor_factory

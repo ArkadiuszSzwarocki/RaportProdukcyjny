@@ -292,6 +292,18 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
         policy = patch("app.services.warehouse_reports.warehouse_report_mailer.smtp_target_allowed", return_value=(True, ""))
         policy.start()
         self.addCleanup(policy.stop)
+        guard_connection = MagicMock()
+        guard_connection.database = 'mail-tests'
+        guard_connection.cursor.return_value.fetchone.return_value = (1,)
+        guard = patch('app.services.warehouse_reports.completed_movement_mailer.get_db_connection',return_value=guard_connection)
+        guard.start()
+        self.addCleanup(guard.stop)
+        from dataclasses import replace
+        sender = patch('app.services.osip_report_email_service.WarehouseSystemSenderResolver.resolve',
+                       side_effect=lambda cfg: replace(cfg,smtp_server='smtp.system.pl',
+                           smtp_username='system@example.org',smtp_password='system-password'))
+        sender.start()
+        self.addCleanup(sender.stop)
 
     def _get_mock_settings_repo(self):
         repo = MagicMock()
@@ -366,9 +378,9 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
             success, msg = service.send_osip_transfer_report(11)
             assert success is True
             assert "Raport przyjęcia wysłany pomyślnie" in msg
-            assert mock_smtp_ssl.call_args.args == ("smtp.custom-osip.pl", 465, "SSL")
+            assert mock_smtp_ssl.call_args.args == ("smtp.system.pl", 465, "SSL")
             assert mock_smtp_ssl.call_args.kwargs["context"].check_hostname is True
-            mock_server_instance.login.assert_called_once_with("osip_nadawca@custom-osip.pl", "safe_password")
+            mock_server_instance.login.assert_called_once_with("system@example.org", "system-password")
             mock_server_instance.sendmail.assert_called_once()
 
     @patch('app.services.osip_report_email_service.get_db_connection')
@@ -420,6 +432,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = {
             'id': 55,
+            'status': 'COMPLETED',
             'order_ref': 'WZ-12345',
             'lokalizacja_z': 'MS01',
             'lokalizacja_do': 'PSD01',  # Przesunięcie między halami
@@ -444,6 +457,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = {
             'id': 77,
+            'status': 'COMPLETED',
             'order_ref': 'WZ-OSIP-77',
             'lokalizacja_z': 'MS01',
             'lokalizacja_do': 'OSIP',  # Cel OSIP
@@ -468,6 +482,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
         mock_conn.cursor.return_value = mock_cursor
         mock_cursor.fetchone.return_value = {
             'id': 88,
+            'status': 'COMPLETED',
             'order_ref': 'WZ-88',
             'supplier': 'Dostawca',
             'email_sent_at': datetime(2026, 8, 30, 15, 0),  # Already sent!
@@ -487,6 +502,7 @@ class TestOsipReportEmailServiceSending(unittest.TestCase):
 
         mock_transfer = OsipTransferModel(
             id=99,
+            status='COMPLETED',
             transfer_code="TR-99",
             source_warehouse="MS01",
             destination_warehouse="OSIP",

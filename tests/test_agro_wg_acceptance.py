@@ -1,3 +1,4 @@
+from tests.receipt_cursor_data import configure_receipt_cursor
 import pytest
 from unittest.mock import MagicMock, patch
 from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
@@ -42,6 +43,7 @@ def test_accept_production_pallet_agro_crossline_auto_detection():
     mock_cursor.execute.side_effect = fake_execute
     mock_cursor.fetchone.side_effect = fake_fetchone
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.services.magazyn_dostawy.acceptance_service.get_db_connection', return_value=mock_conn):
         # Wywołanie z domyślnym linia='PSD'
         ok, msg = AcceptanceService.accept_production_pallet(
@@ -89,6 +91,7 @@ def test_accept_production_pallet_by_nr_palety():
 
     mock_cursor.fetchone.side_effect = fake_fetchone
 
+    configure_receipt_cursor(mock_cursor)
     with patch('app.services.magazyn_dostawy.acceptance_service.get_db_connection', return_value=mock_conn):
         ok, msg = AcceptanceService.accept_production_pallet(
             pallet_id='AGR000001787139218902',

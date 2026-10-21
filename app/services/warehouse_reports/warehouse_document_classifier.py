@@ -1,3 +1,4 @@
+# cspell:words PRZESUNI
 """
 Moduł odpowiedzialny za klasyfikację dokumentów magazynowych oraz weryfikację stref i tras.
 """
@@ -193,6 +194,29 @@ class WarehouseDocumentClassifier:
             return True
 
         return False
+
+    @classmethod
+    def is_automatic_mp01_mm(cls, document: Dict[str, Any], items: List[Dict[str, Any]]) -> bool:
+        """Individual automatic mail: central MM involving MP01, its racks or buffer."""
+        from app.utils.location_validator import get_warehouse_zone, normalize_warehouse_location
+        supplier = str(document.get('supplier') or '').strip()
+        if supplier not in ('', '-', 'None') and not supplier.upper().startswith(('PRZESUNI', 'TRANSFER')):
+            return False
+        if cls.is_production_movement(document, items) or not items:
+            return False
+        if cls.is_osip_involved(document.get('lokalizacja_z'), document.get('lokalizacja_do'), items):
+            return False
+        involves_mp01 = False
+        for item in items:
+            if not isinstance(item, dict):
+                return False
+            source = item.get('sourceSpot') or item.get('source_location') or document.get('lokalizacja_z')
+            target = item.get('lokalizacja_przyjecia') or item.get('targetSpot') or document.get('lokalizacja_do')
+            locations = [normalize_warehouse_location(location) for location in (source, target)]
+            if not all(cls.is_allowed_central_warehouse_location(location) for location in locations):
+                return False
+            involves_mp01 = involves_mp01 or any(get_warehouse_zone(location) == 'MP01' for location in locations)
+        return involves_mp01
 
     @classmethod
     def categorize_delivery_doc(cls, dostawa: Dict[str, Any], items: List[Dict[str, Any]]) -> Dict[str, Any]:

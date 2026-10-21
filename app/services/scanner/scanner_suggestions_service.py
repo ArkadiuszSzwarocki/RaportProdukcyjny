@@ -23,13 +23,17 @@ def find_pallet_suggestions(digits):
                 if table in visited:
                     continue
                 visited.add(table)
+                line_column = "NULL AS linia" if base == 'magazyn_surowce' else "COALESCE(NULLIF(linia, ''), %s) AS linia"
+                params = ('%' + digits,) if base == 'magazyn_surowce' else (line, '%' + digits)
                 cursor.execute(
                     f"SELECT id, nr_palety, {name} AS nazwa, {qty} AS ilosc, lokalizacja, "
-                    f"COALESCE(NULLIF(linia, ''), %s) AS linia FROM {table} "
+                    f"{line_column} FROM {table} "
                     f"WHERE nr_palety LIKE %s AND COALESCE({qty}, 0)>0 ORDER BY nr_palety, id LIMIT 30",
-                    (line, '%' + digits),
+                    params,
                 )
                 for row in cursor.fetchall():
+                    if base == 'magazyn_surowce':
+                        row['linia'] = None
                     row['inventory_type'] = kind
                     row['ilosc'] = float(row['ilosc'])
                     results.append(row)

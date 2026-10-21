@@ -70,7 +70,7 @@ class PalletLockManager:
             table, row = matches[0]
             from app.core.logistics_permissions import logistics_stock_write_allowed
             if not logistics_stock_write_allowed(table, row):
-                raise PermissionError('Brak uprawnień do hali wskazanej palety.')
+                raise PermissionError('Brak uprawnień do magazynu, w którym znajduje się wskazana paleta.')
             if blocked_val:
                 if is_transit_location(row.get('lokalizacja')):
                     raise TransitPalletError('Paleta jest w tranzycie. Najpierw zakończ odbiór istniejącego transferu.')

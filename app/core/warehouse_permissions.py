@@ -3,6 +3,7 @@
 from flask import current_app, g, jsonify, request, session
 from app.db import get_db_connection, get_table_name
 from app.core.production_permissions import _page_allowed
+from app.core.shared_raw_stock_permissions import shared_raw_stock_allowed
 
 
 def _deny(message='Brak uprawnień do operacji magazynowej.', status=403):
@@ -56,14 +57,19 @@ def enforce_warehouse_write():
         connection = get_db_connection()
         cursor = connection.cursor(dictionary=True)
         if endpoint == 'warehouse_v2.restore_from_archive':
-            cursor.execute('SELECT linia FROM magazyn_archiwum WHERE id=%s',
+            cursor.execute('SELECT * FROM magazyn_archiwum WHERE id=%s',
                            ((request.view_args or {}).get('archive_id'),))
             row = cursor.fetchone()
             if not row:
                 return _deny('Nie znaleziono palety.', 404)
-            line = str(row.get('linia') or 'PSD').upper()
-            if not _page_allowed(line, 'magazyn'):
-                return _deny()
+            if str(row.get('typ_palety') or '').casefold() == 'surowiec':
+                source = dict(row, lokalizacja=row.get('lokalizacja_ostatnia'))
+                if not shared_raw_stock_allowed(source, line, write=True):
+                    return _deny()
+            else:
+                line = str(row.get('linia') or 'PSD').upper()
+                if not _page_allowed(line, 'magazyn'):
+                    return _deny()
         else:
             kind = data.get('type')
             bases = {'Surowiec': 'magazyn_surowce', 'Opakowanie': 'magazyn_opakowania',
@@ -85,9 +91,13 @@ def enforce_warehouse_write():
                 if not row:
                     # Never let a service silently search another hall or pending delivery.
                     return _deny('Nie znaleziono palety w wybranym magazynie.', 404)
-                resource_line = str(row.get('linia') or line).strip().upper()
-                if resource_line != line or not _page_allowed(resource_line, 'magazyn'):
-                    return _deny()
+                if table == 'magazyn_surowce':
+                    if not shared_raw_stock_allowed(row, line, write=True):
+                        return _deny()
+                else:
+                    resource_line = str(row.get('linia') or line).strip().upper()
+                    if resource_line != line or not _page_allowed(resource_line, 'magazyn'):
+                        return _deny()
                 if data.get('sscc') and str(row.get('nr_palety')) != str(data['sscc']):
                     return _deny('Kod palety nie odpowiada identyfikatorowi.', 400)
             g.warehouse_resource = {'table': table, 'id': row['id'], 'nr_palety': row.get('nr_palety')}

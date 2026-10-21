@@ -209,7 +209,7 @@ class InternalTransferProcessor:
 
             from app.core.logistics_permissions import logistics_stock_write_allowed
             if not logistics_stock_write_allowed(source_table, p_res):
-                return False, 'Brak uprawnień do hali wskazanej palety.'
+                return False, 'Brak uprawnień do magazynu, w którym znajduje się wskazana paleta.'
 
             # Verify actual physical location from DB
             db_actual_spot = norm_loc(p_res.get('lokalizacja'))

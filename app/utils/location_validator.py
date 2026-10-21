@@ -177,6 +177,36 @@ def validate_warehouse_location(location_code, allow_empty=True):
     return True, None
 
 
+def validate_registered_warehouse_location(cursor, location_code):
+    """Require an exact zone or a complete rack slot under a configured rack."""
+    location = normalize_warehouse_location(location_code)
+    valid, error = validate_warehouse_location(location, allow_empty=False)
+    if not valid:
+        return False, error
+    cursor.execute('SELECT nazwa FROM magazyn_dozwolone_lokalizacje')
+    rows = cursor.fetchall()
+    allowed = {str(row['nazwa'] if isinstance(row, dict) else row[0]).strip().upper() for row in rows}
+    if not allowed:
+        return False, 'Słownik lokalizacji jest pusty. Operacja została zatrzymana.'
+    rack = re.fullmatch(r'R(0[1-9])(\d{2})(\d{2})', location or '')
+    if rack:
+        if int(rack[2]) < 1 or int(rack[3]) < 1:
+            return False, 'Nieprawidłowy numer miejsca lub poziomu regału.'
+        if location in allowed:
+            return True, None
+        # Prefix configuration authorizes slots from the existing warehouse map,
+        # not arbitrary coordinates such as R019999. Custom slots require exact entries.
+        rack_no, place, level = int(rack[1]), int(rack[2]), int(rack[3])
+        limits = {1: (10, 3), 2: (10, 3), 3: (10, 3), 4: (6, 3),
+                  5: (10, 3), 6: (10, 3), 7: (11, 4), 9: (4, 6)}
+        max_place, max_level = limits.get(rack_no, (0, 0))
+        if place <= max_place and level <= max_level and (location[:3] in allowed or location[:5] in allowed):
+            return True, None
+    elif location in allowed and not is_rack_location(location):
+        return True, None
+    return False, f"Lokalizacja '{location}' nie występuje w dozwolonym słowniku."
+
+
 def normalize_warehouse_location(location_code):
     """
     Normalizes warehouse location code (uppercase, trim) and auto-corrects common
@@ -279,35 +309,9 @@ def check_rack_location_availability(location_code, current_nr_palety=None, prod
         is_lvl1 = is_rack_level_1(normalized)
         is_target_hydro = str(product_name or '').strip().lower() == 'hydro'
 
-        tables = [
-            ('magazyn_surowce', 'stan_magazynowy', 'nazwa'),
-            ('magazyn_agro_surowce', 'stan_magazynowy', 'nazwa'),
-            ('magazyn_opakowania', 'stan_magazynowy', 'nazwa'),
-            ('magazyn_agro_opakowania', 'stan_magazynowy', 'nazwa'),
-            ('magazyn_dodatki', 'stan_magazynowy', 'nazwa'),
-            # The former AGRO table is now a view of this canonical register.
-            # Looking at both would count each finished pallet twice.
-            ('magazyn_palety', 'waga_netto', 'produkt')
-        ]
-        
-        existing_pallets = []
-        for t, qty_col, name_col in tables:
-            try:
-                query = f"SELECT nr_palety, {name_col} as product_name FROM {t} WHERE lokalizacja = %s AND {qty_col} > 0"
-                params = [normalized]
-                if current_nr_palety:
-                    query += " AND (nr_palety IS NULL OR nr_palety != %s)"
-                    params.append(str(current_nr_palety).strip())
-                if cursor is not None:
-                    query += ' FOR UPDATE'
-                    
-                cur.execute(query, tuple(params))
-                rows = cur.fetchall()
-                if rows:
-                    existing_pallets.extend(rows)
-            except Exception as error:
-                if getattr(error, 'errno', None) != 1146:
-                    raise
+        from app.utils.pallet_receipt_rules import stock_at_location
+        existing_pallets = stock_at_location(cur, normalized, excluding=current_nr_palety,
+                                             lock=cursor is not None)
 
         if not existing_pallets:
             return True, None
