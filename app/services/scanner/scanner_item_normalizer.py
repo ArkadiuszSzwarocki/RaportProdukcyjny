@@ -53,7 +53,7 @@ class ScannerItemNormalizer:
 
         return {
             'id': row['id'],
-            'linia': None if inventory_key == 'SUR' else row.get('linia'),
+            'linia': None if inventory_type in {'Surowiec', 'Opakowanie', 'Dodatek'} else row.get('linia'),
             'nazwa': row.get('nazwa') or '',
             'stan_magazynowy': qty,
             'lokalizacja': location,

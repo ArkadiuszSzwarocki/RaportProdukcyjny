@@ -74,6 +74,10 @@ def lookup():
     from app.core.scanner_permissions import scanner_resource_read_allowed
     if not scanner_resource_read_allowed(pallet):
         return jsonify(success=False, error='forbidden'), 403
+    # A shared shelf can contain stock with separate production permissions.
+    for key in ('items', 'skladniki'):
+        if isinstance(pallet.get(key), list):
+            pallet[key] = [item for item in pallet[key] if scanner_resource_read_allowed(item)]
 
     return jsonify({'success': True, 'pallet': pallet})
 

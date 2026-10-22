@@ -2,6 +2,7 @@
 """Authorize warehouse pallet mutations independently of optional UI fields."""
 from flask import current_app, g, jsonify, request, session
 from app.db import get_db_connection, get_table_name
+from app.core.shared_inventory_permissions import SHARED_MATERIAL_TYPES, SHARED_MATERIAL_TABLES, shared_material_access
 from app.core.production_permissions import _page_allowed
 from app.core.shared_raw_stock_permissions import shared_raw_stock_allowed
 
@@ -44,13 +45,18 @@ def enforce_warehouse_write():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return _deny('Wymagane dane JSON.', 400)
+    shared_move = endpoint == 'warehouse_v2.move_pallet' and data.get('type') in SHARED_MATERIAL_TYPES
+    if shared_move and not shared_material_access():
+        return _deny('Zaloguj się.', 401)
     line = str(data.get('linia') or 'PSD').strip().upper()
+    if shared_move and line == 'ALL':
+        line = 'PSD'
     if line not in {'PSD', 'AGRO', 'OSIP'}:
         return _deny()
     for hint in (request.args.get('linia'), request.form.get('linia')):
-        if hint and str(hint).strip().upper() != line:
+        if not shared_move and hint and str(hint).strip().upper() != line:
             return _deny('Sprzeczne wskazanie hali.')
-    if endpoint != 'warehouse_v2.restore_from_archive' and not _page_allowed(line, 'magazyn'):
+    if not shared_move and endpoint != 'warehouse_v2.restore_from_archive' and not _page_allowed(line, 'magazyn'):
         return _deny()
     connection = None
     try:
@@ -91,7 +97,11 @@ def enforce_warehouse_write():
                 if not row:
                     # Never let a service silently search another hall or pending delivery.
                     return _deny('Nie znaleziono palety w wybranym magazynie.', 404)
-                if table == 'magazyn_surowce':
+                if shared_move and table in SHARED_MATERIAL_TABLES:
+                    from app.utils.location_validator import is_production_tank_code
+                    if is_production_tank_code(str(data.get('location') or '').strip().upper()) and not _page_allowed(line, 'zasyp', write=True):
+                        return _deny()
+                elif table == 'magazyn_surowce':
                     if not shared_raw_stock_allowed(row, line, write=True):
                         return _deny()
                 else:

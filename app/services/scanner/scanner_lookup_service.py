@@ -54,7 +54,7 @@ class ScannerLookupService:
         partial_pallet_no: str | None = None,
     ) -> dict | None:
         table_name = get_table_name(base_table, linia)
-        line_expression = 'NULL' if base_table == 'magazyn_surowce' else f"COALESCE(NULLIF(linia, ''), '{linia}')"
+        line_expression = 'NULL' if base_table in {'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki'} else f"COALESCE(NULLIF(linia, ''), '{linia}')"
         where = [f"COALESCE({qty_col}, 0) > 0"]
         params: list[object] = []
 

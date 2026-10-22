@@ -20,7 +20,7 @@ def security_app():
 
 @pytest.mark.parametrize('endpoint', ['scanner.move', 'scanner.dispatch', 'scanner.restore_pallet', 'scanner.print_label'])
 def test_scanner_denied_grant_never_reads_stock(security_app, endpoint):
-    with security_app.test_request_context('/scanner', method='POST', json={'linia': 'AGRO'}):
+    with security_app.test_request_context('/scanner', method='POST', json={'linia': 'AGRO', 'type': 'Wyrób Gotowy'}):
         from flask import request
         request.url_rule = Rule('/security-test', endpoint=endpoint)
         with patch('app.core.scanner_permissions._page_allowed', return_value=False), patch(
@@ -37,7 +37,7 @@ def test_scanner_checks_server_owned_identity(security_app, row, expected):
     connection = MagicMock()
     connection.cursor.return_value.fetchone.return_value = row
     with security_app.test_request_context('/scanner', method='POST', json={
-            'linia': 'AGRO', 'surowiec_id': 1, 'nr_palety': 'TEST'}):
+            'linia': 'AGRO', 'type': 'Wyrób Gotowy', 'surowiec_id': 1, 'nr_palety': 'TEST'}):
         from flask import request
         request.url_rule = Rule('/security-test', endpoint='scanner.move')
         with patch('app.core.scanner_permissions._page_allowed', return_value=True), patch(
@@ -47,7 +47,7 @@ def test_scanner_checks_server_owned_identity(security_app, row, expected):
 
 
 def test_scanner_database_failure_denies_operation(security_app):
-    with security_app.test_request_context('/scanner', method='POST', json={'linia': 'AGRO'}):
+    with security_app.test_request_context('/scanner', method='POST', json={'linia': 'AGRO', 'type': 'Wyrób Gotowy'}):
         from flask import request
         request.url_rule = Rule('/security-test', endpoint='scanner.move')
         with patch('app.core.scanner_permissions._page_allowed', return_value=True), patch(
@@ -57,7 +57,7 @@ def test_scanner_database_failure_denies_operation(security_app):
 
 def test_scanner_lookup_authorizes_actual_resource_hall(security_app):
     from app.services.scanner.scanner_item_normalizer import ScannerItemNormalizer
-    with security_app.test_request_context('/scanner?linia=AGRO', method='POST', json={'linia': 'AGRO'}):
+    with security_app.test_request_context('/scanner?linia=AGRO', method='POST', json={'linia': 'AGRO', 'type': 'Wyrób Gotowy'}):
         session['zalogowany'] = True
         with patch('app.core.scanner_permissions._page_allowed', side_effect=lambda line, *_args, **_kwargs: line == 'AGRO'):
             assert not scanner_resource_read_allowed({'linia': 'PSD'})
@@ -147,7 +147,7 @@ def test_scanner_blueprint_cannot_bypass_page_and_hall_grants(security_app, read
     with patch('app.core.contexts.inject_role_permissions', return_value=helpers), patch(
             'app.core.scanner_permissions.get_db_connection') as connect, patch(
             'app.services.scanner_service.ScannerService.move_pallet') as move:
-        response = client.post('/agro/scanner/move', json={'linia': line, 'surowiec_id': 1, 'lokalizacja': 'MP01'})
+        response = client.post('/agro/scanner/move', json={'linia': line, 'type': 'Wyrób Gotowy', 'surowiec_id': 1, 'lokalizacja': 'MP01'})
     assert response.status_code == 403
     connect.assert_not_called()
     move.assert_not_called()
@@ -200,7 +200,7 @@ def test_draft_cannot_lock_foreign_or_unknown_hall_stock(security_app, table, ro
     from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
     connection = MagicMock()
     connection.cursor.return_value.fetchall.return_value = [row]
-    with security_app.test_request_context('/draft', method='POST', json={'linia': 'AGRO'}):
+    with security_app.test_request_context('/draft', method='POST', json={'linia': 'AGRO', 'type': 'Wyrób Gotowy'}):
         session.update(zalogowany=True, rola='pracownik', grupa='AGRO')
         helpers = {'role_has_access': lambda _key: True, 'role_is_readonly': lambda _key: False}
         with patch('app.core.contexts.inject_role_permissions', return_value=helpers), patch(
@@ -218,7 +218,7 @@ def test_sync_draft_rolls_back_before_touching_foreign_stock(security_app):
     connection = MagicMock()
     cursor = connection.cursor.return_value
     cursor.fetchone.side_effect = [None, None, None, None, {'id': 1, 'linia': 'PSD', 'waga_netto': 10}]
-    with security_app.test_request_context('/draft', method='POST', json={'linia': 'AGRO'}):
+    with security_app.test_request_context('/draft', method='POST', json={'linia': 'AGRO', 'type': 'Wyrób Gotowy'}):
         session.update(zalogowany=True, rola='pracownik', grupa='AGRO')
         helpers = {'role_has_access': lambda _key: True, 'role_is_readonly': lambda _key: False}
         with patch('app.core.contexts.inject_role_permissions', return_value=helpers), patch(

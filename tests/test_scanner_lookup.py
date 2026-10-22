@@ -74,7 +74,8 @@ def test_lookup_route_returns_inventory_payload(authenticated_client):
         'unit': 'kg',
     }
 
-    with patch('app.blueprints.routes_scanner.ScannerService.lookup_by_location', return_value=payload):
+    with patch('app.blueprints.routes_scanner.ScannerService.lookup_by_location', return_value=payload), patch(
+            'app.core.scanner_permissions._page_allowed', return_value=True):
         response = authenticated_client.post('/agro/scanner/lookup', json={'code': 'PAL-7', 'linia': 'AGRO'})
 
     assert response.status_code == 200

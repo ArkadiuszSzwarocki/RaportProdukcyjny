@@ -250,7 +250,7 @@ class ScannerLabelService:
 
         return {
             'id': row['id'],
-            'linia': None if prefix == 'SUR' else (row.get('linia') or linia),
+            'linia': None if not is_fg and typ_name.casefold() in {'surowiec', 'opakowanie', 'dodatek'} else (row.get('linia') or linia),
             'nr_palety': nr_palety,
             'sscc': nr_palety,
             'nazwa': row.get('nazwa') or 'Brak nazwy',

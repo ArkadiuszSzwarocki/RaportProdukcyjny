@@ -23,8 +23,8 @@ def find_pallet_suggestions(digits):
                 if table in visited:
                     continue
                 visited.add(table)
-                line_column = "NULL AS linia" if base == 'magazyn_surowce' else "COALESCE(NULLIF(linia, ''), %s) AS linia"
-                params = ('%' + digits,) if base == 'magazyn_surowce' else (line, '%' + digits)
+                line_column = "NULL AS linia" if base in {'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki'} else "COALESCE(NULLIF(linia, ''), %s) AS linia"
+                params = ('%' + digits,) if base in {'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki'} else (line, '%' + digits)
                 cursor.execute(
                     f"SELECT id, nr_palety, {name} AS nazwa, {qty} AS ilosc, lokalizacja, "
                     f"{line_column} FROM {table} "
@@ -32,7 +32,7 @@ def find_pallet_suggestions(digits):
                     params,
                 )
                 for row in cursor.fetchall():
-                    if base == 'magazyn_surowce':
+                    if base in {'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki'}:
                         row['linia'] = None
                     row['inventory_type'] = kind
                     row['ilosc'] = float(row['ilosc'])

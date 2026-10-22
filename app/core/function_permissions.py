@@ -66,6 +66,12 @@ def configured_function_permission():
     from app.core.contexts import _get_role_permissions, inject_role_permissions
     import os
     key = 'function.' + str(request.endpoint or '')
+    # Shared material relocation is available to every signed-in warehouse user.
+    if request.endpoint == 'warehouse_v2.move_pallet':
+        from app.core.shared_inventory_permissions import SHARED_MATERIAL_TYPES, shared_material_access
+        payload = request.get_json(silent=True)
+        if isinstance(payload, dict) and payload.get('type') in SHARED_MATERIAL_TYPES:
+            return shared_material_access()
     config = _get_role_permissions(os.path.join(current_app.root_path, 'config', 'role_permissions.json'))
     overrides = {}
     if session.get('user_id'):
@@ -128,6 +134,10 @@ def register_function_permissions(app):
             # Production guards already resolved the actual resource/default destination.
             return None
         section = request.args.get('sekcja') or request.form.get('sekcja')
+        payload = request.get_json(silent=True)
+        from app.core.shared_inventory_permissions import SHARED_MATERIAL_TYPES
+        if request.endpoint == 'warehouse_v2.move_pallet' and isinstance(payload, dict) and payload.get('type') in SHARED_MATERIAL_TYPES:
+            return None
         if request.method not in {'GET', 'HEAD', 'OPTIONS'} and section in {'Zasyp', 'Workowanie', 'Bufor', 'Magazyn'}:
             from app.core.contexts import inject_role_permissions
             helpers = inject_role_permissions()
