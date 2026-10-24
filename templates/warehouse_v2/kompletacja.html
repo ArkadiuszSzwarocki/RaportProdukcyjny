@@ -7,7 +7,7 @@
 <script src="{{ url_for('static', filename='vendor/three/OrbitControls.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/qrcode.min.js') }}"></script>
 
-<div class="picking-page" style="max-width: 1100px; margin: 0 auto; padding: 20px 16px; transition: max-width 0.3s ease;">
+<div class="picking-page" data-no-autorefresh style="max-width: 1100px; margin: 0 auto; padding: 20px 16px; transition: max-width 0.3s ease;">
 
     <!-- TOP HEADER WITH VIEW SWITCHER -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
@@ -38,7 +38,8 @@
                 <span style="padding: 2px 7px; border-radius: 12px; font-size: 11px; font-weight: 800; background: rgba(245, 158, 11, 0.2); color: #f59e0b;">3D</span>
             </button>
         </div>
-    </div>    <!-- LIST VIEW WRAPPER -->
+    </div>
+    <!-- LIST VIEW WRAPPER -->
     <div id="pickingListViewSection">
         <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 16px; gap: 10px;">
             <div style="background: #f1f5f9; padding: 4px; border-radius: 10px; display: flex; gap: 4px; border: 1px solid #cbd5e1;">
@@ -81,18 +82,72 @@
 </div>
 
 <script>
-let _pickingAutoRefreshTimer = null;
+let _pickingEvents = null;
+let _pickingRevision = null;
+let _pickingChangeTimer = null;
+let _pickingRefreshing = false;
+const _pickingRequests = new Map();
+
+// Share pending reads between the list and the 3D order selector.
+function fetchPickingOrders(kind) {
+    if (window.__rpNavigating) return Promise.reject(new DOMException('Navigation', 'AbortError'));
+    if (_pickingRequests.has(kind)) return _pickingRequests.get(kind);
+    const pending = fetch('/warehouse-v2/api/orders/picking/' + kind, {
+        credentials: 'same-origin', cache: 'no-store', silent: true
+    }).then(function(res) {
+        if (!res.ok) throw new Error('Picking HTTP ' + res.status);
+        return res.json();
+    }).then(function(data) {
+        if (!data || !data.success) throw new Error('Invalid picking response');
+        return data;
+    }).finally(function() { _pickingRequests.delete(kind); });
+    _pickingRequests.set(kind, pending);
+    return pending;
+}
+
+function connectPickingUpdates() {
+    if (_pickingEvents || document.hidden || window.__rpNavigating || !window.EventSource) return;
+    _pickingEvents = new EventSource('/warehouse-v2/api/live/events');
+    _pickingEvents.addEventListener('warehouse-change', function(event) {
+        // Reconnecting with the same revision must not redraw the page.
+        if (event.data === _pickingRevision) return;
+        _pickingRevision = event.data;
+        clearTimeout(_pickingChangeTimer);
+        _pickingChangeTimer = setTimeout(refreshPickingAfterChange, 150);
+    });
+}
+
+async function refreshPickingAfterChange() {
+    if (_pickingRefreshing || document.hidden || window.__rpNavigating) return;
+    _pickingRefreshing = true;
+    const revision = _pickingRevision;
+    try {
+        await Promise.all([loadCurrentPickingTab(), refreshPickingOrderSelect()]);
+    } finally {
+        _pickingRefreshing = false;
+        // A commit received during a slow read needs a new snapshot afterwards.
+        if (revision !== _pickingRevision) {
+            clearTimeout(_pickingChangeTimer);
+            _pickingChangeTimer = setTimeout(refreshPickingAfterChange, 150);
+        }
+    }
+}
+
+function disconnectPickingUpdates() {
+    if (_pickingEvents) _pickingEvents.close();
+    _pickingEvents = null;
+    clearTimeout(_pickingChangeTimer);
+    _pickingChangeTimer = null;
+}
 let _currentTab = 'active';
 
 document.addEventListener('DOMContentLoaded', function() {
     loadCurrentPickingTab();
 
-    // Auto-refresh w tle co 4 sekundy
-    _pickingAutoRefreshTimer = setInterval(loadCurrentPickingTab, 4000);
-
-    window.addEventListener('focus', loadCurrentPickingTab);
+    connectPickingUpdates();
     document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') loadCurrentPickingTab();
+        if (document.hidden) disconnectPickingUpdates();
+        else connectPickingUpdates();
     });
     window.addEventListener('ordersChanged', function() {
         loadCurrentPickingTab();
@@ -108,9 +163,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-window.addEventListener('beforeunload', function() {
-    if (_pickingAutoRefreshTimer) clearInterval(_pickingAutoRefreshTimer);
-});
+window.addEventListener('pagehide', disconnectPickingUpdates);
+window.addEventListener('pageshow', connectPickingUpdates);
+window.addEventListener('rp:navigation-start', disconnectPickingUpdates);
+window.addEventListener('rp:navigation-cancelled', connectPickingUpdates);
 
 function switchPickingTab(tab) {
     _currentTab = tab;
@@ -147,10 +203,11 @@ function switchPickingTab(tab) {
 }
 
 function loadCurrentPickingTab() {
+    if (document.hidden || window.__rpNavigating) return;
     if (_currentTab === 'all') {
-        loadAllPickingOrders();
+        return loadAllPickingOrders();
     } else {
-        loadActivePickingOrders();
+        return loadActivePickingOrders();
     }
 }
 
@@ -283,6 +340,9 @@ function renderOrdersList(orders, isActiveView) {
     var container = document.getElementById('picking-orders-list');
     var badge = document.getElementById('active-picking-count');
     if (!container) return;
+    const fingerprint = JSON.stringify([isActiveView, orders]);
+    if (container.dataset.fingerprint === fingerprint) return;
+    container.dataset.fingerprint = fingerprint;
 
     if (badge) badge.textContent = orders.length + (isActiveView ? ' aktywnych' : ' łącznie');
 
@@ -388,8 +448,7 @@ function renderOrdersList(orders, isActiveView) {
 }
 
 function loadActivePickingOrders() {
-    fetch('/warehouse-v2/api/orders/picking/active')
-        .then(function(res) { return res.json(); })
+    return fetchPickingOrders('active')
         .then(function(data) {
             var orders = (data && data.success) ? (data.data || data.orders || []) : [];
             var countEl = document.getElementById('tab-active-count');
@@ -402,13 +461,12 @@ function loadActivePickingOrders() {
             }
         })
         .catch(function(err) {
-            console.error('Błąd ładowania aktywnych zleceń:', err);
+            if (err.name !== 'AbortError') console.error('Błąd ładowania aktywnych zleceń:', err);
         });
 }
 
 function loadAllPickingOrders() {
-    fetch('/warehouse-v2/api/orders/picking/all')
-        .then(function(res) { return res.json(); })
+    return fetchPickingOrders('all')
         .then(function(data) {
             var orders = (data && data.success) ? (data.data || data.orders || []) : [];
             if (_currentTab === 'all') {
@@ -416,7 +474,7 @@ function loadAllPickingOrders() {
             }
         })
         .catch(function(err) {
-            console.error('Błąd ładowania historii zleceń:', err);
+            if (err.name !== 'AbortError') console.error('Błąd ładowania historii zleceń:', err);
         });
 }
 
@@ -424,8 +482,7 @@ function refreshPickingOrderSelect(preferredRef) {
     const select = document.getElementById('selectPickingOrderFilter');
     if (!select) return;
 
-    fetch('/warehouse-v2/api/orders/picking/active')
-        .then(function(res) { return res.json(); })
+    return fetchPickingOrders('active')
         .then(function(data) {
             const activeOrders = (data && data.success) ? (data.data || data.orders || []) : [];
             const curVal = preferredRef !== undefined ? preferredRef : select.value;
@@ -451,10 +508,14 @@ function refreshPickingOrderSelect(preferredRef) {
                 html = '<option value="">(Brak aktywnych zleceń do pobrania)</option>';
             }
 
-            select.innerHTML = html;
+            const fingerprint = JSON.stringify([curVal, activeOrders]);
+            if (select.dataset.fingerprint !== fingerprint) {
+                select.innerHTML = html;
+                select.dataset.fingerprint = fingerprint;
+            }
         })
         .catch(function(err) {
-            console.error('Błąd pobierania listy zleceń dla 3D:', err);
+            if (err.name !== 'AbortError') console.error('Błąd pobierania listy zleceń dla 3D:', err);
         });
 }
 

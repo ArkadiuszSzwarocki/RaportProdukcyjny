@@ -45,7 +45,8 @@ function applyPendingPalletRestrictions(isPending) {
     const notice = document.getElementById('pendingPalletNotice');
     const materialContainer = document.getElementById('materialTypeBtnContainer');
 
-    if (isPending) {
+    const isMasterAdmin = document.getElementById('palletModal')?.dataset.masteradmin === 'true';
+    if (isPending && !isMasterAdmin) {
         if (btnMove) btnMove.style.display = 'none';
         if (btnWeight) btnWeight.style.display = '';
         if (btnPkg) btnPkg.style.display = 'none';
@@ -69,7 +70,13 @@ function applyPendingPalletRestrictions(isPending) {
         if (btnDispatch) btnDispatch.style.display = '';
         if (returnToRaw) returnToRaw.style.display = (currentPallet && currentPallet.type === 'Wyrób Gotowy') ? 'flex' : 'none';
         if (adminDelete) adminDelete.style.display = '';
-        if (notice) notice.style.display = 'none';
+        if (materialContainer) materialContainer.style.display = currentPallet?.type === 'Opakowanie' ? 'block' : 'none';
+        if (notice) {
+            notice.style.display = isPending ? 'flex' : 'none';
+            if (isPending && isMasterAdmin) {
+                notice.querySelector('span:last-child').textContent = 'Paleta oczekuje na przyjęcie. MasterAdmin ma dostęp do wszystkich operacji właściwych dla typu palety; wykonanie nadal wymaga poprawnego stanu i zakończenia aktywnych procesów.';
+            }
+        }
     }
 }
 

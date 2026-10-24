@@ -8,13 +8,19 @@
 {% include 'warehouse_v2/_header.html' %}
 {% include 'warehouse_v2/_modals.html' %}
 
-{% if fefo_pallets %}
-<div class="fefo-alert" style="background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 6px; padding: 15px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-        <span class="material-icons" style="color: #ef4444;">warning</span>
-        <h3 style="margin: 0; color: #991b1b; font-size: 16px;">Kończący się termin przydatności (FEFO)</h3>
-    </div>
-    <div style="max-height: 200px; overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/warehouse_fefo_drawer.css') }}?v={{ warehouse_ui_version }}">
+<button type="button" id="fefoDrawerToggle" {% if not fefo_pallets %}hidden{% endif %} class="fefo-drawer-toggle" aria-controls="fefoDrawer" aria-expanded="false" aria-haspopup="dialog" title="Terminy przydatności FEFO — kliknij, aby otworzyć. Przeciągnij ikonę góra–dół lub użyj strzałek.">
+  <span class="material-icons" aria-hidden="true">warning</span>
+  <span class="fefo-drawer-count">{{ fefo_pallets|length }}</span>
+  <span class="fefo-sr-only">Kończący się termin przydatności (FEFO)</span>
+</button>
+<dialog id="fefoDrawer" class="fefo-drawer" aria-labelledby="fefoDrawerTitle">
+  <header class="fefo-drawer-header">
+    <h2 id="fefoDrawerTitle">Kończący się termin przydatności (FEFO)</h2>
+    <button type="button" id="fefoDrawerClose" class="fefo-drawer-close" aria-label="Zamknij listę FEFO">×</button>
+  </header>
+  <p class="fefo-drawer-description">{{ fefo_pallets|length }} palet z krótkim terminem przydatności</p>
+    <div style="max-height: calc(100dvh - 150px); overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch;">
         <table style="width: 100%; min-width: 340px; border-collapse: collapse; font-size: 13px;">
             <thead>
                 <tr style="border-bottom: 1px solid #fca5a5; color: #991b1b; text-align: left;">
@@ -27,27 +33,28 @@
             <tbody>
                 {% for p in fefo_pallets %}
                 <tr style="border-bottom: 1px solid #fee2e2;">
-                    <td style="padding: 5px;"><strong>{{ p.nr_palety }}</strong></td>
-                    <td style="padding: 5px;">{{ p.nazwa }}</td>
-                    <td style="padding: 5px;">{{ p.lokalizacja }}</td>
-                    <td style="padding: 5px; color: #ef4444; font-weight: bold;">{{ p.data_przydatnosci.strftime('%Y-%m-%d') if p.data_przydatnosci and p.data_przydatnosci.strftime is defined else (p.data_przydatnosci or '') }}</td>
+                    <td data-label="Nr palety" style="padding: 5px;"><strong>{{ p.nr_palety }}</strong></td>
+                    <td data-label="Nazwa" style="padding: 5px;">{{ p.nazwa }}</td>
+                    <td data-label="Lokalizacja" style="padding: 5px;">{{ p.lokalizacja }}</td>
+                    <td data-label="Ważność" style="padding: 5px; color: #ef4444; font-weight: bold;">{{ p.data_przydatnosci.strftime('%Y-%m-%d') if p.data_przydatnosci and p.data_przydatnosci.strftime is defined else (p.data_przydatnosci or '') }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-</div>
-{% endif %}
 
-<div class="section-box p-0">
+</dialog>
+<script src="{{ url_for('static', filename='js/warehouse_v2/fefo_drawer.js') }}?v={{ warehouse_ui_version }}" defer></script>
+<!-- This stateful list must not be replaced by the global production poller. -->
+<div class="section-box p-0" data-no-autorefresh>
     <div class="p-15 p-15-bg">
-        {% if not items %}
+        <div id="warehouseEmptyState" {% if items %}hidden{% endif %}>
             <div style="text-align: center; padding: 40px; color: #94a3b8;">
                 <span class="material-icons" style="font-size: 48px; margin-bottom: 15px; color: #cbd5e1;">inventory_2</span>
                 <h3 style="margin: 0; font-size: 18px; color: #475569;">Magazyny są puste</h3>
                 <p style="margin: 5px 0 0 0; font-size: 14px;">Brak palet do wyświetlenia.</p>
             </div>
-        {% else %}
+        </div>
 <div id="warehouseItemsContainer" class="view-list">
     <!-- WIDOK LISTY (Tabela) -->
     <div class="list-view-wrapper">
@@ -87,7 +94,6 @@
         </button>
     </div>
 </div>
-        {% endif %}
     </div>
 </div>
 
@@ -168,20 +174,21 @@ function setViewMode(mode) {
 }
 </script>
 
-<script src="{{ url_for('static', filename='js/qrcode.min.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/state.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/modals.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/operations_delete.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/operations_move.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/operations_history.js') }}?v={{ static_version }}&history_ui=3"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/operations_block.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/filters.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/sorting.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/reports.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/returns.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/rendering_templates.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/rendering_logic.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/init.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/qrcode.min.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/state.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/modals.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/operations_delete.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/operations_move.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/operations_history.js') }}?v={{ warehouse_ui_version }}&history_ui=3"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/operations_block.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/filters.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/sorting.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/reports.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/returns.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/rendering_templates.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/rendering_logic.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/init.js') }}?v={{ warehouse_ui_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/live_updates.js') }}?v={{ warehouse_ui_version }}"></script>
 
 <script>
 // ---- DELEGOWANY EVENT LISTENER DLA MODALU PALETY ----

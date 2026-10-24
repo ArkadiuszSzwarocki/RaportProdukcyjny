@@ -551,6 +551,9 @@ class PickingService:
 
     def delete_picking_order(self, order_ref, user_role=None):
         """Trwale usuwa dyspozycję kompletacji."""
+        from app.core.shared_inventory_permissions import can_manage_orders
+        if not can_manage_orders(user_role):
+            return False, "Brak uprawnień do usuwania kompletacji."
         items = self._picking_repo.get_by_order_ref(order_ref)
         if not items:
             return False, f"Dyspozycja {order_ref} nie istnieje lub została już usunięta."

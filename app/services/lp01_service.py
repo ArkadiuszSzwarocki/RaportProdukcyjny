@@ -2,6 +2,7 @@ from datetime import datetime
 from app.core.database import get_db_connection
 from app.db import get_table_name
 import re
+import math
 
 class Lp01Service:
     @staticmethod
@@ -165,23 +166,30 @@ class Lp01Service:
         Archiwizuje materiał z maszyny LP01 (oznacza jako zużyty, tworzy wpis w magazyn_archiwum,
         wyzerowuje stan na maszynie lub zmniejsza go o consumed_qty, loguje w palety_historia i magazyn_ruch).
         """
+        if item_type not in {'Surowiec', 'Opakowanie'}:
+            return False, 'Nieprawidłowy typ materiału LP01.'
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             table = get_table_name('magazyn_surowce' if item_type == 'Surowiec' else 'magazyn_opakowania', linia)
             table_ruch = get_table_name('magazyn_ruch', linia)
 
-            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (item_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", (item_id,))
             item = cursor.fetchone()
             if not item:
                 return False, "Nie znaleziono materiału na maszynie LP01."
 
+            if str(item.get('lokalizacja') or '').strip().upper() not in {'LP01', 'MASZYNA'}:
+                return False, 'Materiał nie znajduje się na LP01.'
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            if item.get('is_blocked') or PalletLockManager.has_quality_or_manual_block(cursor, item.get('nr_palety')):
+                return False, 'Materiał ma blokadę LAB lub ręczną.'
             curr_qty = float(item.get('stan_magazynowy') or 0)
             if curr_qty <= 0:
                 return False, "Materiał posiada już stan 0."
 
             qty_to_archive = float(consumed_qty) if consumed_qty is not None else curr_qty
-            if qty_to_archive <= 0 or qty_to_archive > curr_qty:
+            if not math.isfinite(qty_to_archive) or qty_to_archive <= 0 or qty_to_archive > curr_qty:
                 return False, f"Nieprawidłowa ilość do archiwizacji (dostępne na LP01: {curr_qty})."
 
             now = datetime.now()

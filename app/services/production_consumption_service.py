@@ -158,15 +158,21 @@ class ProductionConsumptionService:
                 name_col = 'produkt'
 
             # 1. Pobierz aktualne dane palety
-            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", (pallet_id,))
             p = cursor.fetchone()
             if not p:
                 return False, "Paleta nie została znaleziona lub została już wcześniej zużyta.", None
 
-            last_location = str(p.get('lokalizacja') or 'PRODUKCJA').strip()
+            from app.core.shared_inventory_permissions import is_consumption_location
+            last_location = str(p.get('lokalizacja') or '').strip()
+            if not is_consumption_location(last_location):
+                return False, 'Zużycie do zera jest dostępne wyłącznie dla materiału na produkcji lub LP01. Palety magazynowej nie można wyzerować tą operacją.', None
             if last_location.upper().startswith('OCZEK') or p.get('is_blocked') == 1:
                 return False, "Nie można zużyć palety ze statusem OCZEKUJĄCE. Paleta musi zostać najpierw przyjęta na magazyn docelowy.", None
 
+            from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
+            if PalletLockManager.has_quality_or_manual_block(cursor, p.get('nr_palety')):
+                return False, 'Paleta ma blokadę LAB lub ręczną.', None
             last_weight = float(p.get(col_qty) or 0)
             pallet_name = p.get('nazwa') or p.get('produkt') or 'Nieznany produkt'
             pallet_batch = p.get('nr_partii') or '-'

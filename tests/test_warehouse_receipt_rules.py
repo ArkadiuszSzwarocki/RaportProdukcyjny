@@ -66,13 +66,15 @@ def test_future_production_date_is_rejected():
         validate_pallet_dates((date.today()+timedelta(days=1)).isoformat(),None)
 
 
-def test_all_scope_authorizes_raw_stock_by_warehouse_not_legacy_owner(monkeypatch):
+def test_all_scope_authorizes_logged_in_shared_stock_without_hall_ownership():
     from app.core.shared_raw_stock_permissions import shared_raw_stock_allowed
-    checks=[]
-    monkeypatch.setattr('app.core.shared_raw_stock_permissions._page_allowed',
-                        lambda hall,section,write: checks.append((hall,section,write)) or True)
-    assert shared_raw_stock_allowed({'linia':'AGRO','lokalizacja':'MS01'},'ALL',write=True)
-    assert checks==[('PSD','magazyn',True)]
+    from flask import session
+    app = Flask(__name__)
+    app.secret_key = 'shared-stock-test'
+    with app.test_request_context('/'):
+        assert not shared_raw_stock_allowed({'linia': 'AGRO', 'lokalizacja': 'MS01'}, 'ALL', write=True)
+        session.update(zalogowany=True, rola='pracownik', grupa='OSIP')
+        assert shared_raw_stock_allowed({'linia': 'AGRO', 'lokalizacja': 'MS01'}, 'ALL', write=True)
 
 
 def test_print_history_is_masteradmin_only(monkeypatch):

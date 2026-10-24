@@ -110,6 +110,16 @@ _DB_POOL = None
 _DB_POOL_LOCK = threading.Lock()
 
 
+def _configured_pool_size():
+    # Pool construction opens every connection synchronously. At home, the
+    # round trips to the remote database made 32 connections block navigation.
+    default = 8 if is_local else 32
+    try:
+        return max(1, min(32, int(os.getenv('DB_POOL_SIZE', default))))
+    except (TypeError, ValueError):
+        return default
+
+
 def _get_or_create_pool():
     """Lazily initialize or return MySQL connection pool matching current DB_CONFIG."""
     global _DB_POOL
@@ -131,7 +141,7 @@ def _get_or_create_pool():
                 try:
                     pool = pooling.MySQLConnectionPool(
                         pool_name="app_db_pool",
-                        pool_size=32,
+                        pool_size=_configured_pool_size(),
                         pool_reset_session=True,
                         connection_class=MySQLConnection,
                         **pool_config
@@ -139,7 +149,7 @@ def _get_or_create_pool():
                 except (TypeError, Exception):
                     pool = pooling.MySQLConnectionPool(
                         pool_name="app_db_pool",
-                        pool_size=32,
+                        pool_size=_configured_pool_size(),
                         pool_reset_session=True,
                         **pool_config
                     )
@@ -167,7 +177,8 @@ def get_db_connection(retries=2):
                 conn.rollback()
             except Exception:
                 pass
-            return conn
+            from app.services.warehouse_live_updates import observe_connection
+            return observe_connection(conn, get_active_database_name())
     except Exception:
         pass
 
@@ -192,7 +203,9 @@ def get_db_connection(retries=2):
         conn_config.setdefault('use_pure', True)
         for attempt in range(num_retries):
             try:
-                return mysql.connector.connect(**conn_config, buffered=True)
+                conn = mysql.connector.connect(**conn_config, buffered=True)
+                from app.services.warehouse_live_updates import observe_connection
+                return observe_connection(conn, get_active_database_name())
             except mysql.connector.Error as exc:
                 last_error = exc
                 if attempt < num_retries - 1:

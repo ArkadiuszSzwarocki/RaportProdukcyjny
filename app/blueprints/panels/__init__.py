@@ -234,7 +234,7 @@ def moje_godziny():
     role = (session.get('rola') or '').lower()
     # If leader/admin and explicit pracownik_id given, allow viewing another pracownik
     viewed_pid = owner_pid
-    if role in ['lider', 'admin', 'planista'] and request.args.get('pracownik_id'):
+    if role in ['lider', 'admin', 'planista', 'masteradmin'] and request.args.get('pracownik_id'):
         try:
             viewed_pid = int(request.args.get('pracownik_id'))
         except Exception:
@@ -243,7 +243,7 @@ def moje_godziny():
     # Jeśli konto nie ma powiązanego `pracownik_id`, pozwól liderowi/adminowi
     # zobaczyć stronę (wybór pracownika). Tylko zwykli użytkownicy bez mapowania
     # zobaczą komunikat o braku powiązania.
-    if not owner_pid and role not in ['lider', 'admin', 'planista']:
+    if not owner_pid and role not in ['lider', 'admin', 'planista', 'masteradmin']:
         # Brak mapowania właściciela — poproś administratora o powiązanie konta
         fallback_summary = {'obecnosci': 0, 'typy': {}, 'wyjscia_hours': 0.0}
         return render_template('moje_godziny.html', mapped=False, owner_summary=fallback_summary, viewed_summary=None, d_od=None, d_do=None, wnioski=[], calendar_days_owner=[], calendar_days_viewed=None, pracownicy_list=None, selected_pid=None, owner_pid=None, viewed_pid=None)
@@ -260,7 +260,7 @@ def moje_godziny():
     pracownicy_list = None
     selected_pid = viewed_pid if viewed_pid != owner_pid else None
     try:
-        if role in ['lider', 'admin']:
+        if role in ['lider', 'admin', 'masteradmin']:
             cursor.execute("SELECT id, imie_nazwisko FROM pracownicy ORDER BY imie_nazwisko")
             pracownicy_list = cursor.fetchall()
     except Exception:
@@ -324,7 +324,7 @@ def moje_godziny():
     # Pobierz oczekujące nadgodziny dla lidera
     pending_nadgodziny = []
     try:
-        if role in ['lider', 'admin']:
+        if role in ['lider', 'admin', 'masteradmin']:
             pending_nadgodziny = OvertimeService.get_pending_requests()
             current_app.logger.info(f"[DEBUG] moje_godziny: pending_nadgodziny count={len(pending_nadgodziny)}")
     except Exception as e:

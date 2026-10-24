@@ -38,7 +38,10 @@ function populateLocationFilter() {
         try {
             const parsed = JSON.parse(savedLocs);
             if (Array.isArray(parsed)) {
-                selectedLocations = parsed;
+                // Drop obsolete location selections, e.g. a production tank removed from warehouse stock.
+                selectedLocations = parsed.filter(location => uniqueLocations.includes(location));
+                if (parsed.length && !selectedLocations.length) selectedLocations = [...uniqueLocations];
+                localStorage.setItem('warehouse_locations', JSON.stringify(selectedLocations));
             } else {
                 selectedLocations = [...uniqueLocations];
             }

@@ -12,7 +12,6 @@
 <script src="{{ url_for('static', filename='js/dashboard/zasyp_calculator.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard/picking_3d_rack_view.js') }}?v={{ static_version }}"></script>
 <script src="{{ url_for('static', filename='js/dashboard/picking_view.js') }}?v={{ static_version }}"></script>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="{{ url_for('static', filename='js/dashboard/machine-stats-v2.js') }}?v=2"></script>
 
 <script>
@@ -1246,78 +1245,7 @@
         }
     });
 
-    // Unified system-state real-time polling to refresh views automatically
-    (function() {
-        // Only run for logged in users
-        const isUserLoggedIn = "{{ session.get('zalogowany')|default('') }}";
-        if (!isUserLoggedIn) return;
-
-        let sessionStateSum = 0;
-
-        function checkSystemState() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const configEl = document.getElementById('dashboard-config');
-            const linia = (configEl && configEl.getAttribute('data-linia')) || urlParams.get('linia') || (window.LINIA ? String(window.LINIA) : null) || "{{ session.get('selected_hall_view')|default('PSD') }}";
-            fetch('/api/system_state?linia=' + encodeURIComponent(linia), {
-                credentials: 'same-origin',
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
-                silent: true
-            })
-            .then(response => {
-                if (response.status === 401) {
-                    window.location.replace('/login');
-                    return null;
-                }
-                if (!response.ok) return null;
-                return response.json();
-            })
-            .then(data => {
-                if (!data || !data.state) return;
-                
-                const s = data.state;
-                const currentSum = Number(s.last_pallet_psd || 0) +
-                                   Number(s.count_pallet_psd || 0) +
-                                   Number(s.last_pallet_agro || 0) +
-                                   Number(s.count_pallet_agro || 0) +
-                                   Number(s.last_bigbag_agro || 0) +
-                                   Number(s.count_bigbag_agro || 0) +
-                                   Number(s.last_pkg_agro || 0) +
-                                   Number(s.last_move || 0) +
-                                   Number(s.last_plan || 0) +
-                                   Number(s.last_zasyp_psd || 0) +
-                                   Number(s.last_zasyp_agro || 0) +
-                                   Number(s.last_awaria || 0) +
-                                   Number(s.last_dosypka_psd || 0) +
-                                   Number(s.last_dosypka_agro || 0) +
-                                   Number(s.state_dosypka || 0);
-
-                if (sessionStateSum === 0) {
-                    sessionStateSum = currentSum;
-                    return;
-                }
-
-                if (currentSum !== sessionStateSum) {
-                    sessionStateSum = currentSum;
-                    
-                    // Nie odświeżaj widoków 3D / telemetrii maszyn
-                    if (window.location.pathname.startsWith('/maszyny') || document.getElementById('telemetryAppRoot') || document.querySelector('[data-no-autorefresh]')) {
-                        return;
-                    }
-
-                    // Ciche odświeżenie (tylko na stronach które to obsługują, np. dashboard)
-                    if (typeof window.performPartialReload === 'function') {
-                        window.performPartialReload({ preserveScroll: true, source: 'system-state-sync' });
-                    }
-                }
-            })
-            .catch(() => {});
-        }
-
-        // Poll every 4 seconds
-        setInterval(checkSystemState, 4000);
-        // Initial check after a brief delay
-        setTimeout(checkSystemState, 1000);
-    })();
+    // System-state updates are owned by the single guarded poller in scripts.js.
 
     // -------------------------------------------------------
     // PRINTER SERVER TOGGLE LOGIC (with PIN modal)

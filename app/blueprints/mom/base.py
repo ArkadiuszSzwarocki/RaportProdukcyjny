@@ -93,7 +93,7 @@ def api_close(mom_id):
 def api_reopen(mom_id):
     """Reopen closed MOM (admin/lider)."""
     rola = session.get('rola', '')
-    if rola not in ('admin', 'lider'):
+    if rola not in ('admin', 'lider', 'masteradmin'):
         return jsonify({'error': 'Brak uprawnień'}), 403
     MomService.reopen_mom(mom_id)
     return jsonify({'ok': True})

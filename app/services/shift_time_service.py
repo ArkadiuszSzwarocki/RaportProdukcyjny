@@ -66,11 +66,11 @@ class ShiftTimeService:
         return diff_minutes, start_str, end_str
 
     @classmethod
-    def calculate_productivity(cls, mass_kg: float, awarie_min: int, date_str: str, end_datetime: Optional[datetime] = None) -> dict:
+    def calculate_productivity(cls, mass_kg: float, awarie_min: int, date_str: str, end_datetime: Optional[datetime] = None, *, shift_range=None) -> dict:
         """
         Oblicza dynamiczną wydajność efektywną (netto) i rzeczywistą (brutto).
         """
-        brutto_min, start_str, end_str = cls.get_shift_time_range(date_str, end_datetime)
+        brutto_min, start_str, end_str = shift_range if shift_range is not None else cls.get_shift_time_range(date_str, end_datetime)
         netto_min = max(1, brutto_min - int(awarie_min or 0))
 
         m_kg = float(mass_kg or 0.0)

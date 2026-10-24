@@ -32,7 +32,7 @@ def submit_wniosek():
     # Lider/admin/zarząd mogą złożyć wniosek w imieniu innego pracownika
     role = (session.get('rola') or '').lower()
     target_pid = request.form.get('target_pracownik_id')
-    if target_pid and role in ['lider', 'admin', 'zarzad']:
+    if target_pid and role in ['lider', 'admin', 'zarzad', 'masteradmin']:
         try:
             pracownik_id = int(target_pid)
         except (ValueError, TypeError):

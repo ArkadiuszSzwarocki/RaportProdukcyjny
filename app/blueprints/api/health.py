@@ -15,6 +15,13 @@ from app.core.database import get_db_connection
 def register_api_health_routes(api_bp):
     """Register system health diagnostic route."""
 
+    @api_bp.get('/ping')
+    def connectivity_ping():
+        """Public liveness only; database readiness remains on /api/health."""
+        response = jsonify(status='UP')
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
     @api_bp.route('/health', methods=['GET'])
     def healthcheck():
         """Evaluate application components and return operational health."""

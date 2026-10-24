@@ -8,27 +8,11 @@ def logistics_stock_write_allowed(table, row):
     """Authorize resolved stock, including cross-hall legacy lookup fallbacks."""
     if not has_request_context():
         return True  # Trusted jobs and migrations do not run as browser requests.
-    if table in {'magazyn_surowce', 'magazyn_agro_surowce'}:
-        from app.core.shared_raw_stock_permissions import shared_raw_stock_allowed
-        payload = request.get_json(silent=True) if request.is_json else request.form
-        payload = payload if hasattr(payload, 'get') else {}
-        context_line = payload.get('linia') or request.args.get('linia') or 'AGRO'
-        return shared_raw_stock_allowed(row, context_line, write=True)
-    fixed_halls = {
-        'magazyn_opakowania': 'PSD',
-        'magazyn_agro_opakowania': 'AGRO',
-        'magazyn_palety_agro': 'AGRO',
-    }
-    if table == 'magazyn_dodatki':
-        # Shared additives are available only within the already authorized request scope.
-        payload = request.get_json(silent=True) if request.is_json else request.form
-        payload = payload if hasattr(payload, 'get') else {}
-        line = str(payload.get('linia') or request.args.get('linia') or 'AGRO').upper()
-    else:
-        line = fixed_halls.get(table) or str(row.get('linia') or '').upper()
-    halls = ('PSD', 'AGRO', 'OSIP') if line == 'ALL' else (line,)
-    return all(hall in {'PSD', 'AGRO', 'OSIP'} and
-               _page_allowed(hall, 'magazyn', write=True) for hall in halls)
+    from app.core.shared_inventory_permissions import shared_material_access
+    return table in {
+        'magazyn_surowce', 'magazyn_agro_surowce', 'magazyn_opakowania',
+        'magazyn_agro_opakowania', 'magazyn_dodatki', 'magazyn_palety', 'magazyn_palety_agro',
+    } and shared_material_access()
 
 
 def enforce_logistics_permissions(default_line='ALL'):
@@ -57,8 +41,6 @@ def enforce_logistics_permissions(default_line='ALL'):
                (payload.get('linia') or request.args.get('linia') or default_line)).upper()
     if line not in {'PSD', 'AGRO', 'OSIP', 'ALL'}:
         return jsonify(success=False, error='forbidden'), 403
-    if request.args.get('linia') and (payload.get('linia') or body_default) and str(request.args['linia']).upper() != line:
-        return jsonify(success=False, error='hall_mismatch'), 400
     document_id = (request.view_args or {}).get('dostawa_id') or payload.get('dostawa_id')
     if saving:
         document_id = payload.get('id')
@@ -75,8 +57,6 @@ def enforce_logistics_permissions(default_line='ALL'):
                 return jsonify(success=False, error='document_not_found'), 404
             if row:
                 document_line = str(row.get('linia') or '').upper()
-                if line != 'ALL' and line != document_line:
-                    return jsonify(success=False, error='hall_mismatch'), 403
                 line = document_line
         except Exception:
             current_app.logger.exception('Delivery authorization failed closed')

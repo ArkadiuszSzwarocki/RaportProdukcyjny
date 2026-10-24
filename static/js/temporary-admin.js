@@ -41,7 +41,7 @@
         if (document.hidden || busy || checking || navigating) return;
         checking = true;
         try {
-            const response = await send(panel.dataset.statusUrl, {credentials: 'same-origin', cache: 'no-store'});
+            const response = await send(panel.dataset.statusUrl, {credentials: 'same-origin', cache: 'no-store', silent: true});
             if (!response.ok) return;
             const data = await response.json();
             if (!data.success || busy || navigating) return;

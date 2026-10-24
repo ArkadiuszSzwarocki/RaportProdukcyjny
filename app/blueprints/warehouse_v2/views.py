@@ -99,8 +99,10 @@ def kompletacja():
     active_rack = request.args.get('rack_id', 'ALL')
     from app.services.warehouse_3d_service import Warehouse3dService
     racks_config = Warehouse3dService.get_rack_configurations()
-    from app.services.picking_service import PickingService
-    active_orders = PickingService().get_active_orders()
+    # Render from a read-only snapshot. The page's quiet API read synchronizes
+    # missing pallets afterwards; do not synchronize every order twice on entry.
+    from app.repositories.picking_repository import PickingRepository
+    active_orders = PickingRepository.get_active_orders()
     if not order_ref and active_orders:
         order_ref = active_orders[0].get('order_ref', '')
     return render_template(
@@ -361,3 +363,26 @@ def racks_3d_view():
     )
 
 
+
+
+@warehouse_v2_bp.get('/api/live/events')
+def warehouse_live_events():
+    from flask import Response
+    from app.core.database import get_active_database_name
+    from app.services.warehouse_live_updates import reserve_stream, reserved_stream
+    release = reserve_stream()
+    if release is None:
+        return jsonify(success=False, message='Kanał aktualizacji chwilowo zajęty.'), 503
+    response = Response(reserved_stream(get_active_database_name(), release), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no',
+    })
+    response.call_on_close(release)
+    return response
+
+
+@warehouse_v2_bp.get('/api/live/snapshot')
+def warehouse_live_snapshot():
+    from flask import make_response
+    response = make_response(WarehouseIndexController.render_index(as_json=True))
+    response.headers['Cache-Control'] = 'no-store'
+    return response

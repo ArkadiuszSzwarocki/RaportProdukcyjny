@@ -1,6 +1,6 @@
-{% extends "layout.html" %}
+{% extends 'admin/email_center_layout.html' %}
 
-{% block content %}
+{% block email_content %}
 <style>
     .magazyn-email-container {
         max-width: 1100px;
@@ -260,11 +260,6 @@
             <p class="hero-subtitle">
                 Zdefiniuj dedykowane konto pocztowe nadawcy oraz listę odbiorców. System sprawdza dostawy i przesunięcia z całego dnia i <strong>o wyznaczonej godzinie (lub na żądanie przyciskiem) wysyła zbiorczy raport dzienny</strong> z załącznikiem PDF.
             </p>
-        </div>
-        <div>
-            <a href="{{ url_for('admin.admin_ustawienia') }}" class="btn-secondary-custom">
-                <i class="fas fa-arrow-left"></i> Powrót do Ustawień
-            </a>
         </div>
     </div>
 

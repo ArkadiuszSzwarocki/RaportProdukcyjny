@@ -170,11 +170,16 @@ def register_admin_roles_routes(admin_bp):
                     role_perms = page_perms.get(mapped, {}) if mapped else {}
                 access = bool(role_perms.get('access')) if isinstance(role_perms, dict) else False
                 readonly = bool(role_perms.get('readonly')) if isinstance(role_perms, dict) else False
+                if role.lower().replace(' ', '').replace('_', '').replace('-', '') == 'masteradmin':
+                    access, readonly = True, False
                 row['perms'][page] = {'access': access, 'readonly': readonly}
             users.append(row)
 
         conn.close()
-        return render_template('roles_by_user.html', users=users, pages=ROLES_USERS_PAGES)
+        from app.core.permission_presentation import LABELS, PAGE_NAMES
+        page_labels = dict(LABELS)
+        page_labels.update({key: key.split('.')[0].upper() + ' · ' + PAGE_NAMES.get(key.split('.')[1], key.split('.')[1]) for key in ROLES_USERS_PAGES if key.startswith(('agro.', 'psd.'))})
+        return render_template('roles_by_user.html', users=users, pages=ROLES_USERS_PAGES, page_labels=page_labels)
 
     @admin_bp.route('/admin/ustawienia/roles/save', methods=['POST'])
     @masteradmin_required

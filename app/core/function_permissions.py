@@ -1,5 +1,6 @@
 """Additional, configurable endpoint restrictions shared by UI and server."""
 from flask import current_app, request, session, jsonify, render_template
+from app.decorators import _normalize_role
 
 # Deliberate operator actions only. Polling, lookups and automatic acknowledgements
 # must never become configurable function restrictions.
@@ -63,6 +64,8 @@ def function_catalog():
 
 
 def configured_function_permission():
+    if session.get('zalogowany') and _normalize_role(session.get('rola')) == 'masteradmin':
+        return True
     from app.core.contexts import _get_role_permissions, inject_role_permissions
     import os
     key = 'function.' + str(request.endpoint or '')
@@ -72,7 +75,7 @@ def configured_function_permission():
         payload = request.get_json(silent=True)
         if isinstance(payload, dict) and payload.get('type') in SHARED_MATERIAL_TYPES:
             return shared_material_access()
-    config = _get_role_permissions(os.path.join(current_app.root_path, 'config', 'role_permissions.json'))
+    config = _get_role_permissions(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config', 'role_permissions.json'))
     overrides = {}
     if session.get('user_id'):
         from app.repositories.user_permission_override_repository import user_permission_override_repository
@@ -100,7 +103,7 @@ def register_function_permissions(app):
         if not session.get('zalogowany'):
             return None
         key = 'function.' + str(request.endpoint or '')
-        if session.get('rola') != 'masteradmin' and key in function_catalog() and configured_function_permission() is False:
+        if _normalize_role(session.get('rola')) != 'masteradmin' and key in function_catalog() and configured_function_permission() is False:
             return jsonify(success=False, error='forbidden', message='Brak uprawnień do tej funkcji.'), 403
         from app.core.production_permissions import enforce_production_write
         production_denial = enforce_production_write()
@@ -110,7 +113,7 @@ def register_function_permissions(app):
         warehouse_denial = enforce_warehouse_write()
         if warehouse_denial is not None:
             return warehouse_denial
-        if session.get('rola') == 'masteradmin':
+        if _normalize_role(session.get('rola')) == 'masteradmin':
             return None
         if request.endpoint == 'main.index':
             from app.core.contexts import inject_role_permissions
@@ -132,6 +135,8 @@ def register_function_permissions(app):
             return None
         if str(request.endpoint or '').startswith('production.'):
             # Production guards already resolved the actual resource/default destination.
+            return None
+        if str(request.endpoint or '').startswith('warehouse_v2.'):
             return None
         section = request.args.get('sekcja') or request.form.get('sekcja')
         payload = request.get_json(silent=True)

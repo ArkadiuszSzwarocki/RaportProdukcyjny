@@ -343,6 +343,7 @@
     }
 
     function shouldSkipAutoRefresh() {
+        if (window.__rpNavigating || document.hidden) return true;
         if (skipOpenStopActive()) return true;
         if (hasFocusedEditableElement()) return true;
         if (hasBlockingOverlayOpen()) return true;
@@ -364,6 +365,7 @@
     // --- INTELLIGENT POLLING (Smart Refresh) ---
     let lastKnownSystemState = null;
     let smartPollingTimer = null;
+    let systemStateInFlight = false;
 
     function getCurrentLine() {
         try {
@@ -385,9 +387,10 @@
     }
 
     async function checkSystemState() {
-        if (partialReloadInFlight) return;
+        if (partialReloadInFlight || systemStateInFlight) return;
         if (shouldSkipAutoRefresh()) return;
 
+        systemStateInFlight = true;
         try {
             const linia = getCurrentLine();
             const resp = await fetch(`/api/system_state?linia=${encodeURIComponent(linia)}`, { 
@@ -404,6 +407,7 @@
             const data = await resp.json();
             if (!data.success || !data.state) return;
 
+            if (window.__rpNavigating) return;
             const newState = data.state;
 
             if (lastKnownSystemState) {
@@ -444,7 +448,9 @@
             }
             lastKnownSystemState = newState;
         } catch (e) {
-            console.warn('[SmartPolling] Fetch failed', e);
+            if (!window.__rpNavigating && e.name !== 'AbortError') console.warn('[SmartPolling] Fetch failed', e);
+        } finally {
+            systemStateInFlight = false;
         }
     }
 
@@ -454,11 +460,15 @@
 
     function startSmartPolling() {
         stopSmartPolling();
+        if (document.querySelector('[data-no-autorefresh]')) return;
         // Poll every 3.5 seconds for snappy real-time updates
         smartPollingTimer = setInterval(checkSystemState, 3500);
         // Initial check
         checkSystemState();
     }
+
+    window.addEventListener('rp:navigation-start', stopSmartPolling);
+    window.addEventListener('rp:navigation-cancelled', startSmartPolling);
 
     // --- INICJALIZACJA ---
     document.addEventListener('DOMContentLoaded', function () {
@@ -667,6 +677,7 @@
             const resp = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store', headers: { 'Cache-Control': 'no-cache' }, silent: true });
             if (!resp.ok) return;
             const txt = await resp.text();
+            if (window.__rpNavigating) return;
             const tmp = document.createElement('div'); tmp.innerHTML = txt;
             const newMain = tmp.querySelector('#mainContent');
             const curMain = document.getElementById('mainContent');

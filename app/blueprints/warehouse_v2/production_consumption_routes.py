@@ -9,7 +9,7 @@ from .blueprint import warehouse_v2_bp
 def zuzycie_view():
     """Główny widok modułu Zużycie w produkcji."""
     linia = request.args.get('linia', 'PSD').upper()
-    worker_login = session.get('username') or 'Magazynier'
+    worker_login = session.get('login') or session.get('username') or 'Magazynier'
     
     # Pobierz dzisiejszą historię zużyć
     daily_history = ProductionConsumptionService.get_daily_consumption_history(worker_login=worker_login)
@@ -54,7 +54,7 @@ def api_zuzycie_confirm():
     pallet_id = data.get('pallet_id')
     pallet_type = data.get('pallet_type')
     linia = (data.get('linia') or 'PSD').upper()
-    worker_login = session.get('username') or 'Magazynier'
+    worker_login = session.get('login') or session.get('username') or 'Magazynier'
     comment = data.get('comment') or 'Zużycie w produkcji (wydozowano do 0 kg)'
     
     if not pallet_id or not pallet_type:
@@ -87,7 +87,7 @@ def api_zuzycie_confirm():
 @login_required
 def api_zuzycie_history():
     """Zwraca zaktualizowaną dzisiejszą listę zużyć dla bieżącego użytkownika/dnia."""
-    worker_login = session.get('username') or 'Magazynier'
+    worker_login = session.get('login') or session.get('username') or 'Magazynier'
     history = ProductionConsumptionService.get_daily_consumption_history(worker_login=worker_login)
     return jsonify({
         'success': True,

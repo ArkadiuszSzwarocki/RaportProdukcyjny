@@ -5,7 +5,7 @@ import os
 
 bind = f"{os.environ.get('HOST', '0.0.0.0')}:{os.environ.get('PORT', '8082')}"
 workers = int(os.environ.get('GUNICORN_WORKERS', '2'))
-threads = int(os.environ.get('GUNICORN_THREADS', '4'))
+threads = int(os.environ.get('GUNICORN_THREADS', '64'))
 timeout = int(os.environ.get('GUNICORN_TIMEOUT', '120'))
 keepalive = int(os.environ.get('GUNICORN_KEEPALIVE', '5'))
 

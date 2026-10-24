@@ -59,10 +59,12 @@ def register_user_permissions_routes(admin_bp):
         functions = function_catalog()
         role_perms = {key: value for key, value in role_perms.items()
                       if not key.startswith('function.') or key in functions}
+        explicit_function_rules = {key for key in role_perms if key.startswith('function.')}
         for key in functions:
             role_perms.setdefault(key, {user_role: {'access': True, 'readonly': False}})
         user_overrides = user_permission_override_repository.get_user_overrides(user_id)
 
+        from app.core.permission_presentation import permission_metadata
         modules = []
         for page_key, perms in role_perms.items():
             role_cfg = perms.get(user_role, {})
@@ -75,6 +77,8 @@ def register_user_permissions_routes(admin_bp):
 
             modules.append({
                 'page_key': page_key,
+                **permission_metadata(page_key, functions),
+                'default_source': 'operation_policy' if page_key in functions and page_key not in explicit_function_rules else 'role',
                 'role_access': role_access,
                 'role_readonly': role_readonly,
                 'has_override': override is not None,

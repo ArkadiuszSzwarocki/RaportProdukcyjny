@@ -19,13 +19,20 @@ def eligible():
     """Only the two active supervisor accounts may use this switch."""
     return bool(session.get('zalogowany') and session.get('user_id')) and (
         str(session.get('login') or '').strip().casefold() in ALLOWED_LOGINS
-        and _normalize_role(session.get('_account_role', session.get('rola'))) in {'lider', 'masteradmin'}
+        and _normalize_role(session.get('_account_role', session.get('rola'))) == 'lider'
     )
 
 
 def apply_temporary_role():
     """Keep the database role intact and expire elevated access on the server."""
     grant = session.get(_GRANT)
+    base_role = _normalize_role(session.get('_account_role', session.get('rola')))
+    if session.get('zalogowany') and base_role == 'masteradmin':
+        # A permanent MasterAdmin account must never depend on a timed leader grant.
+        session['rola'] = 'masteradmin'
+        session['grupa'] = 'ALL'
+        session.pop(_GRANT, None)
+        return
     if not eligible():
         if grant:
             session.pop(_GRANT, None)

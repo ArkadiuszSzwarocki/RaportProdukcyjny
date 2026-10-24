@@ -25,7 +25,15 @@ def register_admin_team_routes(admin_bp, *, load_roles):
             "LEFT JOIN uzytkownicy u ON p.id = u.pracownik_id "
             "ORDER BY p.imie_nazwisko"
         )
-        rows = cursor.fetchall()
+        rows = list(cursor.fetchall())
+        cursor.execute(
+            "SELECT NULL, u.login, NULL, u.id, u.login, u.rola, u.grupa, 0, 0, "
+            "COALESCE(u.email, '') FROM uzytkownicy u "
+            "LEFT JOIN pracownicy p ON p.id = u.pracownik_id WHERE p.id IS NULL "
+            "ORDER BY u.login"
+        )
+        rows.extend(cursor.fetchall())
+        rows.sort(key=lambda row: (row[1] or '').casefold())
 
         roles = load_roles(cursor)
         roles_map = {role[0]: role[1] for role in roles}

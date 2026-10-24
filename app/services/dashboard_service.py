@@ -120,7 +120,7 @@ class DashboardService:
     @staticmethod
     def get_journal_entries(dzisiaj: date, sekcja: str, linia='PSD', cursor=None) -> List[List[Any]]:
         """Get and format journal entries for a section."""
-        wpisy = QueryHelper.get_dziennik_zmiany(dzisiaj, sekcja, linia=linia)
+        wpisy = QueryHelper.get_dziennik_zmiany(dzisiaj, sekcja, linia=linia, cursor=cursor)
         for w in wpisy:
             try:
                 if len(w) > 3: w[3] = w[3].strftime('%H:%M') if hasattr(w[3], 'strftime') else str(w[3]) if w[3] else ''
@@ -137,12 +137,12 @@ class DashboardService:
         return ProductionService.get_production_plans(dzisiaj, sekcja, linia, cursor, data_od=data_od, data_do=data_do)
 
     @staticmethod
-    def get_hr_and_leave_data(dzisiaj: date, cursor=None) -> Dict[str, Any]:
+    def get_hr_and_leave_data(dzisiaj: date, cursor=None, staff_data=None) -> Dict[str, Any]:
         """Fetch all HR-related data for the dashboard."""
         hr_data_raw, wnioski = HRService.get_hr_and_leave_data(dzisiaj, cursor)
         
         # Aggregate all HR data into the format expected by routes_main.py
-        staff_global = StaffService.get_basic_staff_data(dzisiaj, cursor=cursor)
+        staff_global = staff_data if staff_data is not None else StaffService.get_basic_staff_data(dzisiaj, cursor=cursor)
         planned_leaves = HRService.get_planned_leaves(days=60, cursor=cursor)
         recent_absences = HRService.get_recent_absences(days=30, cursor=cursor)
         
@@ -156,12 +156,12 @@ class DashboardService:
         }
 
     @staticmethod
-    def get_quality_and_leave_requests(rola: str, linia='PSD', cursor=None) -> Dict[str, Any]:
+    def get_quality_and_leave_requests(rola: str, linia='PSD', cursor=None, pending_requests=None) -> Dict[str, Any]:
         """Backward compatible return for quality and leave requests."""
         q_count = ProductionService.get_pending_quality_count(linia, cursor=cursor)
         wnioski = []
         if rola in ['admin', 'lider', 'masteradmin']:
-            wnioski = QueryHelper.get_pending_leave_requests(limit=10)
+            wnioski = pending_requests if pending_requests is not None else QueryHelper.get_pending_leave_requests(limit=10, cursor=cursor)
         
         return {
             'quality_count': q_count,
@@ -225,19 +225,30 @@ class DashboardService:
 
     @staticmethod
     def get_full_plans_for_sections(dzisiaj: date, linia='PSD', cursor=None, data_od=None, data_do=None) -> Tuple[List, List]:
-        """Fetch plans for Zasyp and Workowanie (Legacy return format for compatibility)."""
+        zasyp, workowanie = DashboardService.get_full_plan_results_for_sections(
+            dzisiaj, linia, cursor, data_od=data_od, data_do=data_do)
+        return zasyp[0], workowanie[0]
+
+    @staticmethod
+    def get_full_plan_results_for_sections(dzisiaj: date, linia='PSD', cursor=None, data_od=None, data_do=None) -> Tuple[List, List]:
+        """Return both complete plan results so callers can reuse their maps and totals."""
         close_conn = False
         if cursor is None:
             conn = get_db_connection()
             cursor = conn.cursor()
             close_conn = True
             
-        plans_zasyp, _, _, _ = ProductionService.get_production_plans(dzisiaj, 'Zasyp', linia, cursor, data_od=data_od, data_do=data_do)
-        plans_workowanie, _, _, _ = ProductionService.get_production_plans(dzisiaj, 'Workowanie', linia, cursor, data_od=data_od, data_do=data_do)
+        try:
+            zasyp_result = ProductionService.get_production_plans(dzisiaj, 'Zasyp', linia, cursor, data_od=data_od, data_do=data_do)
+            workowanie_result = ProductionService.get_production_plans(dzisiaj, 'Workowanie', linia, cursor, data_od=data_od, data_do=data_do)
         
-        if close_conn:
-            conn.close()
-        return plans_zasyp, plans_workowanie
+            return zasyp_result, workowanie_result
+        finally:
+            if close_conn:
+                try:
+                    cursor.close()
+                finally:
+                    conn.close()
 
     @staticmethod
     def get_zasyp_started_products(dzisiaj: date, linia='PSD', cursor=None) -> List[str]:
@@ -389,6 +400,14 @@ class DashboardService:
             'estimated_bags': 0,
             'all_warehouse_packaging': [],
         }
+        shared_read_connection = None
+
+        def read_connection():
+            nonlocal shared_read_connection
+            if shared_read_connection is None:
+                shared_read_connection = get_db_connection()
+            return shared_read_connection
+
         try:
             from app.services.agro.agro_opakowania_service import AgroOpakowaniaService
             from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
@@ -408,7 +427,7 @@ class DashboardService:
             packaging_items = AgroOpakowaniaPlanService.get_all_linked_packaging(plan_id) or []
             
             history = []
-            conn_hist = get_db_connection()
+            conn_hist = read_connection()
             try:
                 cur_hist = conn_hist.cursor(dictionary=True)
                 cur_hist.execute(
@@ -421,12 +440,12 @@ class DashboardService:
             except Exception as e:
                 print(f"Error fetching workowanie history: {e}")
             finally:
-                conn_hist.close()
+                cur_hist.close()
             all_warehouse_packaging = AgroOpakowaniaService.get_packaging_inventory(linia='AGRO') or []
             
             # Fetch active packaging IDs (currently linked to an active plan) so we don't show active items
             active_opak_ids = set()
-            conn_active = get_db_connection()
+            conn_active = read_connection()
             try:
                 cur_act = conn_active.cursor()
                 cur_act.execute("SELECT opakowanie_id FROM agro_plan_opakowania WHERE is_active = TRUE")
@@ -434,7 +453,7 @@ class DashboardService:
             except Exception as e:
                 print(f"Error fetching active packaging IDs: {e}")
             finally:
-                conn_active.close()
+                cur_act.close()
 
             today_date = date.today()
 
@@ -452,7 +471,7 @@ class DashboardService:
 
             przydzielone_opakowanie_id = active_plan.get('opakowanie_id')
             if przydzielone_opakowanie_id:
-                conn_filter = get_db_connection()
+                conn_filter = read_connection()
                 try:
                     cur_filter = conn_filter.cursor()
                     cur_filter.execute("SELECT nazwa FROM magazyn_opakowania WHERE id=%s", (przydzielone_opakowanie_id,))
@@ -466,12 +485,12 @@ class DashboardService:
                 except Exception as e:
                     print(f"Error filtering packaging dropdown: {e}")
                 finally:
-                    conn_filter.close()
+                    cur_filter.close()
             else:
                 all_warehouse_packaging = [item for item in all_warehouse_packaging if _is_valid_packaging_item(item)]
 
             table_palety = get_table_name('palety_workowanie', 'AGRO')
-            conn = get_db_connection()
+            conn = read_connection()
             cursor = conn.cursor()
             try:
                 cursor.execute(
@@ -492,7 +511,7 @@ class DashboardService:
                 totals_row = cursor.fetchone() or (0, 0)
             finally:
                 try:
-                    conn.close()
+                    cursor.close()
                 except Exception:
                     pass
 
@@ -532,7 +551,7 @@ class DashboardService:
                 pass
             
             already_logged = 0.0
-            conn_loc = get_db_connection()
+            conn_loc = read_connection()
             try:
                 cur_loc = conn_loc.cursor()
                 cur_loc.execute("SELECT COALESCE(SUM(zuzyte_worki), 0) FROM agro_workowanie_rozliczenie WHERE plan_id=%s", (plan_id,))
@@ -595,7 +614,7 @@ class DashboardService:
             except Exception as e:
                 print(f"Error resolving suggested locs: {e}")
             finally:
-                conn_loc.close()
+                cur_loc.close()
             
             bigbag_settlement = {}
             try:
@@ -623,6 +642,9 @@ class DashboardService:
             out = dict(default_ctx)
             out['wrctx_error'] = str(error)
             return out
+        finally:
+            if shared_read_connection is not None:
+                shared_read_connection.close()
 
     @staticmethod
     def _calculate_elapsed_time(dt: Any) -> str:

@@ -150,7 +150,7 @@ def test_layout_loads_indexeddb_store_before_legacy_runtime():
 def test_service_worker_partitions_cached_navigation_by_user():
     sw = Path('static/sw.js').read_text(encoding='utf-8')
 
-    assert "const STATIC_CACHE_NAME = 'rp-pwa-static-v4';" in sw
+    assert "const STATIC_CACHE_NAME = 'rp-pwa-static-v7';" in sw
     assert "const PAGE_CACHE_PREFIX = 'rp-pwa-pages-v2-user-';" in sw
     assert "const META_CACHE_NAME = 'rp-pwa-meta-v2';" in sw
     assert "    '/'," not in sw

@@ -1,6 +1,7 @@
 from datetime import datetime, date
-from flask import render_template, request
+from flask import render_template, request, jsonify
 from app.db import get_db_connection, get_table_name
+from app.utils.location_validator import is_warehouse_location
 from app.blueprints.warehouse_v2.utils.date_formatters import format_date_val, compute_expiry_date
 from app.blueprints.warehouse_v2.utils.packaging_classifier import classify_packaging_type
 from app.services.dashboard_service import DashboardService
@@ -8,7 +9,7 @@ from app.services.warehouse_v2.warehouse_pending_items_service import WarehouseP
 
 class WarehouseIndexController:
     @staticmethod
-    def render_index():
+    def render_index(as_json=False):
         """Render the main warehouse dashboard with stocks, locations, capacities, and printers."""
         linia = request.args.get('linia', 'ALL').upper()
         palety_linie = ['PSD', 'AGRO']
@@ -16,17 +17,10 @@ class WarehouseIndexController:
         conn = get_db_connection()
         items = []
         printers = []
+        load_failed = False
         try:
             cursor = conn.cursor(dictionary=True)
             
-            # Automatic self-healing: reconcile orphan transfer locks from completed PZ/MM
-            try:
-                from app.services.magazyn_dostawy.commands.pallet_lock_manager import PalletLockManager
-                PalletLockManager.reconcile_orphan_transfer_locks(cursor)
-                conn.commit()
-            except Exception as e:
-                pass
-
             # Load active printers
             try:
                 cursor.execute("SELECT id, nazwa, ip, lokalizacja FROM drukarki WHERE aktywna = 1")
@@ -52,6 +46,7 @@ class WarehouseIndexController:
                     row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                     items.append(row)
             except Exception as e:
+                load_failed = True
                 print(f"Error fetching surowce: {e}")
 
             # 2. Opakowania
@@ -72,6 +67,7 @@ class WarehouseIndexController:
                     row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                     items.append(row)
             except Exception as e:
+                load_failed = True
                 print(f"Error fetching opakowania: {e}")
 
             # 3. Wyroby Gotowe (filtrowane wg wybranej linii lub ALL)
@@ -149,6 +145,7 @@ class WarehouseIndexController:
 
                         items.append(row)
                 except Exception as e:
+                    load_failed = True
                     print(f"Error fetching wyroby gotowe ({linia_palety}): {e}")
 
             # 3b. Oczekujące Wyroby Gotowe z produkcji (palety w buforze ze statusem 'do_przyjecia')
@@ -211,6 +208,7 @@ class WarehouseIndexController:
 
                         items.append(row)
                 except Exception as e_pw:
+                    load_failed = True
                     print(f"Error fetching pending production pallets ({linia_prod}): {e_pw}")
 
             # 4. Dodatki
@@ -230,16 +228,22 @@ class WarehouseIndexController:
                     row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                     items.append(row)
             except Exception as e:
+                load_failed = True
                 print(f"Error fetching dodatki: {e}")
 
             # 5. Oczekujące pozycje ze zleceń i dostaw (deduplikacja + wzbogacenie o dane PZ/MM/WZ)
             try:
                 WarehousePendingItemsService.enrich_and_append_pending(items, linia)
             except Exception as e:
+                load_failed = True
                 print(f"Error enriching pending items: {e}")
 
         except Exception as e:
+            load_failed = True
             print(f"Error in dashboard: {e}")
+
+        # Production tanks retain their history but are not physical warehouse stock.
+        items = [item for item in items if is_warehouse_location(item.get('location') or 'OCZEKUJĄCE')]
 
         # Mark expired pallets as system-blocked
         today_str = datetime.now().strftime('%Y-%m-%d')
@@ -322,6 +326,12 @@ class WarehouseIndexController:
         finally:
             conn.close()
 
+        if as_json and load_failed:
+            return jsonify(success=False, message='Nie udało się pobrać pełnego stanu magazynu.'), 503
         fefo_pallets = DashboardService.get_expiring_pallets(date.today(), linia, days_threshold=30)
+        fefo_pallets = [p for p in fefo_pallets if is_warehouse_location(p.get('lokalizacja') or 'OCZEKUJĄCE')]
+        if as_json:
+            fefo = [dict(p, data_przydatnosci=format_date_val(p.get('data_przydatnosci'))) for p in fefo_pallets]
+            return jsonify(success=True, items=items, stats=stats, fefo=fefo)
         aktywna_zakladka = request.args.get('zakladka', 'all')
         return render_template('warehouse_v2/dashboard.html', items=items, linia=linia, zakladki=magazyny_zakladki, aktywna_zakladka=aktywna_zakladka, stats=stats, printers=printers, fefo_pallets=fefo_pallets)

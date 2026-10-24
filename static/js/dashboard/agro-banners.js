@@ -380,7 +380,10 @@
         }
     }
 
+    var badgeRead = null;
     function _syncDosypkiBadgesAndFallbackBanner() {
+        if (badgeRead) return badgeRead;
+        if (global.__rpNavigating || document.hidden) return;
         if (!isAgroZasypPage()) {
             return;
         }
@@ -388,7 +391,8 @@
         try {
             var config = getConfigState();
             var linia = (config && config.linia) || 'PSD';
-            fetch('/api/zasyp/pending_dosypki_badges?linia=' + encodeURIComponent(linia) + '&data=' + encodeURIComponent(getCurrentDateIso()) + '&_=' + Date.now(), {
+            badgeRead = fetch('/api/zasyp/pending_dosypki_badges?linia=' + encodeURIComponent(linia) + '&data=' + encodeURIComponent(getCurrentDateIso()) + '&_=' + Date.now(), {
+                silent: true,
                 credentials: 'same-origin',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
@@ -418,11 +422,13 @@
                     });
                 })
                 .catch(function (error) {
-                    console.error('Dosypki badge sync err', error);
+                    if (!error || error.name !== 'AbortError') console.error('Dosypki badge sync err', error);
                 });
         } catch (error) {
             console.error('Dosypki badge sync setup err', error);
         }
+        if (badgeRead) badgeRead = badgeRead.finally(function () { badgeRead = null; });
+        return badgeRead;
     }
 
     function _ensureAgroBannerPulseStyle() {

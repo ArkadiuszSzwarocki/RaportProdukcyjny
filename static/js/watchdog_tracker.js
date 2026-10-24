@@ -38,6 +38,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: jsonPayload,
+                silent: true,
                 keepalive: true
             }).catch(() => {});
         } catch (_) {}

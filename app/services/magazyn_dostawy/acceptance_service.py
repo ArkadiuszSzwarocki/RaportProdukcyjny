@@ -97,12 +97,18 @@ class AcceptanceService:
                 # Zlecenie jest transferem wewnętrznym (przesunięciem), jeśli nie ma zewnętrznego dostawcy
                 # lub supplier wskazuje na transfer wewnętrzny / przesunięcie.
                 is_transfer = not bool(supplier) or 'PRZESUNI' in supplier.upper() or 'TRANSFER' in supplier.upper()
-                is_external = (bool(supplier) and not is_transfer) or source_spot == 'DOSTAWA' or str(dostawa.get('lokalizacja_z') or '').strip().upper() == 'DOSTAWA'
+                # Returns already have their own physical stock row and SSCC.
+                # PRODUKCJA names the source, not an external supplier.
+                is_return = bool(target.get('is_return'))
+                is_external = not is_return and ((bool(supplier) and not is_transfer) or source_spot == 'DOSTAWA' or str(dostawa.get('lokalizacja_z') or '').strip().upper() == 'DOSTAWA')
                 if not is_external and is_transit_location(source_spot):
                     return False, 'Paleta jest w tranzycie OSIP. Przyjmij ją w jej istniejącym transferze.', None
                 is_manual = target.get('is_manual', False) or target.get('warehouseLookupSkipped', False)
                 if not is_external:
                     destination = normalize_warehouse_location(target.get('targetSpot') or dostawa.get('lokalizacja_do'))
+                    # MAGAZYN is a generic destination on old production returns.
+                    if is_return and destination == 'MAGAZYN':
+                        destination = None
                     # An open live movement receives its actual rack at scan time.
                     if destination and destination != lokalizacja:
                         return False, f'Paleta jest przeznaczona do {destination}. Nie można przyjąć jej na {lokalizacja}.', None
@@ -151,7 +157,8 @@ class AcceptanceService:
                 # Resolve legacy/inconsistent documents by the physical SSCC
                 # (or source id), not by the document line. This prevents an
                 # AGRO/ALL document from updating a PSD row with the same id.
-                source_identity = target.get('sourcePalletNo') or target.get('nr_palety') or target.get('sourcePalletId')
+                source_identity = (target.get('nr_palety') if is_return else
+                                   target.get('sourcePalletNo') or target.get('nr_palety') or target.get('sourcePalletId'))
                 if source_identity and not source_table_hint:
                     if p_type_scanned in ('wyrob_gotowy', 'wyrób gotowy', 'wyrob gotowy', 'magazyn', 'produkcja'):
                         table_candidates, qty_column = sorted(allowed_got), 'waga_netto'
@@ -270,7 +277,7 @@ class AcceptanceService:
 
                 raw_qty = (target.get('unitsPerPallet') if is_opk_pkg else None) or target.get('quantity') or target.get('netWeight') or target.get('ilosc') or 0
                 qty = float(raw_qty) if raw_qty else 0.0
-                if not math.isfinite(qty) or (is_external and qty <= 0):
+                if not math.isfinite(qty) or ((is_external or is_return) and qty <= 0):
                     return False, 'Ilość przyjęcia musi być dodatnia i skończona.', None
 
                 if is_opk_pkg:

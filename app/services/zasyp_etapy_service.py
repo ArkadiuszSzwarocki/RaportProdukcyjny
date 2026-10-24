@@ -309,6 +309,81 @@ class ZasypEtapyService:
         return sessions
 
     @staticmethod
+    def get_dashboard_sessions(plan_ids: List[int], linia: str):
+        """Read stages and parameters for the whole page with bounded SQL calls.
+
+        The dashboard must not acquire a connection per order or query per batch.
+        This read path never performs schema migrations.
+        """
+        ids = list(dict.fromkeys(int(pid) for pid in plan_ids))
+        if not ids:
+            return {}, {}
+        linia_u = _norm_linia(linia)
+        placeholders = ','.join(['%s'] * len(ids))
+        rows_by_plan = {pid: {} for pid in ids}
+        numbers_by_plan = {pid: set() for pid in ids}
+        parameters = {pid: {'wielkosc_szarzy_kg': None} for pid in ids}
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            try:
+                cursor.execute(
+                    f'SELECT * FROM zasyp_etapy WHERE linia=%s AND plan_id IN ({placeholders}) ORDER BY etap ASC',
+                    (linia_u, *ids),
+                )
+                for row in cursor.fetchall() or []:
+                    pid = int(row['plan_id'])
+                    raw_number = int(row.get('szarza_nr') or 1)
+                    number = max(1, raw_number)
+                    numbers_by_plan[pid].add(number)
+                    # Match legacy loading: NULL/0 belong to batch 1; negative
+                    # batch rows don't match its selected session.
+                    if raw_number < 1:
+                        continue
+                    try:
+                        etap = int(row.get('etap'))
+                    except (ValueError, TypeError):
+                        continue
+                    if etap <= 0:
+                        continue
+                    rows_by_plan[pid].setdefault(number, {})[etap] = EtapRow(
+                        etap=etap, czas_start=row.get('czas_start'), czas_stop=row.get('czas_stop'),
+                        start_login=row.get('start_login'), stop_login=row.get('stop_login'),
+                        is_paused=bool(row.get('is_paused', 0)), pauza_start=row.get('pauza_start'),
+                        pauza_sekundy=int(row.get('pauza_sekundy', 0) or 0),
+                    )
+                missing = [pid for pid in ids if not numbers_by_plan[pid]]
+                if missing:
+                    fmt = ','.join(['%s'] * len(missing))
+                    table = get_table_name('szarze', linia_u)
+                    cursor.execute(
+                        f'SELECT plan_id, MAX(COALESCE(nr_szarzy, 1)) AS max_val FROM {table} WHERE plan_id IN ({fmt}) GROUP BY plan_id',
+                        missing,
+                    )
+                    for row in cursor.fetchall() or []:
+                        numbers_by_plan[int(row['plan_id'])].add(max(1, int(row['max_val'] or 1)))
+                cursor.execute(
+                    f'SELECT plan_id, wielkosc_szarzy_kg FROM zasyp_etapy_parametry WHERE linia=%s AND plan_id IN ({placeholders})',
+                    (linia_u, *ids),
+                )
+                for row in cursor.fetchall() or []:
+                    raw = row.get('wielkosc_szarzy_kg')
+                    parameters[int(row['plan_id'])] = {'wielkosc_szarzy_kg': float(raw) if raw is not None else None}
+            finally:
+                cursor.close()
+        finally:
+            conn.close()
+        sessions_by_plan = {}
+        for pid in ids:
+            sessions = []
+            for number in sorted(numbers_by_plan[pid] or {1}, reverse=True):
+                payload = ZasypEtapyService._build_etapy_payload(pid, linia_u, number, rows_by_plan[pid].get(number, {}))
+                payload['is_current'] = not sessions
+                sessions.append(payload)
+            sessions_by_plan[pid] = sessions
+        return sessions_by_plan, parameters
+
+    @staticmethod
     def kolejny_pomiar(plan_id: int, linia: str, user_login: str) -> Tuple[bool, str]:
         linia_u = _norm_linia(linia)
         conn = None

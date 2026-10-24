@@ -148,6 +148,25 @@ class PalletConfirmationService:
         table_mag = get_table_name('magazyn_palety', linia)
 
         role = str(session.get('rola', '')).strip()
+        from app.core.shared_inventory_permissions import warehouse_role
+        if warehouse_role(role) == 'pracownik':
+            from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
+            raw_weight = request.form.get('waga_palety')
+            try:
+                confirmed_weight = float(raw_weight.replace(',', '.')) if raw_weight else None
+            except (TypeError, ValueError):
+                return {'success': False, 'message': 'Nieprawidłowa waga palety.'}, 400, safe_return_url
+            result = AcceptanceService.accept_production_pallet(
+                paleta_id, request.form.get('lokalizacja') or 'MGW01', linia=linia,
+                login=user_login, confirmed_weight=confirmed_weight)
+            success, message = result[:2]
+            payload = {'success': success, 'message': message}
+            report_url = getattr(result, 'open_report_url', None)
+            if report_url:
+                payload['open_report_url'] = report_url
+                payload['is_last_pallet'] = getattr(result, 'is_last_pallet', False)
+                payload['plan_id'] = getattr(result, 'plan_id', None)
+            return (payload if is_ajax else message), (200 if success else 400), (report_url or safe_return_url)
         if role not in ['magazynier', 'lider', 'admin', 'masteradmin']:
             current_app.logger.warning(
                 '[WAREHOUSE-AUTH] User %s with role=%s tried to confirm paleta %s - insufficient permissions',

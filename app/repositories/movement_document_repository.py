@@ -2,6 +2,7 @@
 """Durable print requests and one completion notification per warehouse document."""
 import threading
 import json
+from datetime import datetime, timedelta, timezone
 from app.db import get_db_connection
 
 
@@ -103,15 +104,20 @@ class MovementDocumentRepository:
             conn.close()
 
     @classmethod
-    def monitor(cls, query='', page=1):
+    def monitor(cls, query='', page=1, *, archived=False):
         cls.ensure_schema()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).replace(tzinfo=None)
+        comparison = '<' if archived else '>='
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("""SELECT d.*,COALESCE(p.clicks,0) AS print_clicks,p.last_click,
+            cursor.execute(f"""SELECT d.*,COALESCE(p.clicks,0) AS print_clicks,p.last_click,
                 (SELECT user_login FROM warehouse_print_requests pr
                  WHERE pr.document_kind=d.document_kind AND pr.document_id=d.document_id
                  ORDER BY pr.id DESC LIMIT 1) AS printed_by,
+                (SELECT event_id FROM warehouse_print_requests pr
+                 WHERE pr.document_kind=d.document_kind AND pr.document_id=d.document_id
+                 ORDER BY pr.id DESC LIMIT 1) AS last_print_event_id,
                 CASE WHEN d.email_sent_at IS NOT NULL THEN 'SENT' ELSE e.status END AS email_status,
                 CASE WHEN d.email_sent_at IS NOT NULL AND e.status <> 'SENT' THEN NULL ELSE e.finished_at END AS email_finished,
                 CASE WHEN d.email_sent_at IS NOT NULL THEN NULL ELSE e.result_note END AS result_note
@@ -127,11 +133,13 @@ class MovementDocumentRepository:
                     FROM warehouse_print_requests GROUP BY document_kind,document_id
                 ) p ON p.document_kind=d.document_kind AND p.document_id=d.document_id
                 LEFT JOIN warehouse_completion_emails e ON e.document_kind=d.document_kind AND e.document_id=d.document_id
-                WHERE d.document_ref LIKE %s ORDER BY d.created_at DESC,d.document_kind,d.document_id
-                LIMIT 100 OFFSET %s""", ('%' + query + '%',(page-1)*100))
+                WHERE d.document_ref LIKE %s AND d.created_at {comparison} %s
+                ORDER BY d.created_at DESC,d.document_kind,d.document_id
+                LIMIT 100 OFFSET %s""", ('%' + query + '%',cutoff,(page-1)*100))
             documents = cursor.fetchall()
-            cursor.execute("""SELECT * FROM warehouse_print_requests WHERE document_ref LIKE %s
-                ORDER BY id DESC LIMIT 200""", ('%' + query + '%',))
+            cursor.execute(f"""SELECT * FROM warehouse_print_requests WHERE document_ref LIKE %s
+                AND created_at {comparison} %s
+                ORDER BY id DESC LIMIT 200""", ('%' + query + '%',cutoff))
             return documents, cursor.fetchall()
         finally:
             conn.close()

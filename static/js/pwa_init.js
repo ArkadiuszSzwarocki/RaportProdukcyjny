@@ -94,6 +94,7 @@
     }
 
     function updateConnectivityStatus() {
+        if (window.__rpNavigating) return Promise.resolve();
         if (navigator.onLine === false) {
             connectivityGeneration++;
             connectivityCheckRunning = false;
@@ -116,8 +117,10 @@
                 reject(new Error('Connectivity check timed out'));
             }, 8000);
         });
-        const request = Promise.resolve().then(() => fetch('/api/health', {
-            method: 'GET', cache: 'no-store', credentials: 'same-origin',
+        const request = Promise.resolve().then(() => fetch('/api/ping', {
+            // Anonymous liveness avoids session/role DB checks and ignores Set-Cookie.
+            method: 'GET', cache: 'no-store', credentials: 'omit',
+            silent: true,
             headers: { 'Accept': 'application/json' },
             ...(controller ? {signal: controller.signal} : {})
         }));
@@ -134,7 +137,7 @@
                 }
             })
             .catch(() => {
-                if (generation !== connectivityGeneration) return;
+                if (window.__rpNavigating || generation !== connectivityGeneration) return;
                 failedConnectivityChecks++;
                 if (failedConnectivityChecks >= 2) {
                     showConnectivityStatus(true);
@@ -159,7 +162,7 @@
     window.addEventListener('offline', updateConnectivityStatus);
     window.addEventListener('DOMContentLoaded', updateConnectivityStatus);
 
-    // Periodically check server health every 25 seconds
+    // Check server connectivity, independently of database readiness, every 25 seconds
     setInterval(() => {
         if (!document.hidden) updateConnectivityStatus();
     }, 25000);

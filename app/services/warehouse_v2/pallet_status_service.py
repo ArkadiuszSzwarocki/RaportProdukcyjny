@@ -179,10 +179,13 @@ class PalletStatusService:
                 table = get_table_name('magazyn_palety', linia)
                 col_qty = 'waga_netto'
 
-            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s FOR UPDATE", (pallet_id,))
             p = cursor.fetchone()
             if not p:
                 return False, "Paleta nie znaleziona."
+            from app.core.shared_inventory_permissions import can_archive_stock
+            if has_request_context() and not can_archive_stock(p):
+                return False, 'Archiwizacja materiału na magazynie wymaga roli admin, masteradmin, zarzad lub lider.'
 
             if p.get('is_blocked'):
                 return False, "NIE MOŻNA ZARCHIWIZOWAĆ ZABLOKOWANEJ PALETY!"

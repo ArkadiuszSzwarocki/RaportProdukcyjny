@@ -1,0 +1,25 @@
+{% extends 'layout.html' %}
+{% block content %}
+<style>
+.email-center{width:100%;min-width:0;max-width:1400px;box-sizing:border-box;margin:0 auto;padding:8px 0 32px;color:#1e293b}
+.email-center-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:20px}.email-center-heading h1{font-size:28px;margin:4px 0 8px;line-height:1.2}.email-center-heading p{margin:0;color:#64748b;line-height:1.6;max-width:850px}.email-center-eyebrow{font-size:12px;font-weight:800;color:#2563eb;letter-spacing:.07em;text-transform:uppercase}
+.email-center-nav{display:flex;gap:6px;flex-wrap:wrap;padding:8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:14px;margin-bottom:22px}.email-center-nav a{padding:11px 15px;border-radius:9px;text-decoration:none;color:#475569;font-weight:700;font-size:14px}.email-center-nav a:hover{background:#e2e8f0}.email-center-nav a[aria-current=page]{background:#fff;color:#1d4ed8;box-shadow:0 2px 7px #0f172a12}
+.email-center .email-settings-container,.email-center .magazyn-email-container,.email-center .email-history-wrap{width:100%;min-width:0;max-width:none;box-sizing:border-box;padding:0}.email-center .hero-header{margin-top:0}.email-center .hero-title{font-size:22px}.email-center .hero-eyebrow{display:none}
+@media(max-width:600px){.email-center-heading{flex-direction:column;gap:12px}.email-center-heading h1{font-size:24px}.email-center-nav a{flex:1 1 140px;text-align:center;padding:10px}.email-center .hero-header{padding:16px}.email-center #adminUserSelect{min-width:0!important;max-width:100%}.email-center .status-banner{flex-wrap:wrap}.email-center .email-history-wrap>div:first-child{flex-wrap:wrap;gap:12px}}
+</style>
+{% set mail_tab = g.email_center_tab|default('konta') %}
+{% set mail_role = session.get('rola','')|lower|replace(' ','')|replace('_','')|replace('-','') %}
+<div class="email-center">
+  <header class="email-center-heading"><div>
+    <div class="email-center-eyebrow">Administracja · Ustawienia systemu</div>
+    <h1>E-mail i powiadomienia</h1>
+    <p>Konta nadawcze SMTP, odbiorcy raportów, automatyczna wysyłka magazynowa oraz historia wiadomości i błędów.</p>
+  </div>{% if role_has_access('ustawienia') %}<a href="{{ url_for('admin.admin_ustawienia') }}" class="btn btn-secondary">Ustawienia systemu</a>{% endif %}</header>
+  <nav class="email-center-nav" aria-label="Ustawienia poczty">
+    <a href="{{ url_for('admin.email_center', tab='konta') }}"{% if mail_tab == 'konta' %} aria-current="page"{% endif %}>Konta SMTP i odbiorcy</a>
+    {% if role_has_access('ustawienia') %}<a href="{{ url_for('admin.email_center', tab='magazyn') }}"{% if mail_tab == 'magazyn' %} aria-current="page"{% endif %}>Magazyn i OSIP</a>{% endif %}
+    {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}<a href="{{ url_for('admin.email_center', tab='historia') }}"{% if mail_tab == 'historia' %} aria-current="page"{% endif %}>Historia wysyłek</a>{% endif %}
+  </nav>
+  {% block email_content %}{% endblock %}
+</div>
+{% endblock %}

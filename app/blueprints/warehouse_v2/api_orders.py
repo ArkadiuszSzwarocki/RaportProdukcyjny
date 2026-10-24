@@ -25,27 +25,30 @@ def api_orders_list():
 
 @warehouse_v2_bp.route('/api/sidebar-badges', methods=['GET'])
 def api_sidebar_badges():
-    from app.core.contexts import (_fetch_delivery_counters, _fetch_osip_transfers_count,
-                                   inject_delivery_counters, inject_osip_transfers_count)
-    orders_nowe = 0
-    active_picking = 0
-    try:
-        orders_nowe = len(_order_service.get_all_orders('NOWE'))
-    except Exception:
-        pass
-    try:
-        active_picking = len(_picking_service.get_active_orders())
-    except Exception:
-        pass
-    fresh = request.args.get('fresh') == '1'
-    counters = (_fetch_delivery_counters() if fresh else inject_delivery_counters())
-    transfers = (_fetch_osip_transfers_count() if fresh else inject_osip_transfers_count())
+    from app.core.contexts import (
+        _get_cached_context, _fetch_delivery_counters, _fetch_osip_transfers_count,
+        _fetch_pending_orders_count, _fetch_pending_picking_count,
+        inject_bug_report_counters, inject_system_errors_count,
+    )
+    ttl = 0.0 if request.args.get('fresh') == '1' else 5.0
+    values = {}
+    for key, fetcher in (
+        ('delivery_counters', _fetch_delivery_counters),
+        ('osip_transfers_count', _fetch_osip_transfers_count),
+        ('pending_orders_count', _fetch_pending_orders_count),
+        ('pending_picking_count', _fetch_pending_picking_count),
+    ):
+        try:
+            values.update(_get_cached_context(key, ttl, fetcher))
+        except Exception:
+            pass
+    values.update(inject_bug_report_counters())
+    values.update(inject_system_errors_count())
     return jsonify({
         'success': True,
-        'orders_nowe': orders_nowe,
-        'active_picking': active_picking,
-        **counters,
-        **transfers,
+        'orders_nowe': values.get('pending_orders_count', 0),
+        'active_picking': values.get('pending_picking_count', 0),
+        **values,
     })
 
 

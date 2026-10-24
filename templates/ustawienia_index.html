@@ -285,24 +285,12 @@
             <article class="settings-card settings-card-admin">
                 <div class="settings-card-icon">👥</div>
                 <div class="settings-card-body">
-                    <h3>Zarządzanie Zespołem</h3>
-                    <p>Wspólna lista pracowników, ich ID oraz uprawnień systemowych.</p>
-                    <div class="settings-card-meta">Dodawaj osoby, zarządzaj loginami i przypisuj do hal</div>
+                    <h3>Użytkownicy i uprawnienia</h3>
+                    <p>Pracownicy i konta, hasła, role, indywidualny dostęp, struktura organizacyjna oraz aktywne sesje.</p>
+                    <div class="settings-card-meta">Wszystkie funkcje zarządzania użytkownikami w jednym panelu</div>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/zespol" class="btn btn-primary">Przejdź do Zespołu</a>
-                </div>
-            </article>
-
-            <article class="settings-card settings-card-admin">
-                <div class="settings-card-icon">🛡️</div>
-                <div class="settings-card-body">
-                    <h3>{{ _('role_uprawnienia') }}</h3>
-                    <p>{{ _('skonfiguruj_role') }}</p>
-                    <div class="settings-card-meta">Macierz dostępu do sekcji i trybu tylko odczyt</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/roles" class="btn btn-primary">{{ _('zarzadzaj_uprawnieniami') }}</a>
+                    <a href="{{ url_for('admin.users_center') }}" class="btn btn-primary">Zarządzaj użytkownikami</a>
                 </div>
             </article>
 
@@ -389,24 +377,12 @@
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon">📧</div>
                 <div class="settings-card-body">
-                    <h3>Moje Konto E-mail (SMTP)</h3>
-                    <p>Skonfiguruj własne konto e-mail (SMTP) do wysyłania raportów produkcyjnych.</p>
-                    <div class="settings-card-meta">Testuj połączenie na żywo i wysyłaj maile z własnego adresu</div>
+                    <h3>E-mail i powiadomienia</h3>
+                    <p>Konta SMTP systemu i użytkowników, odbiorcy, poczta magazynowa i OSIP oraz historia wysyłek.</p>
+                    <div class="settings-card-meta">Testy połączenia, harmonogram raportów i błędy wysyłki w jednym panelu</div>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/moje_konto_email" class="btn btn-primary">Ustawienia E-mail & Test</a>
-                </div>
-            </article>
-
-            <article class="settings-card settings-card-accent">
-                <div class="settings-card-icon">📬</div>
-                <div class="settings-card-body">
-                    <h3>E-mail Dostaw i Przesunięć</h3>
-                    <p>Dedykowana skrzynka nadawcy oraz lista odbiorców dla raportów przyjęcia magazynowego.</p>
-                    <div class="settings-card-meta">Automatyczna wysyłka po przyjęciu każdego zarejestrowanego przesunięcia</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/email-magazyn" class="btn btn-primary">E-mail Magazynu</a>
+                    <a href="{{ url_for('admin.email_center') }}" class="btn btn-primary">Ustawienia poczty</a>
                 </div>
             </article>
 
@@ -424,6 +400,20 @@
                     {% endif %}
                 </div>
             </article>
+
+            {% if session_role in ['admin', 'masteradmin', 'zarzad', 'lider'] %}
+            <article class="settings-card settings-card-accent">
+                <div class="settings-card-icon">🖨️</div>
+                <div class="settings-card-body">
+                    <h3>Historia druku przesunięć</h3>
+                    <p>Sprawdź, kto i kiedy wywołał druk przesunięcia oraz jaki jest status zadania drukowania.</p>
+                    <div class="settings-card-meta">Ostatnie 30 dni oraz archiwum starszych wpisów</div>
+                </div>
+                <div class="settings-card-actions">
+                    <a href="{{ url_for('magazyn_dostawy.movement_print_history') }}" class="btn btn-primary">Otwórz historię druku</a>
+                </div>
+            </article>
+            {% endif %}
 
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon" style="background: rgba(47, 125, 209, 0.12); color: #2f7dd1;">📋</div>
@@ -469,7 +459,9 @@
                     <div class="settings-card-meta">Dodawaj lub ukrywaj lokalizacje docelowe na magazynie.</div>
                 </div>
                 <div class="settings-card-actions">
+                    {% if (session.get('rola') or '')|lower|trim in ['admin', 'masteradmin', 'zarzad', 'lider'] %}
                     <a href="{{ url_for('magazyn_dostawy.ustawienia_lokalizacji') }}" class="btn btn-primary">Ustawienia Lokalizacji</a>
+                    {% endif %}
                 </div>
             </article>
 

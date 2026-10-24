@@ -1,28 +1,54 @@
 {% extends "layout.html" %}
 {% block content %}
 <div style="max-width:1500px;margin:24px auto;padding:20px;background:white;border-radius:12px">
-  <h2>Historia wydruków przesunięć</h2>
-  <p>Kliknięcia „Drukuj A4” i wywołania okna drukowania. To zapis żądania wydruku, bez potwierdzenia z drukarki. Czas: Polska.</p>
+  {% if role_has_access('ustawienia') %}
+  <a href="{{ url_for('admin.admin_ustawienia') }}" class="btn btn-secondary" style="margin-bottom:12px">← Ustawienia systemu</a>
+  {% endif %}
+  <h2>Historia druku przesunięć{% if archived %} — Archiwum{% endif %}</h2>
+  <p>{% if archived %}Archiwum: dokumenty i wywołania druku starsze niż 30 dni.{% else %}Dokumenty i wywołania druku z ostatnich 30 dni. Starsze wpisy automatycznie trafiają do widoku archiwum.{% endif %} Dane pozostają zachowane; podział dokumentów jest według daty utworzenia, a kliknięć według daty wywołania druku.</p>
+  <nav style="display:flex;gap:10px;margin-bottom:16px" aria-label="Zakres historii druku">
+    <a class="btn {% if not archived %}btn-primary{% else %}btn-secondary{% endif %}" href="{{ url_for('magazyn_dostawy.movement_print_history',q=query) }}" {% if not archived %}aria-current="page"{% endif %}>Ostatnie 30 dni</a>
+    <a class="btn {% if archived %}btn-primary{% else %}btn-secondary{% endif %}" href="{{ url_for('magazyn_dostawy.movement_print_history',q=query,archive=1) }}" {% if archived %}aria-current="page"{% endif %}>Archiwum</a>
+  </nav>
+  <p>Sprawdź, kto i kiedy kliknął „Drukuj” oraz które przesunięcia nie mają zarejestrowanego wywołania druku. Czas: Polska.</p>
+  <div class="alert alert-warning" role="note">
+    <strong>Kliknięcie nie potwierdza wydrukowania dokumentu.</strong>
+    Dotychczasowy druk A4 z okna przeglądarki nie przekazuje informacji o wybranej drukarce ani zakończeniu zadania.
+    Przycisk „Wyślij i monitoruj” w raporcie używa mostka i zapisuje osobne statusy zadania.
+    Status kolejki Windows nie jest potwierdzeniem wydrukowania. Tylko dopasowane zadanie IPP może uzyskać status „Drukarka zgłosiła zakończenie”.
+    Także anulowanie okna pozostawia zapis kliknięcia. Potwierdzenie odbioru trzeba sprawdzić w kolejce lub na drukarce.
+  </div>
   <form method="get" style="display:flex;gap:10px;margin-bottom:20px">
+    {% if archived %}<input type="hidden" name="archive" value="1">{% endif %}
     <input name="q" value="{{ query }}" placeholder="Numer przesunięcia" class="form-control" style="max-width:360px">
     <button class="btn btn-primary">Szukaj</button>
     <a class="btn btn-secondary" href="{{ url_for('magazyn_dostawy.lista_dostaw') }}">Przesunięcia</a>
   </form>
   <div style="overflow-x:auto"><table class="table table-striped">
-    <thead><tr><th>Przesunięcie</th><th>Status dokumentu</th><th>Kliknięcia Drukuj</th><th>Ostatnio</th><th>Kto</th><th>E-mail po zakończeniu</th></tr></thead>
+    <thead><tr><th>Przesunięcie</th><th>Status dokumentu</th><th>Kliknięcia Drukuj</th><th>Ostatnio</th><th>Kto</th><th>Odbiór przez drukarkę</th><th>E-mail po zakończeniu</th></tr></thead>
     <tbody>{% for d in documents %}<tr>
       <td>{{ d.document_ref }} {% if d.document_kind == 'osip' %}(OSIP){% endif %}</td><td>{{ d.status }}</td>
       <td>{% if d.print_clicks %}{{ d.print_clicks }}{% else %}<strong style="color:#b91c1c">Brak kliknięcia</strong>{% endif %}</td>
       <td>{{ d.last_click or '—' }}</td><td>{{ d.printed_by or '—' }}</td>
+      <td>{% if d.tracked_print %}
+        {% set job=d.tracked_print %}
+        <div data-tracked-job="{{ job.request_id }}" data-status="{{ job.status }}">
+          <strong class="tracked-status">{{ status_names.get(job.status,'Brak potwierdzenia') }}</strong>
+          <br><small class="tracked-note">{{ job.note }}</small>
+          <br><small>{{ job.printer_label }} · {{ job.user_login }}</small>
+          <br><small class="tracked-spool">{% if job.spool_id %}Zadanie Windows: {{ job.spool_id }}{% endif %}</small>
+        </div>
+      {% elif d.print_clicks %}Brak potwierdzenia — druk z przeglądarki{% else %}Brak zarejestrowanego żądania{% endif %}</td>
       <td>{% set names={'SKIPPED':'Pominięto — poza MM w MP01','PENDING':'Oczekuje','SENDING':'Wysyłanie / wymaga sprawdzenia po przerwaniu','SENT':'Wysłano','FAILED':'Błąd — sprawdź przed ponowieniem'} %}{{ names.get(d.email_status,'Brak zlecenia') }}
       {% if d.email_finished %}<br>{{ d.email_finished }}{% endif %}{% if d.result_note %}<br><small>{{ d.result_note }}</small>{% endif %}</td>
-    </tr>{% else %}<tr><td colspan="6">Brak dokumentów.</td></tr>{% endfor %}</tbody>
+    </tr>{% else %}<tr><td colspan="7">Brak dokumentów.</td></tr>{% endfor %}</tbody>
   </table></div>
-  {% if page > 1 %}<a href="{{ url_for('magazyn_dostawy.movement_print_history',q=query,page=page-1) }}">Poprzednia strona</a>{% endif %}
-  {% if documents|length == 100 %}<a href="{{ url_for('magazyn_dostawy.movement_print_history',q=query,page=page+1) }}">Następna strona</a>{% endif %}
+  {% if page > 1 %}<a href="{{ url_for('magazyn_dostawy.movement_print_history',q=query,page=page-1,archive=1 if archived else 0) }}">Poprzednia strona</a>{% endif %}
+  {% if documents|length == 100 %}<a href="{{ url_for('magazyn_dostawy.movement_print_history',q=query,page=page+1,archive=1 if archived else 0) }}">Następna strona</a>{% endif %}
   <h3 style="margin-top:28px">Ostatnie 200 wywołań wydruku</h3>
   <div style="overflow-x:auto"><table class="table table-striped"><thead><tr><th>Data i godzina</th><th>Przesunięcie</th><th>Użytkownik</th><th>Wywołanie</th></tr></thead>
     <tbody>{% for click in clicks %}<tr><td>{{ click.created_at }}</td><td>{{ click.document_ref }}</td><td>{{ click.user_login }}</td><td>{{ {'button':'Przycisk Drukuj','browser':'Menu przeglądarki / Ctrl+P','auto':'Automatyczne otwarcie okna'}.get(click.trigger_name,click.trigger_name) }}</td></tr>{% else %}<tr><td colspan="4">Brak zarejestrowanych kliknięć. Historia obejmuje wywołania po włączeniu tej funkcji.</td></tr>{% endfor %}</tbody>
   </table></div>
 </div>
+<script src="{{ url_for('static',filename='js/movement-print-history.js',v=static_version) }}" defer></script>
 {% endblock %}

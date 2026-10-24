@@ -1,6 +1,6 @@
-{% extends "layout.html" %}
+{% extends 'admin/users_center_layout.html' %}
 
-{% block content %}
+{% block users_content %}
 <style>
     .struct-page {
         max-width: 1380px;
@@ -400,7 +400,7 @@
                     title="Powiększ">➕</button>
             </div>
             {% if can_manage %}
-            <a href="/admin/ustawienia/pracownicy" class="struct-link-btn">Zarządzaj pracownikami</a>
+            <a href="{{ url_for('admin.users_center', tab='zespol') }}" class="struct-link-btn">Zarządzaj pracownikami</a>
             {% endif %}
         </div>
     </div>

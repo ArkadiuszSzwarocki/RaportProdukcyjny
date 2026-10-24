@@ -45,7 +45,8 @@
         // Lekkie żądanie — sprawdza czy sesja jest aktywna
         _originalFetch('/api/notifications?limit=1', {
             credentials: 'same-origin',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            silent: true
         }).then(function(r) {
             if (r.status === 401) {
                 // Sesja wygasła podczas gdy apka była ukryta
@@ -181,7 +182,8 @@
                 lastTouchTime = now;
                 _originalFetch('/api/notifications?limit=1', {
                     credentials: 'same-origin',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    silent: true
                 }).then(function(r) {
                     if (r.status === 401) {
                         window.location.replace('/login');

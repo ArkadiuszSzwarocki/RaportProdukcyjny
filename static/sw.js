@@ -11,7 +11,7 @@
  * - legacy caches that were not user-scoped are removed on activation.
  */
 
-const STATIC_CACHE_NAME = 'rp-pwa-static-v4';
+const STATIC_CACHE_NAME = 'rp-pwa-static-v7';
 const PAGE_CACHE_PREFIX = 'rp-pwa-pages-v2-user-';
 const META_CACHE_NAME = 'rp-pwa-meta-v2';
 const ACTIVE_USER_META_URL = '/__rp_offline_meta__/active-user';
@@ -24,6 +24,7 @@ const STATIC_ASSETS = [
     '/static/js/offline_scan_buffer.js',
     '/static/js/scanner_i18n.js',
     '/static/js/pwa_init.js',
+    '/static/js/navigation_priority.js',
     '/static/js/dynamic_eval_guard.js',
     '/static/js/print_bridge_browser_guard.js',
     '/static/manifest.json'
@@ -103,7 +104,7 @@ async function cacheNavigationForUser(request, response, userId) {
     }
 }
 
-async function navigationResponse(request) {
+async function navigationResponse(request, event) {
     try {
         const networkResponse = await fetch(request, { cache: 'no-store' });
 
@@ -118,7 +119,11 @@ async function navigationResponse(request) {
 
         if (userId) {
             await setActiveUser(userId);
-            await cacheNavigationForUser(request, networkResponse, userId);
+            // Return network HTML immediately; storing its complete body must
+            // not hold up navigation. Cache ownership is established first.
+            const cacheWrite = cacheNavigationForUser(request, networkResponse.clone(), userId);
+            if (event) event.waitUntil(cacheWrite);
+            else cacheWrite.catch(() => {});
         } else {
             // A successful anonymous response (login/logout/public page) closes
             // the prior user's offline scope. Its cache may remain on disk for
@@ -195,6 +200,9 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
     const request = event.request;
     if (request.method !== 'GET') return;
+    // Recovery must reach the real destination instead of receiving another
+    // cached fallback with HTTP 200 and starting an online/offline reload loop.
+    if (request.headers.get('X-RP-Recovery-Probe') === '1') return;
 
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) return;
@@ -204,7 +212,7 @@ self.addEventListener('fetch', (event) => {
 
     const isNavigation = request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html');
     if (isNavigation) {
-        event.respondWith(navigationResponse(request));
+        event.respondWith(navigationResponse(request, event));
         return;
     }
 

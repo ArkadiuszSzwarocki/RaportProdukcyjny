@@ -11,9 +11,9 @@ class StaffService:
     def get_basic_staff_data(dzisiaj: date, linia='PSD', cursor=None) -> Dict[str, Any]:
         """Get basic staff assignments and availability for a given day."""
         wszyscy = QueryHelper.get_pracownicy(cursor=cursor)
-        zajeci_ids = [r[0] for r in QueryHelper.get_obsada_zmiany(dzisiaj, linia=linia, cursor=cursor)]
-        dostepni = [p for p in wszyscy if p[0] not in zajeci_ids]
         obsada = QueryHelper.get_obsada_zmiany(dzisiaj, linia=linia, cursor=cursor)
+        zajeci_ids = [r[0] for r in obsada]
+        dostepni = [p for p in wszyscy if p[0] not in zajeci_ids]
         
         return {
             'wszyscy': wszyscy,

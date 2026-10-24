@@ -143,7 +143,7 @@ function initWarehouseDashboard() {
     const whPrinterSelect = document.getElementById('printerSelect');
     if (whPrinterSelect) {
         const liniaQuery = (typeof LINIA !== 'undefined' ? LINIA : 'PSD');
-        fetch('/magazyn-dostawy/api/active-printers?linia=' + encodeURIComponent(liniaQuery))
+        fetch('/magazyn-dostawy/api/active-printers?linia=' + encodeURIComponent(liniaQuery), {silent: true})
         .then(r => r.json())
         .then(res => {
             if (res && res.success && Array.isArray(res.printers)) {

@@ -22,7 +22,7 @@
         </a>
         {% endif %}
 
-        {% if role == 'planista' %}
+        {% if role in ['planista', 'masteradmin'] %}
             <div class="nav-item-group">
                 <button type="button" class="nav-item main-cat-btn">
                     <span>PLAN PRODUKCJI</span>
@@ -35,17 +35,22 @@
                     <a href="/planista?tab=agro" class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab') == 'agro' or request.args.get('linia') == 'AGRO') %}active{% endif %}">
                         Plan AGRO
                     </a>
+                    {% if role == 'planista' or effective_hall not in ['PSD', 'ALL'] or not role_has_access('psd.bufor') %}
                     <a href="{{ url_for('planista.bufor_page', linia='PSD') }}"
                         class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
                         Bufor PSD
                     </a>
+                    {% endif %}
+                    {% if role == 'planista' or effective_hall not in ['AGRO', 'ALL'] or not role_has_access('agro.bufor') %}
                     <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
                         class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}">
                         Bufor Agro
                     </a>
+                    {% endif %}
                 </div>
             </div>
-        {% else %}
+        {% endif %}
+        {% if role != 'planista' %}
             {% include 'includes/sidebar/_sidebar_psd.html' %}
             {% include 'includes/sidebar/_sidebar_agro.html' %}
         {% endif %}

@@ -1,5 +1,5 @@
 <!-- File: templates/admin/email_history.html -->
-{% extends "layout.html" %}
+{% extends 'admin/email_center_layout.html' %}
 
 {% block extra_css %}
 <style>
@@ -143,7 +143,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block email_content %}
 <div class="email-history-wrap">
     <!-- Header -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
@@ -155,7 +155,7 @@
             <button type="button" onclick="window.location.reload()" class="btn btn-secondary" style="padding: 7px 14px; border-radius: 8px; font-size: 0.84rem; display: inline-flex; align-items: center; gap: 6px;">
                 <span class="material-icons" style="font-size: 18px;">refresh</span> Odśwież
             </button>
-            <a href="/admin/ustawienia" class="btn btn-primary" style="padding: 7px 14px; border-radius: 8px; font-size: 0.84rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+            <a href="{{ url_for('admin.email_center', tab='konta') }}" class="btn btn-primary" style="padding: 7px 14px; border-radius: 8px; font-size: 0.84rem; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
                 <span class="material-icons" style="font-size: 18px;">settings</span> Ustawienia E-mail
             </a>
         </div>
@@ -194,7 +194,8 @@
     </div>
 
     <!-- Filters Bar -->
-    <form method="GET" action="{{ url_for('admin.admin_email_history_page') }}" class="filter-card">
+    <form method="GET" action="{{ url_for('admin.email_center') }}" class="filter-card">
+        <input type="hidden" name="tab" value="historia">
         <div class="filter-group">
             <div class="filter-item">
                 <span>📅 Data:</span>

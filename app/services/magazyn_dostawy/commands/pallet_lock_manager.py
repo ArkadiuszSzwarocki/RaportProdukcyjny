@@ -23,7 +23,7 @@ class PalletLockManager:
             'magazyn_palety', 'magazyn_palety_agro', 'magazyn_dodatki',
         }
         for it in items:
-            if blocked_val and (it.get('accepted') or it.get('rejected')):
+            if blocked_val and (it.get('accepted') or it.get('rejected') or it.get('putaway_confirmed_at')):
                 continue
             pid = it.get('sourcePalletId') or it.get('pallet_id') or it.get('surowiec_id')
             pnr = str(it.get('sourcePalletNo') or it.get('nr_palety') or '').strip().upper()

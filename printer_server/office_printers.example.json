@@ -1,0 +1,14 @@
+{
+  "brother_magazyn": {
+    "enabled": false,
+    "label": "Brother MFC-L2700DW — magazyn",
+    "windows_name": "",
+    "ipp_uri": ""
+  },
+  "brother_biuro": {
+    "enabled": false,
+    "label": "Brother MFC-L2700DW — biuro",
+    "windows_name": "",
+    "ipp_uri": ""
+  }
+}

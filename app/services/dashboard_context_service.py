@@ -169,17 +169,19 @@ class DashboardContextService:
         try:
             from app.services.zasyp_etapy_service import ZasypEtapyService
 
+            stage_ids = [plan[0] for plan in plan_dnia if plan[3] in ['w toku', 'zakonczone', 'zamkniete']]
+            sessions_map, parameters_map = ZasypEtapyService.get_dashboard_sessions(stage_ids, aktywna_linia)
             for plan in plan_dnia:
                 if plan[3] in ['w toku', 'zakonczone', 'zamkniete']:
                     plan_id = plan[0]
-                    sessions = ZasypEtapyService.get_etapy_sessions(plan_id=plan_id, linia=aktywna_linia)
-                    latest = sessions[0] if sessions else ZasypEtapyService.get_etapy(plan_id=plan_id, linia=aktywna_linia)
+                    sessions = sessions_map[plan_id]
+                    latest = sessions[0]
                     etapy_sesje_mapa[plan_id] = sessions
                     etapy_mapa[plan_id] = latest.get('etapy') or []
                     etapy_total[plan_id] = latest.get('total_duration_str') or ''
                     etapy_total_s[plan_id] = int(latest.get('total_duration_s') or 0)
                     etapy_curr_szarza[plan_id] = latest.get('curr_szarza_nr') or 1
-                    etapy_parametry[plan_id] = ZasypEtapyService.get_parametry(plan_id=plan_id, linia=aktywna_linia)
+                    etapy_parametry[plan_id] = parameters_map[plan_id]
         except Exception as error:
             log.warning('Etapy Zasyp load failed: %s', error)
 
@@ -237,7 +239,8 @@ class DashboardContextService:
                     prod_metrics = ShiftTimeService.calculate_productivity(
                         mass_kg=tonaz,
                         awarie_min=awarie_zasyp_min,
-                        date_str=str(dzisiaj)
+                        date_str=str(dzisiaj),
+                        shift_range=(brutto_min, start_str, end_str),
                     )
                     wydajnosc_efektywna = prod_metrics['wydajnosc_efektywna'] if tonaz > 0 else None
                     wydajnosc_rzeczywista = prod_metrics['wydajnosc_rzeczywista'] if tonaz > 0 else None

@@ -381,14 +381,28 @@
             }
         });
     }
+    let sidebarBadgesPending = null;
     window.refreshSidebarBadges = function(options = {}) {
+        if (sidebarBadgesPending) return sidebarBadgesPending;
         // 1. Szybkie ciche odświeżenie liczników zamówień i kompletacji przez dedykowany JSON endpoint
         const fresh = options.fresh !== false;
-        fetch('/warehouse-v2/api/sidebar-badges' + (fresh ? '?fresh=1' : ''), {cache: 'no-store'})
+        sidebarBadgesPending = fetch('/warehouse-v2/api/sidebar-badges' + (fresh ? '?fresh=1' : ''), {cache: 'no-store', silent: true})
             .then(res => res.json())
             .then(data => {
                 if (data && data.success) {
                     updateWarehouseBadges(data);
+                    for (const [id, key, description] of [
+                        ['sidebarBugReportIndicator', 'unread_bug_reports_count', 'Nieprzeczytane zgłoszenia'],
+                        ['sidebarSystemErrorIndicator', 'system_errors_count', 'Błędy systemowe']
+                    ]) {
+                        const indicator = document.getElementById(id);
+                        if (!indicator) continue;
+                        const count = Number(data[key]) || 0;
+                        indicator.style.display = count > 0 ? 'inline-flex' : 'none';
+                        indicator.title = `${description}: ${count}`;
+                        const badge = indicator.querySelector('.bug-badge');
+                        if (badge) badge.textContent = count;
+                    }
                     const ordersBadge = document.getElementById('sidebarOrdersBadge');
                     if (ordersBadge) {
                         const count = data.orders_nowe || 0;
@@ -404,9 +418,11 @@
                     }
                 }
             })
-            .catch(() => {});
+            .catch(() => {})
+            .finally(() => { sidebarBadgesPending = null; });
 
         updateSidebarDraftBadges(fresh);
+        return sidebarBadgesPending;
     };
 
     let draftCheckBusy = false;
@@ -436,6 +452,7 @@
             if (drafts.length) {
                 const response = await fetch('/magazyn-dostawy/api/draft/check', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
+                    silent: true,
                     body: JSON.stringify({drafts})
                 });
                 if (!response.ok) return;

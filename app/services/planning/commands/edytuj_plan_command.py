@@ -169,7 +169,7 @@ class EdytujPlanCommand:
                 changes['data_produkcji'] = {'before': before_prod_date_str, 'after': data_prod_val}
 
         if before[5] == 'w toku':
-            if current_role in ['planista', 'admin', 'zarzad', 'lider']:
+            if current_role in ['planista', 'admin', 'zarzad', 'lider', 'masteradmin']:
                 non_tonaz_changes = [k for k in changes.keys() if k != 'tonaz']
                 if non_tonaz_changes:
                     return False, 'Gdy zlecenie w toku, możesz zmieniać tylko kg', {}, 403

@@ -2,6 +2,7 @@
 """Resolve production write permissions from server-owned resources."""
 from flask import current_app, g, jsonify, request, session
 from app.db import get_db_connection, get_table_name
+from app.decorators import _normalize_role
 
 ORDER_ACTIONS = {'start_zlecenie', 'koniec_zlecenie', 'zawies_zlecenie', 'zapisz_wyjasnienie'}
 ZASYP_PLAN_ACTIONS = {
@@ -28,7 +29,10 @@ def _deny(message='Brak uprawnień do tej sekcji.', status=403):
 
 def _page_allowed(line, section, write=True):
     from app.core.contexts import inject_role_permissions
-    role = str(session.get('rola') or '').strip().lower()
+    if section == 'magazyn':
+        from app.core.shared_inventory_permissions import shared_material_access
+        return shared_material_access()
+    role = _normalize_role(session.get('rola'))
     if role == 'masteradmin':
         return True
     group = str(session.get('grupa') or 'ALL').upper()

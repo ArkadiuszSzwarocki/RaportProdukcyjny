@@ -10,6 +10,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.core.database import get_db_connection
 from app.core.temporary_admin import apply_temporary_role
+from app.decorators import _normalize_role
 
 
 _FORWARDED_ENV_KEYS = (
@@ -137,7 +138,7 @@ def _authoritative_role_sync(app, *, force=False):
             session.clear()
             return False
 
-        db_role = str(row[0] or '').lower().strip()
+        db_role = _normalize_role(row[0])
         db_group = str(row[1] or '').strip()
         if not db_role:
             session.clear()
@@ -150,13 +151,9 @@ def _authoritative_role_sync(app, *, force=False):
         session['_role_integrity_checked_at'] = now
         apply_temporary_role()
 
-        tracking_id = session.get('session_tracking_id')
-        if tracking_id:
-            cursor.execute(
-                "UPDATE aktywne_sesje SET rola = %s WHERE session_id = %s AND user_id = %s",
-                (session['rola'], tracking_id, user_id),
-            )
-            conn.commit()
+        # Authoritative role verification must remain read-only. Presence is
+        # updated separately by track_active_session; writing its row here can
+        # block navigation and log out a verified account on a telemetry lock.
         return True
     except Exception as exc:
         app.logger.warning('Role integrity check failed closed for user %s: %s', user_id, exc)

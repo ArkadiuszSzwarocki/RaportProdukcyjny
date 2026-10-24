@@ -32,6 +32,7 @@ def enforce_scanner_permissions():
     shared_read = endpoint in {
         'scanner.lookup', 'scanner.pallet_suggestions',
         'scanner.label', 'scanner.label_location', 'scanner.scanner_ui',
+        'scanner.print_label', 'scanner.print_location_direct',
         'scanner.printer_status', 'scanner.get_printers', 'scanner.get_pallet_history',
     }
     shared_operation = shared_move or shared_read
@@ -103,7 +104,7 @@ def enforce_scanner_permissions():
         if resource_line != line:
             # Shared stock retains its source hall when issued to another line.
             # Authorize the stock and destination independently using stored data.
-            if endpoint != 'scanner.dispatch' or resource_line not in {'PSD', 'AGRO', 'OSIP'} or not _page_allowed(resource_line, 'magazyn', write=True):
+            if not _page_allowed(resource_line, 'magazyn', write=True):
                 return jsonify(success=False, error='forbidden'), 403
     except Exception:
         current_app.logger.exception('Scanner resource authorization failed closed')

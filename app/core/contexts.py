@@ -8,6 +8,8 @@ import os
 import json
 import time
 import threading
+import hashlib
+from pathlib import Path
 from flask import session, request, current_app
 
 # Global caches
@@ -65,8 +67,12 @@ def _compute_static_version():
             os.path.join(current_app.static_folder, 'css', 'dashboard.css'),
             os.path.join(current_app.static_folder, 'scripts.js'),
             os.path.join(current_app.static_folder, 'js', 'sidebar.js'),
+            os.path.join(current_app.static_folder, 'js', 'navigation_priority.js'),
+            os.path.join(current_app.static_folder, 'js', 'perf_monitor.js'),
             os.path.join(current_app.static_folder, 'js', 'pwa_init.js'),
             os.path.join(current_app.static_folder, 'js', 'temporary-admin.js'),
+            os.path.join(current_app.static_folder, 'js', 'admin', 'user_permissions.js'),
+            os.path.join(current_app.static_folder, 'css', 'user_permissions.css'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'api.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'state.js'),
             os.path.join(current_app.static_folder, 'js', 'magazyn_dostawy', 'edycja', 'render.js'),
@@ -107,13 +113,27 @@ def _compute_static_version():
         return int(time.time())
 
 
+def _compute_warehouse_ui_version():
+    """Version the complete pallet UI, including its permission-dependent markup."""
+    root = Path(current_app.root_path)
+    paths = sorted((root / 'static/js/warehouse_v2').glob('*.js'))
+    paths += sorted((root / 'templates/warehouse_v2').rglob('*.html'))
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(path.relative_to(root).as_posix().encode('utf-8'))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:20]
+
+
 def inject_static_version():
     """Inject cache-busting static file version based on CSS modification time (cached 30s)."""
     try:
         v = _get_cached_context('static_version', 30.0, _compute_static_version)
     except Exception:
         v = int(time.time())
-    return dict(static_version=v)
+    warehouse_version = (_get_cached_context('warehouse_ui_version', 30.0, _compute_warehouse_ui_version)
+                         if request.endpoint == 'warehouse_v2.index' else v)
+    return dict(static_version=v, warehouse_ui_version=warehouse_version)
 
 
 _PERMS_CACHE = {'mtime': 0, 'data': {}}
@@ -177,6 +197,9 @@ def inject_role_permissions():
         return page
 
     def role_has_access(page):
+        from app.core.shared_inventory_permissions import WAREHOUSE_PAGES, shared_material_access
+        if page in WAREHOUSE_PAGES:
+            return shared_material_access()
         try:
             r = _normalize_role_name(session.get('rola'))
             # 0. MasterAdmin Bypasses EVERYTHING - has access to every single page/API
@@ -288,6 +311,9 @@ def inject_role_permissions():
             return False
 
     def role_is_readonly(page):
+        from app.core.shared_inventory_permissions import WAREHOUSE_PAGES
+        if page in WAREHOUSE_PAGES:
+            return False
         try:
             r = _normalize_role_name(session.get('rola'))
             if r == 'masteradmin':
@@ -643,9 +669,11 @@ def _fetch_pending_picking_count():
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT COUNT(DISTINCT order_ref)
-            FROM magazyn_kompletacja
-            WHERE status = 'OCZEKUJE'
+            SELECT COUNT(*) FROM (
+                SELECT order_ref, operator_login FROM magazyn_kompletacja
+                WHERE status = 'OCZEKUJE' OR (status = 'POMINIETA' AND paleta_id = 0)
+                GROUP BY order_ref, operator_login
+            ) active_picking
             """
         )
         row = cursor.fetchone()
@@ -754,6 +782,34 @@ def inject_osip_transfers_count():
         return dict(osip_transfers_count=0, osip_unreceived_pallets_count=0)
 
 
+def inject_navigation_counters():
+    """HTML must never wait for menu counter SQL or reading the error log.
+
+    Fresh counts arrive via the existing silent sidebar-badges request. Until
+    then reuse the last completed snapshot, without starting background threads.
+    """
+    values = dict(
+        unread_bug_reports_count=0, system_errors_count=0,
+        pending_orders_count=0, pending_picking_count=0,
+        osip_transfers_count=0, osip_unreceived_pallets_count=0,
+        incoming_transfer_counts={},
+        **{key: dict.fromkeys(('PSD', 'AGRO', 'OSIP', 'ALL'), 0) for key in (
+            'pending_deliveries', 'pending_pallets', 'pending_transfer_orders',
+            'pending_transfer_pallets', 'pending_external_orders', 'pending_external_pallets')}
+    )
+    if not session.get('zalogowany'):
+        return values
+    with _CONTEXT_CACHE_LOCK:
+        for key in ('bug_report_counters', 'system_errors_count', 'delivery_counters',
+                    'pending_orders_count', 'pending_picking_count', 'osip_transfers_count'):
+            cached = _CONTEXT_CACHE.get(key)
+            if cached:
+                values.update(cached['val'])
+    if _normalize_role_name(session.get('rola')) not in ('admin', 'masteradmin'):
+        values['system_errors_count'] = 0
+    return values
+
+
 def register_contexts(app):
     """Register all context processors with Flask app."""
     app.context_processor(inject_static_version)
@@ -761,12 +817,7 @@ def register_contexts(app):
     app.context_processor(inject_translations)
     app.context_processor(inject_app_into_templates)
     app.context_processor(inject_app_version)
-    app.context_processor(inject_bug_report_counters)
-    app.context_processor(inject_delivery_counters)
-    app.context_processor(inject_pending_orders_count)
-    app.context_processor(inject_pending_picking_count)
-    app.context_processor(inject_osip_transfers_count)
+    app.context_processor(inject_navigation_counters)
     app.context_processor(inject_database_info)
     app.context_processor(inject_today_date)
-    app.context_processor(inject_system_errors_count)
 

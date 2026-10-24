@@ -134,7 +134,7 @@ def secure_reprint_labels():
             if label_data:
                 from app.core.production_permissions import _page_allowed
                 actual_hall = str(label_data.get('linia') or '').upper()
-                if actual_hall not in {'PSD', 'AGRO', 'OSIP'} or not _page_allowed(actual_hall, 'magazyn', write=True):
+                if not _page_allowed(actual_hall, 'magazyn', write=True):
                     return jsonify(success=False, error='forbidden'), 403
                 authoritative.append(label_data)
             else:

@@ -122,12 +122,13 @@ def test_activation_rechecks_account_and_rejects_demotion_or_deactivation(switch
     assert client.post('/protected', json={}).status_code != 200
 
 
-def test_named_database_masteradmin_uses_leader_by_default_without_changing_database(switch_app):
+def test_named_database_masteradmin_keeps_full_access_without_changing_database(switch_app):
     _, client, row, _, _ = switch_app
     row[0] = 'masteradmin'
     menu = sign_in(client, role='masteradmin')
-    assert menu['role'] == 'lider'
-    assert toggle(client, menu['csrf']).json['active']
+    assert menu['role'] == 'masteradmin'
+    assert not menu['eligible']
+    assert client.post('/protected',json={}).status_code == 200
     assert row[0] == 'masteradmin'
 
 
@@ -159,3 +160,25 @@ def test_grant_cannot_be_transferred_to_another_user_or_have_longer_deadline(swi
 def test_logged_out_session_cannot_elevate(switch_app):
     _, client, _, _, _ = switch_app
     assert toggle(client, 'any').status_code == 401
+
+
+@pytest.mark.parametrize('login', ['SzwarArk','BoczkMar','permanent-admin'])
+def test_permanent_masteradmin_never_downgrades_or_needs_timer(switch_app,login):
+    _,client,row,_,clock=switch_app
+    row[0]='masteradmin'
+    menu=sign_in(client,login,role='masteradmin')
+    assert menu['role']=='masteradmin' and not menu['eligible']
+    assert client.post('/protected',json={}).status_code==200
+    clock.return_value=20000
+    assert client.post('/protected',json={}).status_code==200
+    with client.session_transaction() as state:
+        assert state['rola']=='masteradmin' and state['grupa']=='ALL'
+        assert '_temporary_masteradmin' not in state
+
+
+def test_database_demotion_still_removes_permanent_masteradmin(switch_app):
+    _,client,row,_,clock=switch_app
+    row[0]='masteradmin'
+    sign_in(client,'permanent-admin',role='masteradmin')
+    row[0]='pracownik';clock.return_value=20000
+    assert client.post('/protected',json={}).status_code==403

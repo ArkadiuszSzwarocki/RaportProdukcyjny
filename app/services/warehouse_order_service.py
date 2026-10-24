@@ -131,7 +131,7 @@ class WarehouseOrderService:
         return False, "Zamówienie jest rozliczane automatycznie po zeskanowaniu właściwych palet do transferu."
 
     def delete_order(self, order_id, user_role):
-        """Usuwa zamówienie z magazynu (uprawnienia dla masteradmin, admin, zarzad).
+        """Usuwa zamówienie z magazynu według wspólnej polityki ról magazynowych.
 
         Args:
             order_id: ID zamówienia.
@@ -140,13 +140,8 @@ class WarehouseOrderService:
         Returns:
             tuple[bool, str]: (sukces, komunikat).
         """
-        role_norm = str(user_role or '').lower().replace(' ', '').replace('_', '').strip()
-        allowed_roles = [
-            'masteradmin', 'admin', 'administrator', 'zarzad', 'zarząd',
-            'lider', 'liderzmiany', 'kierownik', 'brygadzista', 'planista',
-            'magazynier', 'magazyn', 'operator'
-        ]
-        if role_norm not in allowed_roles:
+        from app.core.shared_inventory_permissions import can_manage_orders
+        if not can_manage_orders(user_role):
             return False, "Brak uprawnień do usuwania zamówienia."
 
         order = self._repository.get_by_id(order_id)

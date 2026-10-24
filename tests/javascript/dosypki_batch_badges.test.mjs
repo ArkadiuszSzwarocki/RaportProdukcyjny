@@ -41,7 +41,7 @@ test('polling clears stale badges on other batches when only batch four has an a
     const source = fs.readFileSync('static/js/dashboard/agro-banners.js', 'utf8');
     const code = source.slice(source.indexOf('    function _setDosypkiActionBadgeAbsolute'),
         source.indexOf('    function _ensureAgroBannerPulseStyle'));
-    const context = vm.createContext({document, console, Date, encodeURIComponent,
+    const context = vm.createContext({global: {}, document, console, Date, encodeURIComponent,
         isAgroZasypPage: () => true, getConfigState: () => ({linia: 'AGRO'}),
         getCurrentDateIso: () => '2026-10-11',
         fetch: async () => ({json: async () => ({success: true, counts: {'323': 1},

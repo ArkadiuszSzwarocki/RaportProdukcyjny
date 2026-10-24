@@ -184,6 +184,7 @@ def dodaj_obecnosc_zakres():
 @login_required
 def edytuj_godziny():
     """Edytuj/liczba godzin dla danego pracownika i daty (AJAX)."""
+    conn = None
     try:
         pracownik_id = request.form.get('pracownik_id') or request.args.get('pracownik_id')
         date_str = request.form.get('date') or request.args.get('date')
@@ -201,7 +202,7 @@ def edytuj_godziny():
             my_role = (session.get('rola') or '').lower()
         except Exception:
             my_pid = None; my_role = ''
-        if my_pid != pid and my_role not in ('lider', 'admin'):
+        if my_pid != pid and my_role not in ('lider', 'admin', 'masteradmin'):
             return jsonify({'success': False, 'message': 'Brak uprawnień'}), 403
 
         try:

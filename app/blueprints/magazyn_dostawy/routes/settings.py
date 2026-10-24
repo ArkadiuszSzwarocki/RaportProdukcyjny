@@ -1,6 +1,6 @@
 from flask import render_template, request, jsonify, redirect, url_for, current_app, session
 import traceback
-from app.decorators import login_required
+from app.decorators import login_required, roles_required
 from app.services.magazyn_dostawy.location_service import LocationService
 from app.repositories.settings_repository import SettingsRepository
 from ..config import (
@@ -36,6 +36,7 @@ def sugerowane_lokalizacje():
 
 @magazyn_dostawy_bp.route('/ustawienia_lokalizacji')
 @login_required
+@roles_required('admin', 'masteradmin', 'zarzad', 'lider')
 def ustawienia_lokalizacji():
     linia = request.args.get('linia', 'PSD').upper()
     if linia not in ['PSD', 'AGRO']:
@@ -46,6 +47,7 @@ def ustawienia_lokalizacji():
 
 @magazyn_dostawy_bp.route('/api/ustawienia_lokalizacji', methods=['POST'])
 @login_required
+@roles_required('admin', 'masteradmin', 'zarzad', 'lider')
 def api_add_lokalizacja():
     data = request.json
     nazwa = data.get('nazwa', '').strip().upper()
@@ -64,6 +66,7 @@ def api_add_lokalizacja():
 
 @magazyn_dostawy_bp.route('/api/ustawienia_lokalizacji/<int:loc_id>', methods=['DELETE'])
 @login_required
+@roles_required('admin', 'masteradmin', 'zarzad', 'lider')
 def api_delete_lokalizacja(loc_id):
     try:
         SettingsRepository.delete_allowed_location(loc_id)

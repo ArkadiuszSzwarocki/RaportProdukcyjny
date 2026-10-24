@@ -45,16 +45,20 @@
             Workowanie Agro
         </a>
         {% if role not in ['laborant', 'laboratorium'] %}
+        {% if role not in ['admin', 'zarzad', 'masteradmin', 'lider'] %}
         <a href="/maszyny"
             class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}"
             style="color: #0284c7; font-weight: 700;">
             Maszyny & Telemetria 3D
         </a>
+        {% endif %}
+        {% if not role_has_access('magazyn.agro_packaging') %}
         <a href="{{ url_for('agro_warehouse.lp01_view', linia='AGRO') }}"
             class="nav-sub-item {% if '/lp01' in request.path %}active{% endif %}"
             style="color: #0d9488; font-weight: 700;">
             Maszyna LP01 (Materiały)
         </a>
+        {% endif %}
         <a href="{{ url_for('production.przestoje_list', linia='AGRO') }}"
             class="nav-sub-item {% if 'przestoje' in request.path %}active{% endif %}">
             Przestoje AGRO
@@ -96,7 +100,7 @@
             Raport Zasypów i Dosypek
         </a>
 
-        {% if role not in ['laborant', 'laboratorium'] %}
+        {% if role in ['pracownik', 'magazynier'] %}
         <a href="{{ url_for('agro_warehouse.raport_palet', select=1) }}" 
            class="nav-sub-item {% if request.endpoint == 'agro_warehouse.raport_palet' %}active{% endif %}">
             Raport Palet AGRO

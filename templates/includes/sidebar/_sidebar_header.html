@@ -50,14 +50,14 @@
 </style>
 <div class="sidebar-header-wrapper">
     <div class="sidebar-logo sidebar-logo-container">AGRO<span class="logo-accent">MES</span></div>
-    {% if unread_bug_reports_count and unread_bug_reports_count > 0 %}
-    <a href="{{ url_for('admin.admin_ustawienia_bugs') }}" class="bug-alert-icon" title="Masz {{ unread_bug_reports_count }} nieprzeczytanych zgłoszeń błędów">
+    {% if session.get('zalogowany') %}
+    <a href="{{ url_for('admin.admin_ustawienia_bugs') }}" id="sidebarBugReportIndicator" class="bug-alert-icon" style="display: {{ 'inline-flex' if unread_bug_reports_count else 'none' }};" title="Masz {{ unread_bug_reports_count }} nieprzeczytanych zgłoszeń błędów">
         <span class="material-icons">bug_report</span>
         <span class="bug-badge">{{ unread_bug_reports_count }}</span>
     </a>
     {% endif %}
-    {% if system_errors_count and system_errors_count > 0 %}
-    <a href="{{ url_for('admin.ustawienia_errors') }}" class="bug-alert-icon" style="color: #f59e0b; margin-left: 10px; animation: pulse-amber 2s infinite;" title="Wykryto {{ system_errors_count }} błędów systemowych (Error Trap)">
+    {% if role in ['admin', 'masteradmin'] %}
+    <a href="{{ url_for('admin.ustawienia_errors') }}" id="sidebarSystemErrorIndicator" class="bug-alert-icon" style="display: {{ 'inline-flex' if system_errors_count else 'none' }}; color: #f59e0b; margin-left: 10px; animation: pulse-amber 2s infinite;" title="Wykryto {{ system_errors_count }} błędów systemowych (Error Trap)">
         <span class="material-icons">warning</span>
         <span class="bug-badge" style="background: #f59e0b;">{{ system_errors_count }}</span>
     </a>

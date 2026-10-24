@@ -3,7 +3,7 @@
     var panel = document.getElementById('agroMeasurements');
     if (!panel || !window.dashboardScheduler) return;
     window.dashboardScheduler.addTask('agro-measurements', 60000, function () {
-        return fetch(panel.dataset.url, {credentials: 'same-origin', redirect: 'error'})
+        return fetch(panel.dataset.url, {silent: true, credentials: 'same-origin', redirect: 'error'})
             .then(function (response) {
                 if (!response.ok) throw new Error('Measurements unavailable');
                 return response.text();

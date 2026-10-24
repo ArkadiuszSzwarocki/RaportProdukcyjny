@@ -1,3 +1,4 @@
+{% set can_open_system_settings = role_has_access('ustawienia') %}
 {% if role not in ['pracownik', 'magazynier'] %}
 <!-- RAPORTY -->
 <div class="nav-item-group">
@@ -24,9 +25,6 @@
         {% if role_has_access('raporty.agro_production') %}
         <a href="/agro/report/combined?linia=AGRO" class="nav-sub-item">Raport Połączony Agro</a>
         {% endif %}
-        <a href="/admin/historia-email" class="nav-sub-item {% if request.path.startswith('/admin/historia-email') or request.path.startswith('/historia-email') %}active{% endif %}">
-            <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px; color: #3b82f6;">mail</span> Historia E-mail
-        </a>
     </div>
 </div>
 {% endif %}
@@ -38,7 +36,7 @@
         <span class="material-icons chevron">expand_more</span>
     </button>
     <div id="admin-ana-sub" class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/zarzad') or request.path.startswith('/moje_godziny') or request.path.startswith('/struktura') %}open{% endif %}">
-        {% if role_has_access('planista') and role != 'planista' %}
+        {% if role_has_access('planista') and role not in ['planista', 'masteradmin'] %}
         <a href="/planista?linia={{ request.args.get('linia', 'PSD') }}" class="nav-sub-item {% if request.path.startswith('/planista') %}active{% endif %}">Plan Produkcji</a>
         {% endif %}
 
@@ -51,7 +49,6 @@
         {% endif %}
 
         {% if role in ['admin', 'zarzad', 'masteradmin', 'lider'] %}
-        <a href="{{ url_for('struktura.widok_struktury') }}" class="nav-sub-item {% if request.path.startswith('/struktura') %}active{% endif %}">Struktura Organizacyjna</a>
         <a href="/maszyny" class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}" style="color: #0284c7; font-weight: 700;">
             🤖 Maszyny & Telemetria 3D
         </a>
@@ -89,28 +86,24 @@
 {% endif %}
 
 <!-- ADMINISTRACJA SYSTEMOWA (Dla Adminów z uprawnieniami) -->
-{% if role_has_access('ustawienia') %}
+{% if role_has_access('ustawienia') or role in ['admin', 'zarzad', 'masteradmin', 'lider', 'planista'] %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span>ADMINISTRACJA</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="admin-system-sub" class="nav-sub {% if '/admin/ustawienia' in request.path %}open{% endif %}">
-        {% if role_has_access('ustawienia.system') %}
-        <a href="{{ url_for('admin.admin_ustawienia') }}" class="nav-sub-item {% if request.path == '/admin/ustawienia' %}active{% endif %}">Ustawienia Systemu</a>
+    <div id="admin-system-sub" class="nav-sub {% if request.endpoint == 'admin.users_center' or '/admin/ustawienia' in request.path or request.endpoint == 'magazyn_dostawy.movement_print_history' %}open{% endif %}">
+        {% if can_open_system_settings %}
+        <a href="{{ url_for('admin.admin_ustawienia') }}" class="nav-sub-item {% if request.endpoint in ['admin.admin_ustawienia', 'admin.users_center', 'admin.email_center', 'magazyn_dostawy.movement_print_history'] or request.path.startswith('/admin/ustawienia/') %}active{% endif %}">Ustawienia Systemu</a>
+        {% else %}
+        {# Keep direct access for roles that cannot open the settings hub. #}
+        {% if role in ['admin', 'zarzad', 'masteradmin', 'lider'] %}
+        <a href="{{ url_for('admin.users_center', tab='struktura') }}" class="nav-sub-item {% if request.endpoint == 'admin.users_center' %}active{% endif %}">Użytkownicy i uprawnienia</a>
         {% endif %}
-        {% if role_has_access('ustawienia.zespol') %}
-        <a href="/admin/ustawienia/zespol" class="nav-sub-item {% if '/admin/ustawienia/zespol' in request.path %}active{% endif %}">Zespół i Konta</a>
+        {% if role in ['admin', 'zarzad', 'masteradmin', 'lider', 'planista'] %}
+        <a href="{{ url_for('admin.email_center') }}" class="nav-sub-item {% if request.endpoint == 'admin.email_center' %}active{% endif %}">E-mail i powiadomienia</a>
         {% endif %}
-        <a href="/admin/ustawienia/email-magazyn" class="nav-sub-item {% if '/email-magazyn' in request.path %}active{% endif %}">E-mail Dostaw i Przesunięć</a>
-        <a href="/admin/historia-email" class="nav-sub-item {% if request.path.startswith('/admin/historia-email') or request.path.startswith('/historia-email') %}active{% endif %}">
-            <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px; color: #3b82f6;">mail</span> Historia E-mail
-        </a>
-        <a href="/admin/ustawienia/zbiorniki" class="nav-sub-item {% if '/admin/ustawienia/zbiorniki' in request.path %}active{% endif %}">
-            <span class="material-icons" style="font-size: 15px; vertical-align: middle; margin-right: 4px; color: #10b981;">shield</span> Zbiorniki & Walidacja
-        </a>
-        <a href="/admin/ustawienia/drukarki" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
-        <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukarek (48h)</a>
+        {% endif %}
     </div>
 </div>
 {% endif %}
@@ -128,11 +121,13 @@
     </button>
     <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/logi-drukowania' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path or '/admin/master/' in request.path or '/zarzad/live-line' in request.path %}open{% endif %}">
         {% if master_access %}
-        <a href="/admin/master/permissions" class="nav-sub-item {% if '/admin/master/permissions' in request.path %}active{% endif %}">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">admin_panel_settings</span> Zarządzanie Dostępem
-        </a>
+        {% if not can_open_system_settings %}
         <a href="/admin/slownik-surowcow" class="nav-sub-item {% if '/admin/slownik-surowcow' in request.path %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">menu_book</span> Słownik Surowców
+        </a>
+        {% endif %}
+        <a href="{{ url_for('admin.system_performance') }}" class="nav-sub-item {% if request.endpoint == 'admin.system_performance' %}active{% endif %}">
+            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">speed</span> Czas przechodzenia stron
         </a>
         <a href="/admin/master/mqtt" class="nav-sub-item {% if request.path == '/admin/master/mqtt' %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">sensors</span> Monitor MQTT
@@ -164,9 +159,11 @@
         <a href="/admin/ustawienia/errors" class="nav-sub-item {% if '/admin/ustawienia/errors' in request.path %}active{% endif %}">Logi Błędów</a>
         {% endif %}
         
+        {% if not can_open_system_settings %}
         <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">print</span> Logi Drukarek (48h)
         </a>
+        {% endif %}
         
         {% if master_access or role_has_access('centrum') %}
         <a href="/admin/centrum" class="nav-sub-item {% if '/admin/centrum' in request.path %}active{% endif %}">Centrum Sterowania</a>

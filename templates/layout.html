@@ -9,7 +9,6 @@
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
     <meta name="msapplication-TileColor" content="#ffffff">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v={{ static_version }}&v2=2">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar.css') }}?v={{ static_version }}&v2=2">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/inline-styles.css') }}?v={{ static_version }}">
@@ -25,6 +24,7 @@
     <script src="{{ url_for('static', filename='js/perf_monitor.js') }}?v={{ static_version }}"></script>
     <!-- SESSION GUARD: intercepts 401, handles visibility-based logout -->
     <script src="{{ url_for('static', filename='js/session_guard.js') }}?v={{ static_version }}"></script>
+    <script src="{{ url_for('static', filename='js/navigation_priority.js') }}?v={{ static_version }}"></script>
     <!-- Offline writes are persisted in IndexedDB under the authenticated user id. -->
     <script>
         window.__RP_OFFLINE_USER_ID = {% if session.get('zalogowany') and session.get('user_id') %}{{ session.get('user_id')|tojson }}{% else %}null{% endif %};

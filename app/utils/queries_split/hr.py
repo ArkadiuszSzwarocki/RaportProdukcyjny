@@ -96,28 +96,36 @@ class HRQueries:
         return result
 
     @staticmethod
-    def get_pending_leave_requests(limit=50):
+    def get_pending_leave_requests(limit=50, cursor=None):
         """Get pending leave/time-off requests."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, "
-            "w.czas_do, w.powod, w.zlozono FROM wnioski_wolne w "
-            "JOIN pracownicy p ON w.pracownik_id = p.id "
-            "WHERE w.status = 'pending' ORDER BY w.zlozono DESC LIMIT %s",
-            (limit,)
-        )
-        raw = cursor.fetchall()
-        conn.close()
+        conn = None
+        if cursor is None:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT w.id, p.imie_nazwisko, w.typ, w.data_od, w.data_do, w.czas_od, "
+                "w.czas_do, w.powod, w.zlozono FROM wnioski_wolne w "
+                "JOIN pracownicy p ON w.pracownik_id = p.id "
+                "WHERE w.status = 'pending' ORDER BY w.zlozono DESC LIMIT %s",
+                (limit,)
+            )
+            raw = cursor.fetchall()
         
-        wnioski = []
-        for r in raw:
-            wnioski.append({
-                'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3],
-                'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6],
-                'powod': r[7], 'zlozono': r[8]
-            })
-        return wnioski
+            wnioski = []
+            for r in raw:
+                wnioski.append({
+                    'id': r[0], 'pracownik': r[1], 'typ': r[2], 'data_od': r[3],
+                    'data_do': r[4], 'czas_od': r[5], 'czas_do': r[6],
+                    'powod': r[7], 'zlozono': r[8]
+                })
+            return wnioski
+        finally:
+            if conn:
+                try:
+                    cursor.close()
+                finally:
+                    conn.close()
 
     @staticmethod
     def get_planned_leaves(days=60, limit=500, cursor=None):

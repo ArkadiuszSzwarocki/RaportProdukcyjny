@@ -7,55 +7,63 @@ from datetime import date
 
 class ProductionQueries:
     @staticmethod
-    def get_dziennik_zmiany(data_wpisu, sekcja, linia='PSD'):
+    def get_dziennik_zmiany(data_wpisu, sekcja, linia='PSD', cursor=None):
         """Get shift log entries (non-finished status only) for a given day/section/line."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT d.id, p.imie_nazwisko, d.problem, d.czas_start, d.czas_stop, d.kategoria, "
-            "TIMESTAMPDIFF(MINUTE, d.czas_start, d.czas_stop), d.pracownik_id, d.sekcja, d.data_zakonczenia "
-            "FROM dziennik_zmiany d LEFT JOIN pracownicy p ON d.pracownik_id = p.id "
-            "WHERE d.data_wpisu = %s AND d.sekcja = %s AND d.linia = %s AND d.status != 'zakończone' "
-            "ORDER BY d.id DESC",
-            (data_wpisu, sekcja, linia)
-        )
-        rows = cursor.fetchall()
-        result = [list(r) for r in rows]
-
+        conn = None
+        if cursor is None:
+            conn = get_db_connection()
+            cursor = conn.cursor()
         try:
-            if sekcja.lower() == 'workowanie' and result:
-                for p in result:
-                    try:
-                        prod = p[1]
-                        table_plan = get_table_name('plan_produkcji', linia)
-                        cursor.execute(
-                            f"SELECT COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} "
-                            "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt = %s "
-                            "ORDER BY COALESCE(real_stop, real_start, id) ASC LIMIT 1",
-                            (data_wpisu, prod)
-                        )
-                        zasyp_row = cursor.fetchone()
-                        if zasyp_row and zasyp_row[0] is not None:
-                            p[2] = zasyp_row[0]
+            cursor.execute(
+                "SELECT d.id, p.imie_nazwisko, d.problem, d.czas_start, d.czas_stop, d.kategoria, "
+                "TIMESTAMPDIFF(MINUTE, d.czas_start, d.czas_stop), d.pracownik_id, d.sekcja, d.data_zakonczenia "
+                "FROM dziennik_zmiany d LEFT JOIN pracownicy p ON d.pracownik_id = p.id "
+                "WHERE d.data_wpisu = %s AND d.sekcja = %s AND d.linia = %s AND d.status != 'zakończone' "
+                "ORDER BY d.id DESC",
+                (data_wpisu, sekcja, linia)
+            )
+            rows = cursor.fetchall()
+            result = [list(r) for r in rows]
 
-                        table_bufor = get_table_name('bufor', linia)
-                        cursor.execute(
-                            f"SELECT COALESCE(MAX(spakowano), 0) FROM {table_bufor} WHERE data_planu = %s AND produkt = %s AND status = 'aktywny'",
-                            (data_wpisu, prod)
-                        )
-                        buf_row = cursor.fetchone()
-                        if buf_row and buf_row[0] is not None:
-                            while len(p) <= 7:
-                                p.append(None)
-                            p[7] = buf_row[0]
-                    except Exception:
-                        continue
-        except Exception:
-            pass
+            try:
+                if sekcja.lower() == 'workowanie' and result:
+                    for p in result:
+                        try:
+                            prod = p[1]
+                            table_plan = get_table_name('plan_produkcji', linia)
+                            cursor.execute(
+                                f"SELECT COALESCE(tonaz_rzeczywisty, 0) FROM {table_plan} "
+                                "WHERE DATE(data_planu) = %s AND sekcja = 'Zasyp' AND produkt = %s "
+                                "ORDER BY COALESCE(real_stop, real_start, id) ASC LIMIT 1",
+                                (data_wpisu, prod)
+                            )
+                            zasyp_row = cursor.fetchone()
+                            if zasyp_row and zasyp_row[0] is not None:
+                                p[2] = zasyp_row[0]
 
-        conn.close()
-        return result
-    
+                            table_bufor = get_table_name('bufor', linia)
+                            cursor.execute(
+                                f"SELECT COALESCE(MAX(spakowano), 0) FROM {table_bufor} WHERE data_planu = %s AND produkt = %s AND status = 'aktywny'",
+                                (data_wpisu, prod)
+                            )
+                            buf_row = cursor.fetchone()
+                            if buf_row and buf_row[0] is not None:
+                                while len(p) <= 7:
+                                    p.append(None)
+                                p[7] = buf_row[0]
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
+            return result
+        finally:
+            if conn:
+                try:
+                    cursor.close()
+                finally:
+                    conn.close()
+
     @staticmethod
     def get_plan_produkcji(data_planu, sekcja, linia='PSD', cursor=None, data_od=None, data_do=None):
         """Get production plans for a given day/section/line."""

@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Tuple
 from flask import render_template, request
 
 from app.db import get_db_connection, get_table_name
+from app.utils.location_validator import is_warehouse_location
 from app.blueprints.warehouse_v2.utils.date_formatters import (
     compute_expiry_date,
     format_date_val,
@@ -125,6 +126,9 @@ class WarehouseSummaryController:
         finally:
             if conn:
                 conn.close()
+
+        # Production tanks retain their history but are not physical warehouse stock.
+        items = [item for item in items if is_warehouse_location(item.get('location') or 'OCZEKUJĄCE')]
 
         # Group data by product name
         summary_data: Dict[str, Dict[str, Any]] = {}

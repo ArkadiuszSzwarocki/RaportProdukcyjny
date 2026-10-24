@@ -97,3 +97,12 @@ test('a hung request times out and confirmed repeated timeouts show offline', as
     s.fire(8000); await settle();
     assert.equal(s.classes.has('connection-offline'), true);
 });
+
+test('connectivity uses anonymous database-independent liveness', async () => {
+    const s = setup();
+    s.listeners.DOMContentLoaded(); await settle();
+    assert.equal(s.calls[0].url, '/api/ping');
+    assert.equal(s.calls[0].options.credentials, 'omit');
+    assert.equal(s.calls[0].options.cache, 'no-store');
+    assert.equal(s.calls[0].options.silent, true);
+});

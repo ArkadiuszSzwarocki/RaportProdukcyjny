@@ -34,6 +34,11 @@ def touch_active_session(session_id, user_id, login, role, pracownik_id=None, di
             local_conn = get_db_connection()
             own_conn = True
         cursor = local_conn.cursor()
+        if own_conn:
+            # Presence is best-effort telemetry. A busy row must not hold a
+            # navigation request for the database's default lock-wait timeout.
+            # Owned pooled connections reset session settings on close.
+            cursor.execute("SET SESSION innodb_lock_wait_timeout = 1")
         cursor.execute(
             """
             INSERT INTO aktywne_sesje (
@@ -236,6 +241,7 @@ def cleanup_abandoned_sessions(max_inactive_hours=24):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        cursor.execute("SET SESSION innodb_lock_wait_timeout = 1")
         cursor.execute(
             """
             UPDATE aktywne_sesje

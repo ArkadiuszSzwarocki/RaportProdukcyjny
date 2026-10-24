@@ -10,7 +10,7 @@ def test_dashboard_error_keeps_exception_details_out_of_response(client, app, mo
     app.debug = False
     details = "Table 'private_database.szarze_agro' missing at C:/private/server.py"
     monkeypatch.setattr(
-        'app.blueprints.main.build_dashboard_halls_context',
+        'app.blueprints.main.build_production_section_halls_context',
         Mock(side_effect=RuntimeError(details)),
     )
     with client.session_transaction() as session:

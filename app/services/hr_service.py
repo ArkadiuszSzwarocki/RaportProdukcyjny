@@ -12,7 +12,7 @@ class HRService:
     def get_hr_and_leave_data(dzisiaj: date, cursor=None) -> Tuple[List, List]:
         """Get HR related data: presence records and pending leave requests."""
         obecnosc_dzis = QueryHelper.get_presence_records_for_day(dzisiaj, cursor=cursor)
-        wnioski_pending = QueryHelper.get_pending_leave_requests(limit=10)
+        wnioski_pending = QueryHelper.get_pending_leave_requests(limit=10, cursor=cursor)
         return obecnosc_dzis, wnioski_pending
 
     @staticmethod

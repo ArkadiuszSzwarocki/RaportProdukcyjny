@@ -9,6 +9,7 @@ from app.decorators import roles_required, login_required, dynamic_role_required
 from app.services.dashboard_service import DashboardService
 from .index_data import (
     build_dashboard_halls_context,
+    build_production_section_halls_context,
     build_dosypki_maps,
     build_zasyp_etapy_context,
     build_agro_mix_context
@@ -128,9 +129,16 @@ def index():
                         allowed_roles=allowed_dashboard_roles
                     ), 403
 
-        # Load everything via the central helper to ensure data parity with original system
+        if aktywna_sekcja.strip().lower() == 'dashboard':
+            from .index_data import build_production_overview_context
+            overview = build_production_overview_context(
+                dzisiaj, aktywna_linia, session.get('rola'), data_od=data_od_str, data_do=data_do_str)
+            return render_template('dashboard_global.html', **overview)
+
+        # Load only the data rendered by the selected production section.
         role = session.get('rola')
-        halls_ctx = build_dashboard_halls_context(
+        build_context = build_production_section_halls_context if aktywna_sekcja in ('Zasyp', 'Workowanie') else build_dashboard_halls_context
+        halls_ctx = build_context(
             dzisiaj, 
             aktywna_sekcja, 
             aktywna_linia, 
@@ -149,10 +157,10 @@ def index():
         # Resolve allowed START ids for Workowanie and Zasyp
         allowed_work_start_ids = WorkowanieQueueService.get_allowed_start_ids(
             dzisiaj, aktywna_linia, main_h_data.get('work_first_map', {}), app.logger
-        )
+        ) if aktywna_sekcja == 'Workowanie' else set()
         allowed_zasyp_start_ids = ZasypQueueService.get_allowed_start_ids(
             dzisiaj, aktywna_linia, app.logger
-        )
+        ) if aktywna_sekcja == 'Zasyp' else set()
 
         # Dosypki
         dosypki_mapa, dosypki_oczekujace_mapa = build_dosypki_maps(dzisiaj, aktywna_sekcja, aktywna_linia, app.logger)
@@ -167,7 +175,7 @@ def index():
         )
         
         # AGRO MIX
-        agro_mix_mapa, agro_mix_dostepne = build_agro_mix_context(dzisiaj, aktywna_linia, app.logger)
+        agro_mix_mapa, agro_mix_dostepne = ({}, []) if aktywna_sekcja in ('Zasyp', 'Workowanie') else build_agro_mix_context(dzisiaj, aktywna_linia, app.logger)
 
         # FEFO Pallets
         from app.services.dashboard_service import DashboardService

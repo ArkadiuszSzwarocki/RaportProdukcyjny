@@ -247,7 +247,11 @@ def create_app(config_secret_key=None, init_db=True):
     setup_logging(app)
     register_error_handlers(app)
     app.jinja_env.add_extension('jinja2.ext.do')
-    app.jinja_env.cache = None
+    # Cache compiled templates, not rendered pages or user-specific content.
+    # auto_reload still picks up saved template edits during local development.
+    from jinja2.utils import LRUCache
+    app.jinja_env.cache = LRUCache(400)
+    app.jinja_env.auto_reload = True
     app.config['TEMPLATES_AUTO_RELOAD'] = True
 
     register_legacy_secret_rejection(app)

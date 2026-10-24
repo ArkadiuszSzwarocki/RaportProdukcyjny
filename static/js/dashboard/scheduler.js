@@ -38,6 +38,7 @@
         }
 
         function tick() {
+            if (global.__rpNavigating || document.hidden) return;
             var now = Date.now();
             tasks.forEach(function (task) {
                 runTask(task, now);
@@ -84,5 +85,16 @@
     }
 
     global.dashboardScheduler = createScheduler();
-    global.dashboardScheduler.start();
+    function resume() {
+        if (!global.__rpNavigating && !document.hidden) global.dashboardScheduler.start();
+    }
+    global.addEventListener('rp:navigation-start', function () { global.dashboardScheduler.stop(); });
+    global.addEventListener('rp:navigation-cancelled', resume);
+    global.addEventListener('pagehide', function () { global.dashboardScheduler.stop(); });
+    global.addEventListener('pageshow', resume);
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) global.dashboardScheduler.stop();
+        else resume();
+    });
+    resume();
 })(window);

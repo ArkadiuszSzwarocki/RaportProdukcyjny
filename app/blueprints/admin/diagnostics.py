@@ -223,6 +223,12 @@ def _explain_error(lines):
 
 
 def register_admin_diagnostics_routes(admin_bp):
+    @admin_bp.get('/admin/master/performance')
+    @masteradmin_required
+    def system_performance():
+        """Browser-local navigation measurements, restricted to MasterAdmin."""
+        return render_template('performance.html')
+
     @admin_bp.route('/admin/ustawienia/errors')
     @dynamic_role_required('ustawienia.errors')
     def ustawienia_errors():

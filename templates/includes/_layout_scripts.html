@@ -17,6 +17,7 @@
             };
             fetch('/api/log_frontend_error', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
+                silent: true,
                 body: JSON.stringify(payload)
             }).catch(() => {});
         } catch(e) {}
@@ -180,6 +181,19 @@
         }
     };
 
+    function fetchNotificationState() {
+        // Notifications must not poll the full inventory/production state on the warehouse page.
+        const warehouse = window.location.pathname.replace(/\/$/, '') === '/warehouse-v2';
+        return fetch(warehouse ? '/api/notifications?limit=10' : '/api/system_state', {silent: true, credentials: 'same-origin'})
+            .then(response => response.json())
+            .then(data => {
+                if (warehouse && data.success && Array.isArray(data.notifications)) {
+                    data.state = {last_notif: Math.max(0, ...data.notifications.map(item => Number(item.id) || 0))};
+                }
+                return data;
+            });
+    }
+
     let lastKnownNotifId = 0;
     let isPollingStarted = false;
     function startNotificationPolling() {
@@ -187,8 +201,7 @@
         isPollingStarted = true;
         
         // Initial check to set the baseline ID so we don't spam old notifications
-        fetch('/api/system_state')
-            .then(r => r.json())
+        fetchNotificationState()
             .then(j => {
                 if (j.success && j.state) {
                     lastKnownNotifId = j.state.last_notif;
@@ -236,13 +249,11 @@
     }
 
     function pollNotifications() {
-        fetch('/api/system_state')
-            .then(r => r.json())
+        fetchNotificationState()
             .then(j => {
                 if (j.success && j.state && j.state.last_notif > lastKnownNotifId) {
                     // There are new notifications! Fetch details.
-                    fetch('/api/notifications?limit=10')
-                        .then(rn => rn.json())
+                    (Array.isArray(j.notifications) ? Promise.resolve(j) : fetch('/api/notifications?limit=10', {silent: true, credentials: 'same-origin'}).then(rn => rn.json()))
                         .then(jn => {
                             if (jn.success && jn.notifications) {
                                 let newlyFound = 0;

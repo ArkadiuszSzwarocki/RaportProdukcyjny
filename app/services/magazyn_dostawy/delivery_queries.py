@@ -56,10 +56,8 @@ class DeliveryQueries:
                 # 2. Pending Production Pallets (WG)
                 wg = DeliveryQueries.get_pending_production_pallets(linia)
                 
-                try:
-                    DeliveryQueries.sync_pending_transfers_blocked_state()
-                except Exception:
-                    pass
+                # Reading pending receipts must never change stock or reservations.
+                # Reservation writes belong to the transfer/reception transaction.
 
                 return {
                     "dostawy": dostawy,

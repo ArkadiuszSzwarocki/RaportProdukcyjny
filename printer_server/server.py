@@ -477,6 +477,51 @@ def _pdf_target():
     raise ValueError('Wskaż skonfigurowaną drukarkę PDF.')
 
 
+def _office_jobs():
+    try:
+        from printer_server.office_jobs import OfficeJobs
+    except ModuleNotFoundError:
+        from office_jobs import OfficeJobs
+    return OfficeJobs()
+
+
+@app.route('/office-jobs', methods=['POST'])
+@_require_bridge_auth
+def submit_office_job():
+    try:
+        from uuid import UUID
+        try:
+            from printer_server.office_jobs import public_job
+        except ModuleNotFoundError:
+            from office_jobs import public_job
+        request_id = str(UUID(request.form.get('request_id', '')))
+        uploaded = request.files.get('file')
+        if uploaded is None:
+            raise ValueError('Brak PDF.')
+        job = _office_jobs().submit(request_id, request.form.get('printer_key'), uploaded.read(20*1024*1024+1))
+        return jsonify(success=True, job=public_job(job)), 202
+    except (ValueError, TypeError) as error:
+        return jsonify(success=False, message=str(error)), 400
+    except Exception:
+        logger.exception('Tracked office job submission failed')
+        return jsonify(success=False, message='Niepewny wynik wysłania; sprawdź zadanie przed ponowieniem.'), 503
+
+
+@app.route('/office-jobs/<uuid:request_id>', methods=['GET'])
+@_require_bridge_auth
+def office_job_status(request_id):
+    try:
+        try:
+            from printer_server.office_jobs import public_job
+        except ModuleNotFoundError:
+            from office_jobs import public_job
+        job = _office_jobs().refresh(str(request_id))
+        return (jsonify(success=True, job=public_job(job)), 200) if job else (jsonify(success=False), 404)
+    except Exception:
+        logger.exception('Tracked office job status unavailable')
+        return jsonify(success=False, message='Odczyt statusu niedostępny.'), 503
+
+
 @app.route('/drukuj-pdf', methods=['POST'])
 @_require_bridge_auth
 def drukuj_pdf():

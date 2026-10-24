@@ -6,6 +6,8 @@ from .production import register_admin_production_routes
 from .roles import register_admin_roles_routes
 from .system import register_admin_system_routes
 from .team import register_admin_team_routes
+from .users_center import register_users_center_routes
+from .email_center import register_email_center_routes
 from .workowanie_times import register_admin_workowanie_times_routes
 from .warehouse_capacities import register_admin_warehouse_capacities_routes
 from .raw_materials import register_admin_raw_materials_routes
@@ -39,3 +41,7 @@ register_admin_email_history_routes(admin_bp)
 register_admin_tank_settings_routes(admin_bp)
 register_user_permissions_routes(admin_bp)
 register_admin_process_flow_routes(admin_bp)
+
+register_users_center_routes(admin_bp)
+
+register_email_center_routes(admin_bp)

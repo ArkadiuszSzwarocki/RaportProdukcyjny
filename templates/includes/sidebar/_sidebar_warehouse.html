@@ -1,4 +1,5 @@
-{% if role != 'pracownik' and effective_hall != 'OSIP' %}
+{% set can_open_prod_inventory = role_has_access('magazyn.agro_total') and role_has_access('magazyn.inventory') %}
+{% if effective_hall != 'OSIP' %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0} %}
     {% set hall_key = (effective_hall or 'ALL')|upper %}
@@ -14,7 +15,7 @@
         </span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="mag-sub" class="nav-sub {% if (request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner', 'traceability'] and request.endpoint != 'warehouse_v2.kompletacja') or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
+    <div id="mag-sub" class="nav-sub {% if (request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner', 'traceability'] and request.endpoint not in ['warehouse_v2.kompletacja', 'magazyn_dostawy.movement_print_history']) or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
         {% if role_has_access('magazyn.view') %}
         <a href="{{ url_for('warehouse_v2.index', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.index' %}active{% endif %}">Wszystkie Magazyny</a>
         <a href="{{ url_for('warehouse_v2.racks_3d_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.racks_3d_view' %}active{% endif %}">Widok 3D Regałów</a>
@@ -31,6 +32,7 @@
         </a>
         {% endif %}
         
+
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
         {% if role_has_access('magazyn.pending') %}
@@ -81,7 +83,9 @@
         <a href="{{ url_for(podzial_palety_endpoint, linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' %}active{% elif request.endpoint == podzial_palety_endpoint and podzial_palety_endpoint != 'magazyn_dostawy.podzial_palety_view' %}active{% endif %}">Podział Palety</a>
         {% endif %}
         
+        {% if role in ['magazynier', 'lider', 'zarzad', 'admin', 'masteradmin'] %}
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' %}active{% endif %}">Mixowanie Palet</a>
+        {% endif %}
         
         {% if role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('warehouse_v2.zuzycie_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zuzycie_view' %}active{% endif %}">
@@ -173,12 +177,15 @@
         </a>
         <a href="{{ url_for('osip.suma_surowcow_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.suma_surowcow_view' %}active{% endif %}">Suma surowców</a>
         <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Podział Palety</a>
+        {% if role in ['magazynier', 'lider', 'zarzad', 'admin', 'masteradmin'] %}
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Mixowanie Palet</a>
+        {% endif %}
         <a href="{{ url_for('osip.expedition_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.expedition_view' %}active{% endif %}">Wydania Zewnętrzne</a>
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
-        <a href="{{ url_for('scanner.scanner_ui', linia='OSIP') }}" class="nav-sub-item {% if request.blueprint == 'scanner' %}active{% endif %}">Skaner & Drukarka</a>
+        {% if not role_has_access('ustawienia') %}
         <a href="{{ url_for('admin.admin_ustawienia_drukarki') }}" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
         <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukowania (48h)</a>
+        {% endif %}
     </div>
 </div>
 {% endif %}

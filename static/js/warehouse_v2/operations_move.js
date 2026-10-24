@@ -343,24 +343,21 @@ async function promptDispatch() {
 }
 
 async function promptArchive() {
-    if(!currentPallet.id) return;
-    const ok = await AppDialog.confirm(`Czy na pewno chcesz zarchiwizować paletę ${currentPallet.displayId}? Ilość zostanie wyzerowana.`);
-    if(ok) {
-        fetch('/warehouse-v2/api/pallet/archive', {
+    if (!currentPallet.id) return;
+    const ok = await AppDialog.confirm(`Czy na pewno chcesz zarchiwizować paletę ${currentPallet.displayId}? Paleta przestanie być widoczna na aktywnym stanie.`);
+    if (!ok) return;
+    try {
+        const response = await fetch('/warehouse-v2/api/pallet/archive', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                id: currentPallet.id,
-                type: currentPallet.type,
-                linia: currentPallet.linia
-            })
-        }).then(r => r.json()).then(data => {
-            if(data.success) {
-                removePalletFromDOM(currentPallet.id, `Paleta ${currentPallet.displayId} zarchiwizowana ✓`);
-            } else {
-                AppDialog.alert("Błąd: " + data.error);
-            }
+            body: JSON.stringify({id: currentPallet.id, sscc: currentPallet.displayId, type: currentPallet.type, linia: currentPallet.linia})
         });
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || data.error || 'Nie można zarchiwizować palety.');
+        closePalletModal();
+        removePalletFromDOM(currentPallet.id, `Paleta ${currentPallet.displayId} zarchiwizowana ✓`);
+    } catch (error) {
+        AppDialog.alert(error.message || 'Błąd połączenia.');
     }
 }
 

@@ -49,13 +49,10 @@ def enforce_warehouse_write():
     if shared_move and not shared_material_access():
         return _deny('Zaloguj się.', 401)
     line = str(data.get('linia') or 'PSD').strip().upper()
-    if shared_move and line == 'ALL':
+    if line == 'ALL':
         line = 'PSD'
     if line not in {'PSD', 'AGRO', 'OSIP'}:
         return _deny()
-    for hint in (request.args.get('linia'), request.form.get('linia')):
-        if not shared_move and hint and str(hint).strip().upper() != line:
-            return _deny('Sprzeczne wskazanie hali.')
     if not shared_move and endpoint != 'warehouse_v2.restore_from_archive' and not _page_allowed(line, 'magazyn'):
         return _deny()
     connection = None
@@ -106,8 +103,12 @@ def enforce_warehouse_write():
                         return _deny()
                 else:
                     resource_line = str(row.get('linia') or line).strip().upper()
-                    if resource_line != line or not _page_allowed(resource_line, 'magazyn'):
+                    if not _page_allowed(resource_line, 'magazyn'):
                         return _deny()
+                if endpoint == 'warehouse_v2.archive_pallet':
+                    from app.core.shared_inventory_permissions import can_archive_stock
+                    if not can_archive_stock(row):
+                        return _deny('Archiwizacja materiału na magazynie wymaga roli admin, masteradmin, zarzad lub lider. Pracownik może zużywać materiał na produkcji i LP01.')
                 if data.get('sscc') and str(row.get('nr_palety')) != str(data['sscc']):
                     return _deny('Kod palety nie odpowiada identyfikatorowi.', 400)
             g.warehouse_resource = {'table': table, 'id': row['id'], 'nr_palety': row.get('nr_palety')}

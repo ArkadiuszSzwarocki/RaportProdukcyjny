@@ -190,3 +190,9 @@ db-init/
 
 # Local JavaScript tooling dependencies
 node_modules/
+
+# Durable local print bridge jobs and temporary rendered PDFs
+printer_server/runtime/
+
+# Cross-worker warehouse update notifications
+instance/warehouse-events/

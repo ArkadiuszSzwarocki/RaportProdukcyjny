@@ -248,16 +248,16 @@
             <span class="material-icons" id="mainStatusIcon">published_with_changes</span>
         </div>
 
-        <h1 id="offlineTitle">Trwa restart lub aktualizacja serwera produkcyjnego</h1>
+        <h1 id="offlineTitle">Wybrana strona jest chwilowo niedostępna</h1>
         
         <p id="offlineDesc">
-            Serwer tymczasowo przetwarza zadania serwisowe lub uruchamia nową wersję systemu produkcyjnego AgroMES. 
+            Nie udało się otworzyć wybranej strony. Przyczyną może być połączenie, przeciążenie serwera lub chwilowy problem z bazą danych. 
             <strong>Wszystkie zebrane kody kreskowe, dane bufora i otwarte formularze są bezpiecznie zapisane</strong> w pamięci Twojego urządzenia.
         </p>
 
         <div class="server-detected-banner" id="serverDetectedBanner">
             <span class="material-icons" style="font-size: 16px; vertical-align: middle;">check_circle</span>
-            Połączenie przywrócone! Następuje automatyczny powrót do aplikacji...
+            Wybrana strona jest dostępna. Następuje powrót do tej strony...
         </div>
 
         <div class="offline-stats-box">
@@ -304,7 +304,16 @@
     </div>
 
     <script>
-        const lastPage = localStorage.getItem('rp_last_visited_page') || '/';
+        // The fallback is served at the requested URL. Recover that destination,
+        // not an unrelated previously visited module stored in localStorage.
+        let lastPage = '/';
+        try {
+            const requested = window.location.pathname + window.location.search;
+            const stored = localStorage.getItem('rp_last_visited_page') || '/';
+            const target = new URL(requested.includes('offline_fallback') ? stored : requested, window.location.origin);
+            if (target.origin === window.location.origin) lastPage = target.pathname + target.search;
+        } catch (_) {}
+
         
         // Display readable name of last page
         const nameEl = document.getElementById('lastActiveModuleName');
@@ -328,17 +337,31 @@
         let retrySecondsLeft = 5;
         let retryAttempt = 1;
         let isReconnecting = false;
+        let recoveryCheckRunning = false;
 
         const countdownEl = document.getElementById('autoRetryCountdown');
 
         async function checkServerAndReload(forceManual = false) {
-            if (isReconnecting) return;
+            if (isReconnecting || recoveryCheckRunning) return;
+            recoveryCheckRunning = true;
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
             try {
                 if (countdownEl) {
                     countdownEl.innerText = 'Sprawdzanie stanu serwera...';
                 }
-                const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
-                if (res.ok) {
+                // A working health endpoint does not mean the requested page
+                // works. Bypass the SW fallback and verify the destination.
+                const res = await fetch(lastPage, {
+                    method: 'GET', cache: 'no-store', credentials: 'same-origin',
+                    signal: controller.signal,
+                    headers: { 'Accept': 'text/html', 'X-RP-Recovery-Probe': '1' }
+                });
+                const html = res.ok ? await res.text() : '';
+                const actualPageReady = res.ok &&
+                    (res.headers.get('Content-Type') || '').includes('text/html') &&
+                    !html.includes('id="offlineStatusBadge"');
+                if (actualPageReady) {
                     isReconnecting = true;
                     const banner = document.getElementById('serverDetectedBanner');
                     if (banner) banner.style.display = 'block';
@@ -355,11 +378,14 @@
                     return;
                 }
             } catch (e) {
-                // Server still down/restarting
+                // Stay on this screen while the destination remains unavailable.
+            } finally {
+                clearTimeout(timeout);
+                recoveryCheckRunning = false;
             }
 
             retryAttempt++;
-            retrySecondsLeft = 5;
+            retrySecondsLeft = Math.min(30, 5 * Math.pow(2, Math.min(retryAttempt - 1, 3)));
             if (countdownEl) {
                 countdownEl.innerText = `za ${retrySecondsLeft} s (próba #${retryAttempt})`;
             }
@@ -368,7 +394,7 @@
         // Live countdown timer every second (only in top-level window, avoid iframe reload loop)
         if (window.self === window.top) {
             setInterval(() => {
-                if (isReconnecting) return;
+                if (isReconnecting || recoveryCheckRunning) return;
                 retrySecondsLeft--;
                 if (retrySecondsLeft <= 0) {
                     checkServerAndReload();

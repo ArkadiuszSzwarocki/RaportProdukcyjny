@@ -27,7 +27,7 @@ class TestProductionConsumptionService(unittest.TestCase):
         cursor.execute("""
             INSERT INTO magazyn_surowce (nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii)
             VALUES (%s, %s, %s, %s, %s)
-        """, (test_sscc, 'TESTOWY SUROWIEC MĄCZKA', 750.0, 'R010101', 'BATCH-9988'))
+        """, (test_sscc, 'TESTOWY SUROWIEC MĄCZKA', 750.0, 'BB03', 'BATCH-9988'))
         conn.commit()
         inserted_id = cursor.lastrowid
 

@@ -133,30 +133,27 @@ def enforce_csrf_origin_check(app):
 
 
 def record_request_start_time(app):
-    if os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() != 'true':
-        return lambda: None
-
     from flask import g
 
     def middleware():
-        g._request_start_time = time.time()
+        g._request_start_time = time.perf_counter()
         return None
 
     return middleware
 
 
 def log_slow_requests(app):
-    if os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() != 'true':
-        return lambda response: response
-
+    enabled = os.environ.get('ENABLE_SLOW_REQUEST_LOGGING', 'false').lower() == 'true'
     from flask import g
 
     def middleware(response):
         try:
             started = getattr(g, '_request_start_time', None)
             if started:
-                duration = time.time() - started
-                if duration > 15.0:
+                duration = time.perf_counter() - started
+                if request.endpoint != 'static':
+                    response.headers.add('Server-Timing', f'app;dur={duration * 1000:.1f}')
+                if enabled and duration > 15.0:
                     app.logger.warning(
                         'SLOW REQUEST: %s %s took %.2fs (User: %s)',
                         request.method,

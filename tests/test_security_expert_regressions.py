@@ -25,12 +25,12 @@ def test_scanner_denied_grant_never_reads_stock(security_app, endpoint):
         request.url_rule = Rule('/security-test', endpoint=endpoint)
         with patch('app.core.scanner_permissions._page_allowed', return_value=False), patch(
                 'app.core.scanner_permissions.get_db_connection') as connect:
-            assert enforce_scanner_permissions()[1] == 403
+            assert enforce_scanner_permissions()[1] == (401 if endpoint == 'scanner.print_label' else 403)
             connect.assert_not_called()
 
 
 @pytest.mark.parametrize('row, expected', [
-    (None, 404), ({'id': 1, 'nr_palety': 'TEST', 'linia': 'PSD'}, 403),
+    (None, 404), ({'id': 1, 'nr_palety': 'TEST', 'linia': 'PSD'}, 200),
     ({'id': 1, 'nr_palety': 'OTHER', 'linia': 'AGRO'}, 400),
 ])
 def test_scanner_checks_server_owned_identity(security_app, row, expected):
@@ -42,7 +42,8 @@ def test_scanner_checks_server_owned_identity(security_app, row, expected):
         request.url_rule = Rule('/security-test', endpoint='scanner.move')
         with patch('app.core.scanner_permissions._page_allowed', return_value=True), patch(
                 'app.core.scanner_permissions.get_db_connection', return_value=connection):
-            assert enforce_scanner_permissions()[1] == expected
+            result = enforce_scanner_permissions()
+            assert (200 if result is None else result[1]) == expected
     connection.close.assert_called_once()
 
 
@@ -80,7 +81,7 @@ def test_dispatch_cannot_fallback_after_authorized_pallet_disappears(security_ap
 
 
 @pytest.mark.parametrize('endpoint', ['magazyn_dostawy.zapisz_dostawe', 'magazyn_dostawy.anuluj_dostawe'])
-def test_delivery_authorizes_stored_document_hall(security_app, endpoint):
+def test_delivery_document_hall_does_not_restrict_shared_warehouse(security_app, endpoint):
     connection = MagicMock()
     connection.cursor.return_value.fetchone.return_value = {'linia': 'PSD'}
     with security_app.test_request_context('/delivery', method='POST', json={'linia': 'AGRO', 'id': 'DOC'}):
@@ -89,15 +90,15 @@ def test_delivery_authorizes_stored_document_hall(security_app, endpoint):
         request.view_args = {'dostawa_id': 'DOC'}
         with patch('app.core.logistics_permissions._page_allowed', return_value=True), patch(
                 'app.core.logistics_permissions.get_db_connection', return_value=connection):
-            assert enforce_logistics_permissions()[1] == 403
+            assert enforce_logistics_permissions() is None
 
 
 @pytest.mark.parametrize('endpoint', ['magazyn_dostawy.zapisz_dostawe', 'magazyn_dostawy.przyjmij_wg'])
-def test_delivery_query_cannot_authorize_different_body_default(security_app, endpoint):
+def test_delivery_requires_authenticated_warehouse_session(security_app, endpoint):
     with security_app.test_request_context('/delivery?linia=AGRO', method='POST', json={'items': []}):
         from flask import request
         request.url_rule = Rule('/security-test', endpoint=endpoint)
-        assert enforce_logistics_permissions()[1] == 400
+        assert enforce_logistics_permissions()[1] == 403
 
 
 @pytest.mark.parametrize('origin, status', [
@@ -137,7 +138,7 @@ def test_backup_certificate_failure_never_sends_data(tmp_path):
 
 
 @pytest.mark.parametrize('readonly, access, line', [(True, True, 'AGRO'), (False, False, 'AGRO'), (False, True, 'PSD')])
-def test_scanner_blueprint_cannot_bypass_page_and_hall_grants(security_app, readonly, access, line):
+def test_production_dispatch_cannot_bypass_production_page_and_hall_grants(security_app, readonly, access, line):
     from app.blueprints.scanner.base import scanner_bp
     security_app.register_blueprint(scanner_bp)
     client = security_app.test_client()
@@ -146,8 +147,8 @@ def test_scanner_blueprint_cannot_bypass_page_and_hall_grants(security_app, read
     helpers = {'role_has_access': lambda _key: access, 'role_is_readonly': lambda _key: readonly}
     with patch('app.core.contexts.inject_role_permissions', return_value=helpers), patch(
             'app.core.scanner_permissions.get_db_connection') as connect, patch(
-            'app.services.scanner_service.ScannerService.move_pallet') as move:
-        response = client.post('/agro/scanner/move', json={'linia': line, 'type': 'Wyrób Gotowy', 'surowiec_id': 1, 'lokalizacja': 'MP01'})
+            'app.services.scanner_service.ScannerService.dispatch_to_production') as move:
+        response = client.post('/agro/scanner/dispatch', json={'linia': line, 'type': 'Surowiec', 'surowiec_id': 1, 'ilosc': 1, 'zbiornik': 'BB03'})
     assert response.status_code == 403
     connect.assert_not_called()
     move.assert_not_called()
@@ -213,13 +214,13 @@ def test_draft_cannot_lock_foreign_or_unknown_hall_stock(security_app, table, ro
     connection.rollback.assert_called_once()
 
 
-def test_sync_draft_rolls_back_before_touching_foreign_stock(security_app):
+def test_sync_draft_rejects_unauthenticated_stock_mutation(security_app):
     from app.services.magazyn_dostawy.commands.draft_pallet_sync_service import DraftPalletSyncService
     connection = MagicMock()
     cursor = connection.cursor.return_value
     cursor.fetchone.side_effect = [None, None, None, None, {'id': 1, 'linia': 'PSD', 'waga_netto': 10}]
     with security_app.test_request_context('/draft', method='POST', json={'linia': 'AGRO', 'type': 'Wyrób Gotowy'}):
-        session.update(zalogowany=True, rola='pracownik', grupa='AGRO')
+        session.update(zalogowany=False, rola='pracownik', grupa='AGRO')
         helpers = {'role_has_access': lambda _key: True, 'role_is_readonly': lambda _key: False}
         with patch('app.core.contexts.inject_role_permissions', return_value=helpers), patch(
                 'app.services.magazyn_dostawy.commands.draft_pallet_sync_service.get_db_connection', return_value=connection):
@@ -230,7 +231,7 @@ def test_sync_draft_rolls_back_before_touching_foreign_stock(security_app):
     connection.rollback.assert_called_once()
 
 
-def test_reprint_foreign_label_never_queues_job(security_app):
+def test_reprint_shared_stock_without_hall_queues_authoritative_label(security_app):
     from app.core.legacy_print_hardening import secure_reprint_labels
     connection = MagicMock()
     connection.cursor.return_value.fetchone.return_value = {'ip': '127.0.0.1', 'nazwa': 'Test'}
@@ -239,7 +240,9 @@ def test_reprint_foreign_label_never_queues_job(security_app):
         helpers = {'role_has_access': lambda _key: True, 'role_is_readonly': lambda _key: False}
         with patch('app.core.contexts.inject_role_permissions', return_value=helpers), patch(
                 'app.core.legacy_print_hardening.get_db_connection', return_value=connection), patch(
-                'app.core.legacy_print_hardening._load_authoritative_label', return_value={'linia': 'PSD'}), patch(
+                'app.core.legacy_print_hardening._load_authoritative_label', return_value={'linia': None, 'nr_palety': 'TEST', 'typ': 'OPAKOWANIE'}), patch(
                 'app.core.legacy_print_hardening.get_printer') as printer:
-            assert secure_reprint_labels()[1] == 403
-    printer.assert_not_called()
+            printer.return_value.queue_print_job.return_value = (True, 'queued')
+            response = secure_reprint_labels()
+            assert response.json['success']
+    printer.return_value.queue_print_job.assert_called_once()

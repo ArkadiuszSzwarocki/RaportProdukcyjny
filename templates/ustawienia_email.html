@@ -1,8 +1,8 @@
 <!-- File: templates/ustawienia_email.html -->
-{% extends 'layout.html' %}
+{% extends 'admin/email_center_layout.html' %}
 {% block title %}Zarządzanie Kontem E-mail & Odbiorcami | AgroMES{% endblock %}
 
-{% block content %}
+{% block email_content %}
 <style>
     .email-settings-container {
         max-width: 1240px;
@@ -283,11 +283,6 @@
                 Skonfiguruj parametry SMTP do wysyłania raportów zmianowych oraz zarządzaj słownikiem odbiorców.
             </p>
         </div>
-        <div>
-            <a href="/admin/ustawienia" class="btn-app-secondary">
-                ← Powrót do Ustawień
-            </a>
-        </div>
     </div>
 
     <!-- 2. Status Konta Nadawcy -->
@@ -343,7 +338,7 @@
                             <div style="font-size: 0.78rem; color: #64748b;">Wybierz konto, dla którego chcesz skonfigurować indywidualne dane SMTP.</div>
                         </div>
                         <div>
-                            <select id="adminUserSelect" class="form-select form-select-sm" style="min-width: 260px; font-weight: 600; padding: 6px 12px; border-radius: 8px; border-color: #cbd5e1;" onchange="window.location.href='/admin/ustawienia/email?user_id=' + this.value">
+                            <select id="adminUserSelect" class="form-select form-select-sm" style="min-width: 260px; font-weight: 600; padding: 6px 12px; border-radius: 8px; border-color: #cbd5e1;" onchange="window.location.href='{{ url_for('admin.email_center', tab='konta') }}&user_id=' + encodeURIComponent(this.value)">
                                 {% for u in user_accounts_list %}
                                 <option value="{{ u.id }}" {% if u.id == edit_user_id %}selected{% endif %}>
                                     {{ u.login }} ({{ u.rola }}) {% if u.smtp_username %}— {{ u.smtp_username }}{% else %}— [brak konta]{% endif %}

@@ -34,6 +34,7 @@
 
     function fetchJson(url) {
         return fetch(url, {
+            silent: true,
             credentials: 'same-origin',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
@@ -128,7 +129,7 @@
         if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
             global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
             addTask('dosypki-badge-sync', 5000, function () {
-                global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+                return global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
             }, false);
         }
 
@@ -214,7 +215,7 @@
         if (global.dashboardAgroBanners && typeof global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
             global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
             addTask('dosypki-badge-sync-observer', 5000, function () {
-                global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+                return global.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
             }, false);
         }
 

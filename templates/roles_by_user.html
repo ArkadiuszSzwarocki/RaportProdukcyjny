@@ -1,15 +1,15 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="container">
-  <h2>Przegląd uprawnień użytkowników</h2>
-  <p>Lista efektywnych uprawnień (dostęp / tylko odczyt) dla każdego użytkownika.</p>
+{% extends 'admin/users_center_layout.html' %}
+{% block users_content %}
+<div class="section-box" style="overflow-x:auto">
+  <h2>Przegląd przypisanych ról</h2>
+  <p>Zestawienie dostępu wynikającego z przypisanych ról. Indywidualne wyjątki użytkowników sprawdzisz w zakładce „Role i uprawnienia”.</p>
   <table class="table table-sm table-striped table-bordered">
     <thead>
       <tr>
         <th>Login</th>
         <th>Rola</th>
         {% for p in pages %}
-        <th>{{ p }}</th>
+        <th>{{ page_labels.get(p, p) }}</th>
         {% endfor %}
       </tr>
     </thead>
@@ -35,6 +35,6 @@
       {% endfor %}
     </tbody>
   </table>
-  <a class="btn btn-secondary" href="/admin/ustawienia/roles">Powrót do ustawień ról</a>
+
 </div>
 {% endblock %}

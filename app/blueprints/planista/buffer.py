@@ -18,22 +18,22 @@ def register_planista_buffer_routes(planista_bp):
         app_logger.info(f'[BUFOR] Starting bufor_page for date {wybrana_data}, line {wybrana_linia}')
 
         bufor_list = []
-
+        conn = None
         try:
-            refresh_bufor_queue(linia=wybrana_linia)
-
+            # Queue synchronization belongs to production mutations, not GET.
             conn = get_db_connection()
             cursor = conn.cursor()
 
             table_bufor = get_table_name('bufor', wybrana_linia)
             table_plan = get_table_name('plan_produkcji', wybrana_linia)
+            table_palety = get_table_name('palety_workowanie', wybrana_linia)
 
             cursor.execute(
                 f"""
                  SELECT b.id, b.zasyp_id, b.data_planu, b.produkt, b.nazwa_zlecenia,
                      b.typ_produkcji, b.kolejka,
                      z.tonaz, z.tonaz_rzeczywisty, z.real_start, z.status,
-                     w.tonaz, w.tonaz_rzeczywisty
+                     w.tonaz, (SELECT COALESCE(SUM(pw.waga), 0) FROM {table_palety} pw WHERE pw.plan_id = w.id)
                 FROM {table_bufor} b
                 LEFT JOIN {table_plan} z ON z.id = b.zasyp_id
                  LEFT JOIN {table_plan} w ON w.zasyp_id = b.zasyp_id AND w.sekcja IN ('Workowanie', 'Czyszczenie')
@@ -98,14 +98,18 @@ def register_planista_buffer_routes(planista_bp):
                     }
                 )
 
-            conn.close()
-
         except Exception as error:
             app_logger.error(
                 f'ERROR in bufor_page for date {wybrana_data}: {type(error).__name__}: {str(error)}',
                 exc_info=True,
             )
             bufor_list = []
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
         return render_template('bufor.html', bufor_list=bufor_list, wybrana_data=wybrana_data, wybrana_linia=wybrana_linia)
 

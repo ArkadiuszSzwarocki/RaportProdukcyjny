@@ -28,7 +28,7 @@ const ZasypCalculatorModule = (function () {
     }
 
     function loadSurowce() {
-        return fetch(SUROWCE_API)
+        return fetch(SUROWCE_API, {silent: true})
             .then(function(response) { return response.json(); })
             .then(function(data) {
                 if (data.success && data.surowce) {

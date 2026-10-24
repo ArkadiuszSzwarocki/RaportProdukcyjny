@@ -14,123 +14,127 @@ _logger = logging.getLogger(__name__)
 
 class ProductionService:
     @staticmethod
-    def get_production_plans(dzisiaj: date, sekcja: str, linia='PSD', cursor=None, data_od=None, data_do=None) -> Tuple[List, Dict, int, int]:
+    def get_production_plans(dzisiaj: date, sekcja: str, linia='PSD', cursor=None, data_od=None, data_do=None, include_details=True) -> Tuple[List, Dict, int, int]:
         """Get production plans for section with formatting and palety mapping."""
         conn = None
         if cursor is None:
             conn = get_db_connection()
-            cursor = conn.cursor()
 
-        # Trigger buffer sync for AGRO to ensure weights are correct (especially in test DB)
-        if linia == 'AGRO':
-            try:
-                refresh_bufor_queue(linia='AGRO')
-            except Exception as e:
-                _logger.warning(f"Failed to refresh AGRO buffer: {e}")
-
-        plan_dnia = QueryHelper.get_plan_produkcji(
-            dzisiaj, 
-            sekcja if sekcja != 'Dashboard' else 'Workowanie',
-            linia=linia,
-            cursor=cursor,
-            data_od=data_od,
-            data_do=data_do
-        )
-        
-        _logger.info(f"get_production_plans(linia={linia}, sekcja={sekcja}) -> Found {len(plan_dnia)} plans from DB")
-        
-        if sekcja in ('Workowanie', 'Czyszczenie') and not plan_dnia:
-            plan_dnia = ProductionService._get_workowanie_fallback(dzisiaj, linia=linia, cursor=cursor)
-        
-        # Format times
-        for p in plan_dnia:
-            try:
-                p[4] = p[4].strftime('%H:%M') if p[4] else ''
-            except Exception:
-                p[4] = str(p[4]) if p[4] else ''
-            try:
-                p[5] = p[5].strftime('%H:%M') if p[5] else ''
-            except Exception:
-                p[5] = str(p[5]) if p[5] else ''
-
-        # Transfer map logic
-        przeniesione_map = ProductionService._get_transfer_map(plan_dnia, linia, cursor)
-
-        # Fallback recipe lookup from produkty_receptury table if missing in plan
-        product_names_needing_recipe = {p[1] for p in plan_dnia if (len(p) <= 17 or not p[17]) and len(p) > 1 and p[1]}
-        recipe_lookup = {}
-        if product_names_needing_recipe:
-            try:
-                placeholders = ', '.join(['%s'] * len(product_names_needing_recipe))
-                cursor.execute(
-                    f"SELECT nazwa_produktu, nr_receptury FROM produkty_receptury WHERE nazwa_produktu IN ({placeholders}) AND nr_receptury IS NOT NULL AND nr_receptury != ''",
-                    tuple(product_names_needing_recipe)
-                )
-                for row in cursor.fetchall():
-                    if isinstance(row, dict):
-                        recipe_lookup[row.get('nazwa_produktu')] = row.get('nr_receptury')
-                    elif isinstance(row, (list, tuple)) and len(row) >= 2:
-                        recipe_lookup[row[0]] = row[1]
-            except Exception as e:
-                _logger.warning(f"Error looking up product recipes: {e}")
-        
-        zasyp_id_original_map = {}
-        for p in plan_dnia:
-            if len(p) > 14 and p[14]:
-                zasyp_id_original_map[p[0]] = p[14]
-            
-            # Extract extra columns properly based on SQL select list
-            odrzuty = p[15] if len(p) > 15 else 0
-            rodzaj_palety = p[16] if len(p) > 16 else 'krajowa'
-            nr_receptury_val = p[17] if len(p) > 17 and p[17] else recipe_lookup.get(p[1], '')
-            opak_nazwa = p[18] if len(p) > 18 else None
-            etyk_nazwa = p[19] if len(p) > 19 else None
-            
-            # Shrink back to 15 items (indices 0-14) to clear the dynamically added extra_cols
-            while len(p) > 15:
-                p.pop()
-
-            # Ensure we have enough space for extra metadata (indices 15-30)
-            while len(p) < 31:
-                p.append(None)
-                
-            p[15] = odrzuty
-            p[27] = opak_nazwa
-            p[28] = etyk_nazwa
-            p[29] = rodzaj_palety
-            p[30] = nr_receptury_val
-            
-            src = przeniesione_map.get(p[0], '')
-            if not src:
-                nazwa = (p[12] if len(p) > 12 and p[12] is not None else '')
-                for prefix in ('PRZENIESIONE z ', 'carry-over z '):
-                    if nazwa.startswith(prefix):
-                        raw_date = nazwa[len(prefix):].strip()
-                        try:
-                            src = datetime.strptime(raw_date, '%Y-%m-%d').strftime('%d.%m.%Y')
-                        except Exception: pass
-                        break
-            p[15] = src
-            p[16] = 0
-
-        # Carry-over tonaz lookup
-        ProductionService._populate_carry_over_tonaz(plan_dnia, linia, zasyp_id_original_map)
-
-        # Batch lookups for Workowanie/Zasyp sync
-        ProductionService._sync_sections_weights(dzisiaj, sekcja, linia, plan_dnia, cursor)
-        ProductionService._populate_agro_start_requirements(plan_dnia, linia, cursor)
-        
-        # Final aggregation
         try:
-            res = ProductionService._aggregate_final_results(dzisiaj, sekcja, linia, plan_dnia, cursor)
+            if cursor is None:
+                cursor = conn.cursor()
+
+            # Read views use weights maintained by production/pallet mutations.
+            # Full queue synchronization here used to block every AGRO page load.
+
+            plan_dnia = QueryHelper.get_plan_produkcji(
+                dzisiaj, 
+                sekcja if sekcja != 'Dashboard' else 'Workowanie',
+                linia=linia,
+                cursor=cursor,
+                data_od=data_od,
+                data_do=data_do
+            )
+        
+            _logger.info(f"get_production_plans(linia={linia}, sekcja={sekcja}) -> Found {len(plan_dnia)} plans from DB")
+        
+            if sekcja in ('Workowanie', 'Czyszczenie') and not plan_dnia:
+                plan_dnia = ProductionService._get_workowanie_fallback(dzisiaj, linia=linia, cursor=cursor)
+        
+            # Format times
+            for p in plan_dnia:
+                try:
+                    p[4] = p[4].strftime('%H:%M') if p[4] else ''
+                except Exception:
+                    p[4] = str(p[4]) if p[4] else ''
+                try:
+                    p[5] = p[5].strftime('%H:%M') if p[5] else ''
+                except Exception:
+                    p[5] = str(p[5]) if p[5] else ''
+
+            # Transfer map logic
+            przeniesione_map = ProductionService._get_transfer_map(plan_dnia, linia, cursor)
+
+            # Fallback recipe lookup from produkty_receptury table if missing in plan
+            product_names_needing_recipe = {p[1] for p in plan_dnia if (len(p) <= 17 or not p[17]) and len(p) > 1 and p[1]}
+            recipe_lookup = {}
+            if include_details and product_names_needing_recipe:
+                try:
+                    placeholders = ', '.join(['%s'] * len(product_names_needing_recipe))
+                    cursor.execute(
+                        f"SELECT nazwa_produktu, nr_receptury FROM produkty_receptury WHERE nazwa_produktu IN ({placeholders}) AND nr_receptury IS NOT NULL AND nr_receptury != ''",
+                        tuple(product_names_needing_recipe)
+                    )
+                    for row in cursor.fetchall():
+                        if isinstance(row, dict):
+                            recipe_lookup[row.get('nazwa_produktu')] = row.get('nr_receptury')
+                        elif isinstance(row, (list, tuple)) and len(row) >= 2:
+                            recipe_lookup[row[0]] = row[1]
+                except Exception as e:
+                    _logger.warning(f"Error looking up product recipes: {e}")
+        
+            zasyp_id_original_map = {}
+            for p in plan_dnia:
+                if len(p) > 14 and p[14]:
+                    zasyp_id_original_map[p[0]] = p[14]
+            
+                # Extract extra columns properly based on SQL select list
+                odrzuty = p[15] if len(p) > 15 else 0
+                rodzaj_palety = p[16] if len(p) > 16 else 'krajowa'
+                nr_receptury_val = p[17] if len(p) > 17 and p[17] else recipe_lookup.get(p[1], '')
+                opak_nazwa = p[18] if len(p) > 18 else None
+                etyk_nazwa = p[19] if len(p) > 19 else None
+            
+                # Shrink back to 15 items (indices 0-14) to clear the dynamically added extra_cols
+                while len(p) > 15:
+                    p.pop()
+
+                # Ensure we have enough space for extra metadata (indices 15-30)
+                while len(p) < 31:
+                    p.append(None)
+                
+                p[15] = odrzuty
+                p[27] = opak_nazwa
+                p[28] = etyk_nazwa
+                p[29] = rodzaj_palety
+                p[30] = nr_receptury_val
+            
+                src = przeniesione_map.get(p[0], '')
+                if not src:
+                    nazwa = (p[12] if len(p) > 12 and p[12] is not None else '')
+                    for prefix in ('PRZENIESIONE z ', 'carry-over z '):
+                        if nazwa.startswith(prefix):
+                            raw_date = nazwa[len(prefix):].strip()
+                            try:
+                                src = datetime.strptime(raw_date, '%Y-%m-%d').strftime('%d.%m.%Y')
+                            except Exception: pass
+                            break
+                p[15] = src
+                p[16] = 0
+
+            # Carry-over tonaz lookup
+            if include_details:
+                ProductionService._populate_carry_over_tonaz(plan_dnia, linia, zasyp_id_original_map, cursor=cursor)
+
+            # Batch lookups for Workowanie/Zasyp sync
+            ProductionService._sync_sections_weights(dzisiaj, sekcja, linia, plan_dnia, cursor)
+            ProductionService._populate_agro_start_requirements(plan_dnia, linia, cursor)
+
+            if not include_details:
+                # The overview renders plan rows, weights and start requirements;
+                # it never renders batch/pallet histories, recipe fallbacks or totals.
+                return plan_dnia, {}, 0, 0
+        
+            # Final aggregation
+            try:
+                res = ProductionService._aggregate_final_results(dzisiaj, sekcja, linia, plan_dnia, cursor)
+                return res
+            except Exception as e:
+                _logger.exception(f"Error in get_production_plans finishing: {e}")
+                return [], {}, 0, 0
+        finally:
             if conn:
                 conn.close()
-            return res
-        except Exception as e:
-            _logger.exception(f"Error in get_production_plans finishing: {e}")
-            if conn:
-                conn.close()
-            return [], {}, 0, 0
 
     @staticmethod
     def _get_transfer_map(plan_dnia, linia, cursor) -> Dict[int, str]:
@@ -158,24 +162,31 @@ class ProductionService:
         return przeniesione_map
 
     @staticmethod
-    def _populate_carry_over_tonaz(plan_dnia, linia, zasyp_id_original_map):
+    def _populate_carry_over_tonaz(plan_dnia, linia, zasyp_id_original_map, cursor=None):
         carry_over_plans = [p for p in plan_dnia if p[15]]
         if not carry_over_plans: return
+        conn = None
         try:
             table_bufor = get_table_name('bufor', linia)
             zasyp_id_map = {p[0]: zasyp_id_original_map.get(p[0]) for p in carry_over_plans if zasyp_id_original_map.get(p[0])}
             if zasyp_id_map:
                 ids = list(zasyp_id_map.values())
                 fmt = ','.join(['%s'] * len(ids))
-                conn = get_db_connection()
-                cursor = conn.cursor()
+                if cursor is None:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
                 cursor.execute(f"SELECT zasyp_id, tonaz_rzeczywisty FROM {table_bufor} WHERE zasyp_id IN ({fmt})", ids)
                 weights = {r[0]: int(r[1] or 0) for r in cursor.fetchall()}
                 for p in plan_dnia:
                     zid = zasyp_id_map.get(p[0])
                     if zid: p[16] = weights.get(zid, 0)
-                conn.close()
         except Exception: pass
+        finally:
+            if conn:
+                try:
+                    cursor.close()
+                finally:
+                    conn.close()
 
     @staticmethod
     def _sync_sections_weights(dzisiaj, sekcja, linia, plan_dnia, cursor):

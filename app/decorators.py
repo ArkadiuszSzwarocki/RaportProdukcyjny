@@ -85,7 +85,7 @@ def zarzad_required(f):
             return _unauthenticated_response()
 
         allowed = ['zarzad', 'admin', 'planista', 'lider', 'laborant', 'masteradmin']
-        if str(session.get('rola') or '').lower().strip() not in allowed:
+        if _normalize_role(session.get('rola')) not in allowed:
             return _forbidden_response(allowed)
         return f(*args, **kwargs)
     return decorated_function
@@ -98,7 +98,7 @@ def admin_required(f):
             return _unauthenticated_response()
 
         allowed = ['admin', 'masteradmin']
-        if str(session.get('rola') or '').lower().strip() not in allowed:
+        if _normalize_role(session.get('rola')) not in allowed:
             try:
                 current_app.logger.warning(
                     '[ADMIN_CHECK] Access denied for admin_required - login=%s role=%s',
@@ -117,7 +117,7 @@ def masteradmin_required(f):
     def decorated_function(*args, **kwargs):
         if not _is_authenticated():
             return _unauthenticated_response()
-        if str(session.get('rola') or '').lower().strip() != 'masteradmin':
+        if _normalize_role(session.get('rola')) != 'masteradmin':
             return _forbidden_response(['masteradmin'])
         return f(*args, **kwargs)
     return decorated_function
@@ -221,6 +221,8 @@ def dynamic_role_required(page_name):
             if not _is_authenticated():
                 return _unauthenticated_response()
 
+            if _normalize_role(session.get('rola')) == 'masteradmin':
+                return f(*args, **kwargs)
             from app.core.contexts import inject_role_permissions
             permission_helpers = inject_role_permissions()
             role_checker = permission_helpers.get('role_has_access')

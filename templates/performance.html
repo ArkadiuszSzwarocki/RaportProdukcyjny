@@ -1,115 +1,94 @@
 {% extends "layout.html" %}
-
 {% block content %}
-<div class="container p-15">
+<div class="container p-15" data-no-autorefresh>
     <div class="section-box">
         <div class="section-header d-flex justify-between align-center">
-            <h1 class="section-title">Monitor Wydajności Systemu</h1>
-            <button class="btn-action btn-danger" onclick="clearPerfLog()">Wyczyść log</button>
+            <h1 class="section-title">Czas przechodzenia między stronami</h1>
+            <button type="button" class="btn-action btn-danger" onclick="clearPerfLog()">Wyczyść pomiary</button>
         </div>
-        
         <div class="alert-info mb-15">
-            <strong>O co chodzi?</strong> Ta strona mierzy czas reakcji między kliknięciem linku a pełnym załadowaniem nowej strony. 
-            Dane są zbierane lokalnie na Twoim urządzeniu.
-            <div class="mt-5 small">
-                • <strong>Pomiar czasu:</strong> Czas od kliknięcia do pełnego załadowania strony.<br>
-                • <strong>Interakcja (-):</strong> Kliknięcia, które nie przeładowują strony (np. rozwinięcie menu).<br>
-                • <strong>Anomalia:</strong> Bardzo długie czasy (np. >30s) zwykle wynikają z otwarcia strony w tle.
-            </div>
+            Ostatnie 50 pomiarów z tej przeglądarki. Przejdź przez kilka zakładek i wróć tutaj.
+            <p><strong>Do pokazania treści</strong> — od kliknięcia do przygotowania dokumentu (DOMContentLoaded).
+            <strong>Pełne ładowanie</strong> obejmuje też obrazy i pozostałe zasoby.</p>
+            <p><strong>Oczekiwanie na odpowiedź</strong> obejmuje pracę serwera i opóźnienie sieci.
+            <strong>Praca aplikacji</strong> to zmierzony czas obsługi żądania na serwerze (bez kolejki przed aplikacją).
+            <strong>Odbiór i przygotowanie treści</strong> obejmuje pobieranie dokumentu, skrypty i przygotowanie strony.
+            Pomiar nie potwierdza zakończenia późniejszych zapytań API.</p>
         </div>
-
-        <div class="card p-0" style="overflow: hidden;">
-            <table class="table-modern" style="width: 100%;">
-                <thead>
-                    <tr>
-                        <th>Godzina</th>
-                        <th>Strona (URL)</th>
-                        <th>Czas Całkowity</th>
-                        <th>Serwer (Backend)</th>
-                        <th>Przeglądarka (Frontend)</th>
-                    </tr>
-                </thead>
-                <tbody id="perfLogBody">
-                    <!-- Data will be injected here -->
-                </tbody>
+        <p id="perfSummary" role="status"></p>
+        <p id="perfAnalysis"></p>
+        <div style="overflow-x: auto;">
+            <table class="table-modern" style="width:100%;">
+                <thead><tr><th>Godzina</th><th>Przejście</th><th>Do pokazania treści</th><th>Pełne ładowanie</th><th>Oczekiwanie na odpowiedź</th><th>Praca aplikacji</th><th>Odbiór i przygotowanie treści</th><th>Uwagi</th></tr></thead>
+                <tbody id="perfLogBody"></tbody>
             </table>
-            <div id="noDataMsg" class="p-20 text-center text-muted" style="display: none;">
-                Brak danych pomiarowych. Przejdź na kilka stron i wróć tutaj.
-            </div>
         </div>
+        <p id="noDataMsg" hidden>Brak pomiarów. Przejdź na kilka stron i wróć tutaj.</p>
     </div>
 </div>
-
-<style>
-    .table-modern th, .table-modern td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
-    .table-modern th { background: #f8fafc; font-weight: 700; color: #64748b; }
-    .perf-high { color: #e11d48; font-weight: 700; }
-    .perf-med { color: #f59e0b; font-weight: 700; }
-    .perf-low { color: #10b981; font-weight: 700; }
-</style>
-
 <script>
-    function refreshPerfLog() {
-        const body = document.getElementById('perfLogBody');
-        const noData = document.getElementById('noDataMsg');
-        const log = window.rpPerfMonitor ? window.rpPerfMonitor.getLog() : [];
-        
-        if (log.length === 0) {
-            body.innerHTML = '';
-            noData.style.display = 'block';
-            return;
+function refreshPerfLog() {
+    const body = document.getElementById('perfLogBody');
+    if (!body) return;
+    const log = (window.rpPerfMonitor ? window.rpPerfMonitor.getLog() : []).filter(x => x && x.type === 'click_to_load');
+    const measured = log.filter(x => x.version === 2 && !x.background && Number.isFinite(x.total_duration));
+    const ms = x => typeof x === 'number' && Number.isFinite(x) ? Math.round(x) + ' ms' : '—';
+    const rows = log.map(entry => {
+        const row = document.createElement('tr');
+        const note = entry.version !== 2 ? 'Starszy pomiar: do pełnego ładowania, z dodatkowym opóźnieniem' : entry.background ? 'Karta w tle — pominięta w podsumowaniu' : '';
+        const values = [new Date(entry.timestamp).toLocaleTimeString('pl-PL'),
+            (entry.from ? entry.from + ' → ' : '') + (entry.url || ''),
+            entry.version === 2 ? ms(entry.total_duration) : '—',
+            ms(entry.version === 2 ? entry.full_load : entry.total_duration),
+            ms(entry.backend), ms(entry.server), ms(entry.frontend), note];
+        values.forEach((value, index) => {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            cell.style.padding = '10px';
+            if (index === 2 && entry.total_duration > 1500) cell.style.color = entry.total_duration > 5000 ? '#dc2626' : '#b45309';
+            row.appendChild(cell);
+        });
+        if (Array.isArray(entry.resources) && entry.resources.length) {
+            const details = document.createElement('details');
+            const title = document.createElement('summary');
+            title.textContent = 'Najwolniejsze zasoby';
+            details.appendChild(title);
+            entry.resources.forEach(resource => {
+                const line = document.createElement('div');
+                line.textContent = String(resource.url || '') + ' — ' + ms(resource.duration);
+                details.appendChild(line);
+            });
+            row.lastElementChild.appendChild(details);
         }
-        
-        noData.style.display = 'none';
-        body.innerHTML = log.map(entry => {
-            const date = new Date(entry.timestamp);
-            const timeStr = date.toLocaleTimeString('pl-PL');
-            
-            let colorClass = 'perf-low';
-            let total = entry.total_duration || 0;
-            let durationDisplay = total > 0 ? total + ' ms' : '< 50 ms';
-            
-            if (entry.type === 'interaction') {
-                colorClass = 'text-muted';
-                return `
-                    <tr style="background-color: #fcfcfc;">
-                        <td>${timeStr}</td>
-                        <td><span class="badge" style="background:#e2e8f0; color:#475569;">${entry.action || 'INTERAKCJA'}</span> ${entry.detail || ''}</td>
-                        <td class="${colorClass}">-</td>
-                        <td>-</td>
-                        <td>-</td>
-                    </tr>
-                `;
-            }
-
-            if (total > 5000) colorClass = 'perf-high';
-            else if (total > 1500) colorClass = 'perf-med';
-            
-            // If total duration is huge, it might be due to a background tab
-            const isAnomaly = total > 30000;
-
-            return `
-                <tr ${isAnomaly ? 'style="opacity: 0.7;" title="Prawdopodobnie karta w tle"' : ''}>
-                    <td>${timeStr}</td>
-                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                        <a href="${entry.url}">${entry.url}</a>
-                        ${isAnomaly ? ' <span class="material-icons" style="font-size:14px; color:#94a3b8; vertical-align:middle;">info</span>' : ''}
-                    </td>
-                    <td class="${colorClass}">${durationDisplay}</td>
-                    <td>${Math.max(0, entry.backend || 0)} ms</td>
-                    <td>${Math.max(0, entry.frontend || 0)} ms</td>
-                </tr>
-            `;
-        }).join('');
+        return row;
+    });
+    body.replaceChildren(...rows);
+    document.getElementById('noDataMsg').hidden = log.length > 0;
+    const summary = document.getElementById('perfSummary');
+    const analysis = document.getElementById('perfAnalysis');
+    if (!measured.length) {
+        summary.textContent = 'Podsumowanie pojawi się po zebraniu nowych pomiarów w aktywnej karcie.';
+        analysis.textContent = '';
+        return;
     }
-
-    function clearPerfLog() {
-        if (confirm('Na pewno wyczyścić log wydajności?')) {
-            if (window.rpPerfMonitor) window.rpPerfMonitor.clearLog();
-            refreshPerfLog();
-        }
+    const sorted = measured.slice().sort((a, b) => a.total_duration - b.total_duration);
+    const median = sorted.length % 2 ? sorted[Math.floor(sorted.length / 2)].total_duration :
+        (sorted[sorted.length / 2 - 1].total_duration + sorted[sorted.length / 2].total_duration) / 2;
+    const worst = sorted[sorted.length - 1];
+    summary.textContent = 'Pomiary: ' + measured.length + ' · Mediana: ' + ms(median) + ' · Najwolniejsze: ' + ms(worst.total_duration) + ' (' + worst.url + ')';
+    analysis.textContent = 'Najwolniejsze przejście: oczekiwanie na odpowiedź ' + ms(worst.backend) +
+        ', odbiór i przygotowanie treści ' + ms(worst.frontend) + '. ' +
+        (worst.backend > worst.frontend ? 'W tym pomiarze dłużej trwało oczekiwanie na odpowiedź. Sam pomiar przeglądarki nie rozdziela czasu serwera i sieci.' :
+        'W tym pomiarze dłużej trwał odbiór i przygotowanie treści.');
+}
+function clearPerfLog() {
+    if (confirm('Wyczyścić pomiary zapisane w tej przeglądarce?')) {
+        if (window.rpPerfMonitor) window.rpPerfMonitor.clearLog();
+        refreshPerfLog();
     }
-
-    document.addEventListener('DOMContentLoaded', refreshPerfLog);
+}
+document.addEventListener('DOMContentLoaded', refreshPerfLog);
+window.addEventListener('rp:perf-log', refreshPerfLog);
+window.addEventListener('storage', event => { if (event.key === 'rp_perf_log') refreshPerfLog(); });
 </script>
 {% endblock %}

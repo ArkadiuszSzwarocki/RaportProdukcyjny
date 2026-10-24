@@ -22,7 +22,8 @@ class AutoReportScheduleService:
         conn = None
         try:
             conn = get_db_connection()
-            AutoReportHistoryService.ensure_history_tables(conn)
+            # Read-only page requests must not run CREATE/ALTER/INSERT or commit.
+            # Schema setup remains in initialization and schedule write paths.
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
                 """
