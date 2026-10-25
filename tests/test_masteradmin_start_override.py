@@ -1,3 +1,4 @@
+# cspell:words onsubmit
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -24,14 +25,20 @@ def test_server_override_restricted_to_masteradmin_and_requested_sections(app, r
 
 @pytest.mark.parametrize('role', ['masteradmin', 'admin', 'lider'])
 @pytest.mark.parametrize('section', ['Zasyp', 'Workowanie', 'Czyszczenie'])
-def test_override_button_visibility(app, role, section):
+@pytest.mark.parametrize('status', ['zaplanowane', 'zawieszone', 'wstrzymane'])
+def test_override_button_visibility(app, role, section, status):
     env = app.jinja_env.overlay()
     env.globals = dict(env.globals, url_for=lambda endpoint, **kw: '/start')
     p = [None] * 32
-    p[0:4] = [2, 'Produkt', 100, 'zaplanowane']
+    p[0:4] = [2, 'Produkt', 100, status]
     html = env.get_template('dashboard/_masteradmin_start_override.html').render(
         p=p, role_lc=role, is_readonly=False, sekcja=section, linia='AGRO', unfinished_section_orders=[(1, 'Inne', 'w toku')])
     assert ('name="override_start_rule"' in html) == (role == 'masteradmin' and section in ('Zasyp', 'Workowanie'))
+    if role == 'masteradmin' and section in ('Zasyp', 'Workowanie'):
+        assert 'data-start-confirm=' in html
+        assert 'data-confirm=' not in html
+        assert 'onsubmit="return confirmStartOrder(' in html
+
 
 
 @pytest.mark.parametrize('role', ['masteradmin', 'admin'])

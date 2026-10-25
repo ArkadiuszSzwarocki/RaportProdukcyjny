@@ -26,3 +26,5 @@ jobs:
         run: node --test tests/javascript/cspell_baseline.test.mjs
       - name: Test offline queues
         run: node --test tests/javascript/offline_runtime.test.mjs
+      - name: Test production start dialogs
+        run: node --test tests/javascript/start_override_checklist.test.mjs tests/javascript/cleaning_start_sscc.test.mjs tests/javascript/production_navigation.test.mjs

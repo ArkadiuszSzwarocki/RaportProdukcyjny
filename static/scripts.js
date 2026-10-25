@@ -181,6 +181,7 @@
             document.body.classList.contains('sidebar-open') ||
             document.querySelector('.quick-popup.open, .drawer.open, .bottom-sheet.open, .fullscreen-modal.open, .wizard-modal') ||
             document.querySelector('.modal.show, .modal-premium[open], dialog[open], #manualModal[style*="display: flex"]') ||
+            document.querySelector('#start-order-checklist-overlay, #start-order-date-overlay, #czyszczenie-packaging-overlay, #appDialogOverlay') ||
             // --- NEW: Block refresh if a Select2 or standard select dropdown is open ---
             document.querySelector('.select2-container--open') ||
             // --- NEW: Block refresh if standard dropdown menus (.show) are open ---
@@ -678,6 +679,8 @@
             if (!resp.ok) return;
             const txt = await resp.text();
             if (window.__rpNavigating) return;
+            // A checklist may have opened while this background read was pending.
+            if (!options.force && shouldSkipAutoRefresh()) return;
             const tmp = document.createElement('div'); tmp.innerHTML = txt;
             const newMain = tmp.querySelector('#mainContent');
             const curMain = document.getElementById('mainContent');
