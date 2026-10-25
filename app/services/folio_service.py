@@ -10,6 +10,7 @@ Obsługuje:
 from __future__ import annotations
 
 from datetime import datetime
+import math
 from typing import Optional
 
 from app.db import get_db_connection, get_table_name
@@ -31,7 +32,7 @@ class FolioService:
     LOKALIZACJE_ZWROTU = ['MOP01', 'R06', 'Odpad'] + [f'R06{str(i+1).zfill(2)}01' for i in range(10)]
 
     @staticmethod
-    def get_active_rolls(plan_id: int) -> list[dict]:
+    def get_active_rolls(plan_id: int, external_conn=None) -> list[dict]:
         """
         Zwraca listę aktywnych rolek podpiętych do zlecenia Workowanie.
 
@@ -39,7 +40,7 @@ class FolioService:
         - live_zuzyte: zużycie z licznika MQTT (counter_current - licznik_start)
         - szacowane_pozostalo: stan_poczatkowy - live_zuzyte
         """
-        conn = get_db_connection()
+        conn = external_conn if external_conn is not None else get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
@@ -86,7 +87,8 @@ class FolioService:
                 })
             return result
         finally:
-            conn.close()
+            if external_conn is None:
+                conn.close()
 
     @staticmethod
     def get_plan_folio_history(plan_id: int) -> list[dict]:
@@ -143,7 +145,7 @@ class FolioService:
             conn.close()
 
     @staticmethod
-    def close_roll(link_id: int, pozostalo_szt: float, user_login: str, custom_licznik_start=None, custom_licznik_stop=None) -> tuple[bool, str]:
+    def close_roll(link_id: int, pozostalo_szt: float, user_login: str, custom_licznik_start=None, custom_licznik_stop=None, *, external_conn=None, label_jobs=None) -> tuple[bool, str]:
         """
         Zamyka aktywną rolkę folii.
         - Zapisuje stan końcowy w `agro_plan_opakowania`.
@@ -151,7 +153,10 @@ class FolioService:
         - Zapisuje log w `agro_workowanie_rozliczenie` jako 'ZAMKNIECIE'.
         - Zapisuje ruch magazynowy 'ZWROT_Z_PRODUKCJI'.
         """
-        conn = get_db_connection()
+        if external_conn is not None and label_jobs is None:
+            raise ValueError('External roll closure requires deferred label jobs')
+        conn = external_conn if external_conn is not None else get_db_connection()
+        pending_labels = label_jobs if label_jobs is not None else []
         cursor = conn.cursor(dictionary=True)
         try:
             # 1. Pobierz dane podpięcia i rolki
@@ -161,7 +166,7 @@ class FolioService:
                        o.nazwa AS opak_nazwa, o.stan_magazynowy AS stan_na_maszynie
                 FROM agro_plan_opakowania ap
                 JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
-                WHERE ap.id = %s AND ap.is_active = TRUE
+                WHERE ap.id = %s AND ap.is_active = TRUE FOR UPDATE
                 """,
                 (link_id,)
             )
@@ -178,7 +183,9 @@ class FolioService:
             if custom_licznik_start is not None:
                 licznik_start = custom_licznik_start
                 
-            pozostalo_szt = max(float(pozostalo_szt), 0)
+            pozostalo_szt = float(pozostalo_szt)
+            if not math.isfinite(pozostalo_szt) or not 0 <= pozostalo_szt <= stan_poczatkowy:
+                raise ValueError('Pozostała ilość musi być między 0 a ilością pobraną na rolkę.')
 
             # 2. Pobierz aktualny licznik MQTT (stop)
             if custom_licznik_stop is not None:
@@ -221,21 +228,18 @@ class FolioService:
 
             # 8. Ruch magazynowy: ODPIECIE_OD_ZLECENIA
             table_ruch = get_table_name('magazyn_ruch', 'AGRO')
-            try:
-                cursor.execute(
-                    f"INSERT INTO {table_ruch} "
-                    "(surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                    "VALUES (%s, 'ODPIECIE_OD_ZLECENIA', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                    (
-                        opakowanie_id,
-                        pozostalo_szt,
-                        pozostalo_szt,
-                        user_login,
-                        f"Zamknięcie rolki (plan #{plan_id}), pozostawiono na: Maszyna",
-                    )
+            cursor.execute(
+                f"INSERT INTO {table_ruch} "
+                "(surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
+                "VALUES (%s, 'ODPIECIE_OD_ZLECENIA', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
+                (
+                    opakowanie_id,
+                    pozostalo_szt,
+                    pozostalo_szt,
+                    user_login,
+                    f"Zamknięcie rolki (plan #{plan_id}), pozostawiono na: Maszyna",
                 )
-            except Exception as ruch_ex:
-                print(f"[WARN] FolioService.close_roll: błąd zapisu ruchu: {ruch_ex}")
+            )
 
             # 9. Wpis do agro_workowanie_rozliczenie z typem ZAMKNIECIE
             cursor.execute(
@@ -261,9 +265,6 @@ class FolioService:
             # --- AUTO DRUKOWANIE ETYKIETY ZEBRA (ZAMKNIĘCIE ROLKI) ---
             if pozostalo_szt > 0:
                 try:
-                    from app.services.print_server import get_printer
-                    printer_service = get_printer()
-
                     # Szukamy domyślnej drukarki (Zebra)
                     cursor.execute("SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 AND nazwa LIKE %s LIMIT 1", ('%Zebra%',))
                     printer = cursor.fetchone()
@@ -303,22 +304,37 @@ class FolioService:
                     target_ip = printer['ip'] if printer else None
                     target_name = printer['nazwa'] if printer else None
 
-                    ok, msg = printer_service.print_pallet_label(label_data, override_ip=target_ip, override_name=target_name, copies=2)
-                    print(f"[FolioService] Wydruk etykiety dla zamkniętej rolki {opak_nazwa}: {ok} ({msg})")
+                    pending_labels.append((label_data, target_ip, target_name))
                 except Exception as print_ex:
                     print(f"[FolioService] Błąd automatycznego druku po zamknięciu rolki: {print_ex}")
 
 
-            conn.commit()
+            if external_conn is None:
+                conn.commit()
+                FolioService.print_closed_roll_labels(pending_labels)
             return True, None
         except Exception as e:
             try:
-                conn.rollback()
+                if external_conn is None:
+                    conn.rollback()
             except Exception:
                 pass
             return False, str(e)
         finally:
-            conn.close()
+            cursor.close()
+            if external_conn is None:
+                conn.close()
+
+    @staticmethod
+    def print_closed_roll_labels(label_jobs):
+        """Send labels only after the transaction owning the roll closure committed."""
+        for label_data, target_ip, target_name in label_jobs:
+            try:
+                from app.services.print_server import get_printer
+                get_printer().print_pallet_label(
+                    label_data, override_ip=target_ip, override_name=target_name, copies=2)
+            except Exception as error:
+                print(f'[FolioService] Closed roll label failed: {error}')
 
     @staticmethod
     def get_live_status(plan_id: int) -> dict:

@@ -454,6 +454,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
     def koniec_zlecenie(id):
         """Zakończ wykonywanie zlecenia"""
         conn = get_db_connection()
+        roll_label_jobs = []
         try:
             cursor = conn.cursor()
             final_tonaz = request.form.get('final_tonaz')
@@ -464,9 +465,13 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             linia = request.args.get('linia') or request.form.get('linia') or session.get('selected_hall_view') or 'PSD'
             table_plan = get_table_name('plan_produkcji', linia)
 
-            cursor.execute(f"SELECT produkt, data_planu FROM {table_plan} WHERE id=%s", (id,))
+            cursor.execute(f"SELECT produkt, data_planu, status FROM {table_plan} WHERE id=%s FOR UPDATE", (id,))
             plan_meta = cursor.fetchone() or (None, None)
             produkt, data_planu = plan_meta[0], plan_meta[1]
+            if len(plan_meta) > 2 and plan_meta[2] == 'zakonczone':
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify(success=True, message='Zlecenie jest już zakończone.')
+                return redirect(bezpieczny_powrot())
 
             if sekcja == 'Zasyp' and str(linia).upper() == 'AGRO':
                 if odrzuty_przesiewacz is None or str(odrzuty_przesiewacz).strip() == '':
@@ -537,7 +542,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 from app.services.mqtt_service import get_latest_data
                 
                 # Close any remaining active rolls for this plan
-                active_rolls = FolioService.get_active_rolls(id)
+                active_rolls = FolioService.get_active_rolls(id, external_conn=conn)
                 for roll in active_rolls:
                     link_id = roll['link_id']
                     form_pozostalo = request.form.get(f'pozostalo_szt_{link_id}')
@@ -549,11 +554,15 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     else:
                         pozostalo_szt = float(roll.get('szacowane_pozostalo', 0))
                     
-                    FolioService.close_roll(
+                    closed, close_error = FolioService.close_roll(
                         link_id=link_id,
                         pozostalo_szt=pozostalo_szt,
-                        user_login=session.get('login', 'System')
+                        user_login=session.get('login', 'System'),
+                        external_conn=conn, label_jobs=roll_label_jobs
                     )
+                    if not closed:
+                        current_app.logger.error('Roll closure failed: %s', close_error)
+                        raise RuntimeError('Nie rozliczono rolki folii.')
                 
                 # Fetch stop counter
                 stop_counter = 0
@@ -606,9 +615,13 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 
                 if packaging_results:
                     szt_na_palecie = int(request.form.get('szt_na_palecie', 40))
-                    AgroOpakowaniaPlanService.finalize_packaging_usage(id, szt_na_palecie, packaging_results, session.get('login'))
+                    if not AgroOpakowaniaPlanService.finalize_packaging_usage(
+                            id, szt_na_palecie, packaging_results, session.get('login'), external_conn=conn):
+                        raise ValueError('Nie rozliczono opakowań zlecenia.')
 
             conn.commit()
+            if roll_label_jobs:
+                FolioService.print_closed_roll_labels(roll_label_jobs)
             
             if str(linia).upper() == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
                 try:

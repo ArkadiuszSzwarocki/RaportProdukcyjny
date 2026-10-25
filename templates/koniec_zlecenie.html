@@ -89,7 +89,7 @@
         <button type="button" data-action="close-popup" class="btn-action btn-outline" style="width: 100%;">Rozumiem, wracam</button>
     </div>
     {% else %}
-    <form id="koniec-zlecenie-form" action="{{ url_for('production.koniec_zlecenie', id=id) }}" method="POST">
+    <form id="koniec-zlecenie-form" data-order-close="true" data-ajax="false" action="{{ url_for('production.koniec_zlecenie', id=id) }}" method="POST">
         <input type="hidden" name="sekcja" value="{{ sekcja }}">
         <input type="hidden" name="linia" value="{{ request.args.get('linia', 'PSD') }}">
         <input type="hidden" name="final_tonaz" value="{{ tonaz if tonaz is not none else '' }}">
@@ -217,66 +217,6 @@
         </div>
     </form>
 
-    <script>
-    (function() {
-        var form = document.getElementById('koniec-zlecenie-form');
-        if (!form) return;
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            var btn = document.getElementById('koniec-submit-btn');
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = 'Zamykanie...';
-            }
-            var formData = new FormData(form);
-            fetch(form.action, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: formData,
-                credentials: 'same-origin'
-            })
-            .then(function(resp) { return resp.json().catch(function() { return { success: resp.ok }; }); })
-            .then(function(data) {
-                var isOk = data && data.success !== false;
-                var msg = (data && data.message) ? data.message : (isOk ? 'Zlecenie zakończone.' : 'Wystąpił błąd');
-                if (typeof window.showToast === 'function') {
-                    window.showToast(msg, isOk ? 'success' : 'danger');
-                } else if (typeof window.dashboardToasts !== 'undefined' && window.dashboardToasts.notify) {
-                    window.dashboardToasts.notify(msg, isOk ? 'success' : 'error');
-                }
-                if (isOk) {
-                    if (typeof window.closeQuickPopup === 'function') {
-                        window.closeQuickPopup();
-                    }
-                    var closeBtn = form.querySelector('[data-action="close-popup"]');
-                    if (closeBtn) closeBtn.click();
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 300);
-                } else {
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.textContent = 'Zatwierdź';
-                    }
-                    if (typeof window.showToast !== 'function' && (!window.dashboardToasts || !window.dashboardToasts.notify)) {
-                        alert(msg);
-                    }
-                }
-            })
-            .catch(function(err) {
-                var errText = 'Błąd połączenia: ' + (err && err.message ? err.message : err);
-                if (typeof window.showToast === 'function') {
-                    window.showToast(errText, 'danger');
-                } else {
-                    console.error(errText);
-                }
-                if (btn) {
-                    btn.disabled = false;
-                    btn.textContent = 'Zatwierdź';
-                }
-            });
-        });
-    })();
-    </script>
+
     {% endif %}
 </div>

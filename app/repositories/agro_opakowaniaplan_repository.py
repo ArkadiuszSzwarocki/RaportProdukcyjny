@@ -414,9 +414,9 @@ class AgroOpakowaniaPlanRepository:
             finally:
                 conn.close()
 
-    def finalize_packaging_usage(plan_id, szt_na_palecie, packaging_results, user_login):
+    def finalize_packaging_usage(plan_id, szt_na_palecie, packaging_results, user_login, external_conn=None):
             """Processes final states for all packaging items used in a plan."""
-            conn = get_db_connection()
+            conn = external_conn if external_conn is not None else get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
                 
@@ -513,14 +513,17 @@ class AgroOpakowaniaPlanRepository:
                 # 5. Update plan record
                 cursor.execute(f"UPDATE {table_plan} SET uszkodzone_worki = %s WHERE id = %s", (int(uszkodzone), plan_id))
                 
-                conn.commit()
+                if external_conn is None:
+                    conn.commit()
                 return True
             except Exception as e:
                 print(f"Error in finalize_packaging_usage: {e}")
-                conn.rollback()
+                if external_conn is None:
+                    conn.rollback()
                 return False
             finally:
-                conn.close()
+                if external_conn is None:
+                    conn.close()
 
     def return_packaging_from_machine(opakowanie_id, stan_po, lokalizacja, user_login, is_partial=False, print_label=False):
             """Return a roll from machine back to warehouse.

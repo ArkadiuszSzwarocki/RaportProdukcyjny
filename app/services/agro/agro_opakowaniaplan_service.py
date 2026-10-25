@@ -22,8 +22,8 @@ class AgroOpakowaniaPlanService:
         return AgroOpakowaniaPlanRepository.undo_packaging_link(link_id=link_id)
 
     @staticmethod
-    def finalize_packaging_usage(plan_id, szt_na_palecie, packaging_results, user_login):
-        return AgroOpakowaniaPlanRepository.finalize_packaging_usage(plan_id=plan_id, szt_na_palecie=szt_na_palecie, packaging_results=packaging_results, user_login=user_login)
+    def finalize_packaging_usage(plan_id, szt_na_palecie, packaging_results, user_login, external_conn=None):
+        return AgroOpakowaniaPlanRepository.finalize_packaging_usage(plan_id=plan_id, szt_na_palecie=szt_na_palecie, packaging_results=packaging_results, user_login=user_login, external_conn=external_conn)
 
     @staticmethod
     def return_packaging_from_machine(opakowanie_id, stan_po, lokalizacja, user_login, is_partial=False, print_label=False):
