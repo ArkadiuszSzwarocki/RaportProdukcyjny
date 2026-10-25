@@ -11,6 +11,7 @@ import mysql.connector
 import OpenSSL
 import pandas as pd
 import psutil
+import pymupdf
 import certifi
 from PIL import Image
 from reportlab.lib.utils import ImageReader
@@ -34,6 +35,12 @@ def main():
     report.drawImage(ImageReader(Image.new("RGB", (8, 8), "white")), 0, 0, width=8, height=8)
     report.save()
     assert report_output.getvalue().startswith(b"%PDF")
+    with pymupdf.open(stream=report_output.getvalue(), filetype="pdf") as source:
+        with pymupdf.open() as combined:
+            combined.insert_pdf(source)
+            combined.insert_pdf(source)
+            assert combined.page_count == 2
+            assert combined.tobytes().startswith(b"%PDF")
     assert ssl.create_default_context(cafile=certifi.where()).cert_store_stats()["x509_ca"] > 0
     cipher = Fernet(Fernet.generate_key())
     assert cipher.decrypt(cipher.encrypt(b"offline test")) == b"offline test"
@@ -46,7 +53,7 @@ def main():
     app.add_url_rule("/health", view_func=lambda: jsonify(success=True))
     assert app.test_client().get("/health").json == {"success": True}
     print(json.dumps({"offline_runtime_smoke_passed": True,
-                      "checks": ["pandas", "excel", "pdf", "pillow_reportlab", "certifi", "encryption",
+                      "checks": ["pandas", "excel", "pdf", "pillow_reportlab", "pymupdf_merge", "certifi", "encryption",
                                  "tls_ca", "timezone", "process_metrics",
                                  "mysql_import", "openssl", "flask"],
                       "database_connections": 0, "labels_sent": 0}))
