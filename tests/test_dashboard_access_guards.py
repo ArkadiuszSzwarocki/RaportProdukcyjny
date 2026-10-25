@@ -56,7 +56,7 @@ class TestDashboardAccessGuards:
         assert response.status_code == 302
         assert 'sekcja=Zasyp' in response.headers['Location']
 
-    def test_unauthorized_role_without_any_permissions_gets_403(self, mock_is_active, client, mock_query_helper):
+    def test_role_without_production_permissions_falls_back_to_shared_warehouse(self, mock_is_active, client, mock_query_helper):
         with client.session_transaction() as sess:
             sess['zalogowany'] = True
             sess['login'] = 'widz'
@@ -65,9 +65,10 @@ class TestDashboardAccessGuards:
             sess['rola'] = 'widz'
             sess['pracownik_id'] = 200
 
-        # widz has access=false to everything, should get a 403 Forbidden page
+        # Production access is denied, but shared warehouses remain available after login.
         response = client.get('/')
-        assert response.status_code == 403
+        assert response.status_code == 302
+        assert 'sekcja=Magazyn' in response.headers['Location']
 
 
 @pytest.fixture(autouse=True)
@@ -78,7 +79,15 @@ def explicit_worker_page_policy():
     policy = json.loads((Path(__file__).parents[1] / 'config/role_permissions.json').read_text(encoding='utf-8'))
     policy.setdefault('psd.zasyp', {})['pracownik'] = {'access': True, 'readonly': False}
     policy.setdefault('dashboard', {})['pracownik'] = {'access': False, 'readonly': False}
-    with patch('app.core.contexts._get_role_permissions', return_value=policy), patch(
+    # Access checks do not require production records or a reachable database.
+    def overview(day, line, role, **kwargs):
+        return {'halls_to_fetch': [], 'halls_data': {}, 'shift_notes': [],
+                'dzisiaj': day, 'dzisiaj_fmt': day.strftime('%d.%m.%Y'),
+                'linia': line, 'sekcja': 'Dashboard', 'rola': role,
+                'data_od': None, 'data_do': None, 'agro_measurements': {}}
+
+    with patch('app.blueprints.main.index_data.build_production_overview_context', side_effect=overview), patch(
+            'app.core.contexts._get_role_permissions', return_value=policy), patch(
             'app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_override', return_value=None):
         yield
 

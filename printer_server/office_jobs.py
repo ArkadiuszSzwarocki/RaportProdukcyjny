@@ -1,3 +1,4 @@
+# cspell:words colorspace pixmap
 """Durable, idempotent office PDF jobs with a real Windows spool identifier."""
 import hashlib
 import json

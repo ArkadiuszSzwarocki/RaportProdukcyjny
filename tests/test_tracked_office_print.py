@@ -1,3 +1,4 @@
+# cspell:words fitz pixmap startdoc UZUPELNIENIA
 """No live printers or databases: verify correlation, uncertainty and replay safety."""
 import io
 import json

@@ -17,8 +17,7 @@ def test_sidebar_hides_operational_links_only_for_laboratory(app, role):
                 '_sidebar_agro.html', '_sidebar_warehouse.html'))
     hidden = ['Podział Palety', 'Zużycie w Produkcji', 'Traceability', 'Zamówienia',
               'Dyspozycje Kompletacji', 'Załadunki / Wydania', 'Transfery na OSIP',
-              'MAGAZYN OSIP', 'Przestoje AGRO', 'Raport Palet AGRO',
-              'Maszyna LP01', 'Maszyny &amp; Telemetria', 'Historia Stacji']
+              'MAGAZYN OSIP', 'Przestoje AGRO', 'Historia Stacji', 'Mixowanie Palet']
     for label in hidden:
         if role in ('laborant', 'laboratorium'):
             assert label not in html
@@ -28,7 +27,12 @@ def test_sidebar_hides_operational_links_only_for_laboratory(app, role):
     if role != 'operator':
         assert 'Wszystkie Magazyny' in html
         assert 'Widok 3D Regałów' in html
-        assert 'Mixowanie Palet' in html
+        assert 'Stanowisko LP01' in html
+    # These shortcuts were consolidated into their dedicated sidebar sections.
+    assert 'Maszyna LP01' not in html
+    if role == 'masteradmin':
+        assert 'Raport Palet AGRO' not in html
+        assert 'Maszyny & Telemetria' not in html
 
 
 @pytest.mark.parametrize('role', ['laborant', 'laboratorium', 'masteradmin'])

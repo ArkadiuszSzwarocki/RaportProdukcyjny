@@ -1,3 +1,4 @@
+# cspell:words fefo
 from datetime import datetime, date
 from flask import render_template, request, jsonify
 from app.db import get_db_connection, get_table_name

@@ -1,3 +1,4 @@
+<!-- cspell:words przeglądarkowego przeglądarkowy zapisywalny -->
 # Druk przesunięć A4 z monitorowaniem — Brother MFC-L2700DW
 
 Rozwiązanie jest przygotowane bez aktywnych drukarek. W poniedziałek potrzebne są adresy IP oraz dokładne nazwy kolejek Brothera w Windows na komputerze uruchamiającym mostek. Nie zmienia konfiguracji drukarek etykiet ani dotychczasowego druku przeglądarkowego. Nie wysyła nic automatycznie po uruchomieniu.

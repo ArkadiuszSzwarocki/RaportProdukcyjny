@@ -1,3 +1,4 @@
+// cspell:words fefo
 (() => {
     const toggle = document.getElementById('fefoDrawerToggle');
     const drawer = document.getElementById('fefoDrawer');

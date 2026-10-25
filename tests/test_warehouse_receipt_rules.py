@@ -77,15 +77,35 @@ def test_all_scope_authorizes_logged_in_shared_stock_without_hall_ownership():
         assert shared_raw_stock_allowed({'linia': 'AGRO', 'lokalizacja': 'MS01'}, 'ALL', write=True)
 
 
-def test_print_history_is_masteradmin_only(monkeypatch):
+@pytest.mark.parametrize('role', ['pracownik', 'operator', 'laborant'])
+def test_print_history_denies_non_management_roles(monkeypatch, role):
     from flask import session
     from app.blueprints.magazyn_dostawy.routes.document_monitoring import movement_print_history
-    monitor=MagicMock()
-    monkeypatch.setattr('app.repositories.movement_document_repository.MovementDocumentRepository.monitor',monitor)
-    app=Flask(__name__)
-    app.secret_key='warehouse-history-test'
-    with app.test_request_context('/',headers={'Accept':'application/json'}):
-        session.update(zalogowany=True,rola='lider',login='test-leader')
-        response=app.make_response(movement_print_history())
-    assert response.status_code==403
+    monitor = MagicMock()
+    monkeypatch.setattr('app.repositories.movement_document_repository.MovementDocumentRepository.monitor', monitor)
+    app = Flask(__name__)
+    app.secret_key = 'warehouse-history-test'
+    with app.test_request_context('/', headers={'Accept': 'application/json'}):
+        session.update(zalogowany=True, rola=role, login='test-user')
+        response = app.make_response(movement_print_history())
+    assert response.status_code == 403
     monitor.assert_not_called()
+
+
+@pytest.mark.parametrize('role', ['admin', 'masteradmin', 'zarzad', 'lider'])
+def test_print_history_is_available_to_management(monkeypatch, role):
+    from flask import session
+    from app.blueprints.magazyn_dostawy.routes.document_monitoring import movement_print_history
+    monitor = MagicMock(return_value=([], []))
+    jobs = MagicMock(return_value={})
+    render = MagicMock(return_value='history')
+    monkeypatch.setattr('app.repositories.movement_document_repository.MovementDocumentRepository.monitor', monitor)
+    monkeypatch.setattr('app.repositories.movement_print_job_repository.MovementPrintJobRepository.latest_for_documents', jobs)
+    monkeypatch.setattr('app.blueprints.magazyn_dostawy.routes.document_monitoring.render_template', render)
+    app = Flask(__name__)
+    app.secret_key = 'warehouse-history-test'
+    with app.test_request_context('/'):
+        session.update(zalogowany=True, rola=role, login='test-user')
+        assert app.make_response(movement_print_history()).status_code == 200
+    monitor.assert_called_once_with('', 1, archived=False)
+    render.assert_called_once()

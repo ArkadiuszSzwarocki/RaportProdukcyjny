@@ -1,3 +1,4 @@
+# cspell:words executemany pozostalo
 """Navigation reads do not wait for queue writes or menu-counter queries."""
 from datetime import datetime
 from unittest.mock import MagicMock, patch

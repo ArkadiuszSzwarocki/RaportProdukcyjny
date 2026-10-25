@@ -21,7 +21,7 @@ def register_users_center_routes(admin_bp):
     @admin_bp.before_app_request
     def redirect_legacy_user_pages():
         # Only navigation GETs move. All existing mutation/API endpoints keep
-        # their original guards, payloads and behaviour.
+        # their original guards, payloads and behavior.
         tab = LEGACY_USER_PAGES.get(request.endpoint)
         if request.method == 'GET' and tab:
             params = request.args.to_dict(flat=False)

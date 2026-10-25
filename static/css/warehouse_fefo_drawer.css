@@ -1,3 +1,4 @@
+/* cspell:words fefo */
 
 .fefo-drawer-toggle { position:fixed; right:0; top:35%; z-index:1100; display:flex; align-items:center; gap:6px; padding:12px 10px; min-height:48px; border:1px solid #fca5a5; border-right:0; border-radius:12px 0 0 12px; background:#fff1f2; color:#b91c1c; box-shadow:0 3px 14px #0f172a24; cursor:grab; touch-action:none; user-select:none; }
 .fefo-drawer-toggle:active { cursor:grabbing; }

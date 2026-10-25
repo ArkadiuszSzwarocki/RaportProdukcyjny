@@ -95,7 +95,14 @@ def test_picking_service_cancel_and_delete_order():
 
     with patch.object(PickingRepository, 'get_by_order_ref', return_value=[{'id': 1, 'status': 'OCZEKUJE'}]), \
          patch.object(PickingRepository, 'delete_order', return_value=1):
-        ok, msg = service.delete_picking_order('PICK-20260930-001')
+        ok, msg = service.delete_picking_order('PICK-20260930-001', user_role='pracownik')
         assert ok is True
         assert 'została usunięta' in msg
 
+
+@pytest.mark.parametrize('role', [None, 'laborant'])
+def test_delete_picking_order_denies_missing_or_unauthorized_role(role):
+    from app.services.picking_service import PickingService
+    with patch.object(PickingRepository, 'delete_order') as delete:
+        assert PickingService().delete_picking_order('PICK-20260930-001', user_role=role)[0] is False
+    delete.assert_not_called()

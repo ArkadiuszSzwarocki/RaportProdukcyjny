@@ -1,3 +1,4 @@
+# cspell:words executemany
 import unittest
 from unittest.mock import patch
 from app.services import warehouse_live_updates as live

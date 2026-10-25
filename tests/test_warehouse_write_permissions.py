@@ -27,72 +27,74 @@ def post_move(client, **changes):
     return client.post('/warehouse-v2/api/pallet/move', json=payload)
 
 
-def test_denied_page_blocks_without_optional_section(warehouse_context):
+def test_shared_material_move_ignores_legacy_page_denial(warehouse_context):
     client, _, helpers, move = warehouse_context
     helpers['role_has_access'] = lambda key: False
-    assert post_move(client).status_code == 403
-    move.assert_not_called()
+    assert post_move(client).status_code == 200
+    move.assert_called_once()
 
 
-def test_readonly_page_blocks_json_write(warehouse_context):
+def test_shared_material_move_ignores_legacy_page_readonly(warehouse_context):
     client, _, helpers, move = warehouse_context
     helpers['role_is_readonly'] = lambda key: True
-    assert post_move(client).status_code == 403
-    move.assert_not_called()
+    assert post_move(client).status_code == 200
+    move.assert_called_once()
 
 
-def test_truck_dispatch_cannot_bypass_hall_permission(warehouse_context):
+def test_truck_dispatch_cannot_bypass_function_denial(warehouse_context):
     client, _, _, _ = warehouse_context
-    with patch('app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.dispatch_pallet_to_vehicle') as dispatch:
+    with patch('app.core.function_permissions.configured_function_permission', return_value=False), patch(
+            'app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.dispatch_pallet_to_vehicle') as dispatch:
         assert client.post('/warehouse-v2/api/zaladunki/dispatch', json={'linia': 'AGRO'}).status_code == 403
     dispatch.assert_not_called()
 
 
 @pytest.mark.parametrize('all_halls', [False,True])
-def test_all_warehouse_dispatch_view_checks_every_hall(warehouse_context,all_halls):
+def test_all_warehouse_dispatch_view_ignores_legacy_hall_grants(warehouse_context,all_halls):
     client,_,helpers,_ = warehouse_context
     with client.session_transaction() as session_state:
         session_state['grupa'] = 'ALL'
     helpers['role_has_access'] = lambda key: all_halls or key == 'psd.magazyn'
     with patch('app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.get_dispatches_history',return_value=[]) as history:
         result = client.get('/warehouse-v2/zaladunki?linia=ALL')
-        assert result.status_code == (200 if all_halls else 403)
-        assert history.called is all_halls
+        assert result.status_code == 200
+        history.assert_called_once_with(limit=200, linia='ALL')
 
 
-def test_readonly_truck_history_is_filtered_and_dispatch_denied(warehouse_context):
+def test_legacy_readonly_does_not_block_shared_warehouse_dispatch(warehouse_context):
     client, _, helpers, _ = warehouse_context
     helpers['role_is_readonly'] = lambda key: True
+    payload = {'linia': 'PSD', 'code': 'TEST-123'}
     with patch('app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.get_dispatches_history', return_value=[]) as history, patch(
-            'app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.dispatch_pallet_to_vehicle') as dispatch:
+            'app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.dispatch_pallet_to_vehicle', return_value=(True, 'OK')) as dispatch:
         assert client.get('/warehouse-v2/api/zaladunki/history?linia=PSD').status_code == 200
         history.assert_called_once_with(limit=200, linia='PSD')
-        assert client.post('/warehouse-v2/api/zaladunki/dispatch', json={'linia': 'PSD'}).status_code == 403
-    dispatch.assert_not_called()
+        assert client.post('/warehouse-v2/api/zaladunki/dispatch', json=payload).status_code == 200
+    dispatch.assert_called_once_with(payload, 'warehouse-test')
 
 
-def test_truck_lookup_checks_actual_pallet_hall(warehouse_context):
+def test_truck_lookup_accepts_shared_stock_from_other_hall(warehouse_context):
     client, _, _, _ = warehouse_context
     with patch('app.blueprints.warehouse_v2.zaladunki_routes.dispatch_service.lookup_pallet_for_dispatch', return_value={'linia': 'AGRO'}):
-        assert client.get('/warehouse-v2/api/zaladunki/lookup-pallet?linia=PSD&code=TEST').status_code == 403
+        assert client.get('/warehouse-v2/api/zaladunki/lookup-pallet?linia=PSD&code=TEST').get_json()['pallet']['linia'] == 'AGRO'
 
 
-def test_order_creation_denied_without_section(warehouse_context):
-    client, _, helpers, _ = warehouse_context
-    helpers['role_has_access'] = lambda key: False
-    with patch('app.blueprints.warehouse_v2.api_orders._order_service.create_order') as create:
+def test_order_creation_respects_explicit_function_denial(warehouse_context):
+    client, _, _, _ = warehouse_context
+    with patch('app.core.function_permissions.configured_function_permission', return_value=False), patch(
+            'app.blueprints.warehouse_v2.api_orders._order_service.create_order') as create:
         assert client.post('/warehouse-v2/api/orders/create', json={'items': []}).status_code == 403
         create.assert_not_called()
 
 
-def test_readonly_orders_can_be_viewed_but_not_created(warehouse_context):
+def test_legacy_readonly_does_not_block_shared_warehouse_orders(warehouse_context):
     client, _, helpers, _ = warehouse_context
     helpers['role_is_readonly'] = lambda key: True
     with patch('app.blueprints.warehouse_v2.api_orders._order_service.get_all_orders', return_value=[]), patch(
-            'app.blueprints.warehouse_v2.api_orders._order_service.create_order') as create:
+            'app.blueprints.warehouse_v2.api_orders._order_service.create_order', return_value=(True, 'OK', 123)) as create:
         assert client.get('/warehouse-v2/api/orders').status_code == 200
-        assert client.post('/warehouse-v2/api/orders/create', json={'items': []}).status_code == 403
-        create.assert_not_called()
+        assert client.post('/warehouse-v2/api/orders/create', json={'items': [{'surowiec_nazwa': 'TEST', 'ilosc_kg': 10}]}).status_code == 201
+        create.assert_called_once()
 
 
 def test_allowed_order_creation_remains_available(warehouse_context):
@@ -102,11 +104,11 @@ def test_allowed_order_creation_remains_available(warehouse_context):
         create.assert_called_once()
 
 
-def test_foreign_hall_blocks_even_when_page_is_granted(warehouse_context):
+def test_shared_material_move_does_not_require_production_hall_membership(warehouse_context):
     client, _, helpers, move = warehouse_context
     helpers['role_has_access'] = lambda key: True
-    assert post_move(client, linia='AGRO').status_code == 403
-    move.assert_not_called()
+    assert post_move(client, linia='AGRO').status_code == 200
+    move.assert_called_once_with(123, 'Surowiec', 'R010101', 'warehouse-test', 'AGRO', amount_to_move=None)
 
 
 def test_authorized_move_uses_validated_hall(warehouse_context):
@@ -137,12 +139,12 @@ def test_lookup_failure_stops_mutation(warehouse_context):
     move.assert_not_called()
 
 
-def test_query_cannot_disagree_with_json_hall(warehouse_context):
+def test_shared_material_move_uses_payload_instead_of_selected_hall(warehouse_context):
     client, _, _, move = warehouse_context
     result = client.post('/warehouse-v2/api/pallet/move?linia=AGRO', json={
         'id': 123, 'type': 'Surowiec', 'location': 'R010101', 'linia': 'PSD'})
-    assert result.status_code == 403
-    move.assert_not_called()
+    assert result.status_code == 200
+    move.assert_called_once_with(123, 'Surowiec', 'R010101', 'warehouse-test', 'PSD', amount_to_move=None)
 
 
 def test_sscc_cannot_select_a_different_resource(warehouse_context):
@@ -173,12 +175,13 @@ def test_suspend_json_hall_confusion_is_rejected(client):
     ('rename', 'rename_pallet'), ('update-weight', 'update_weight'),
     ('update-packaging', 'update_packaging_type'), ('return-to-raw', 'return_pallet_to_raw'),
     ('toggle-block', 'toggle_block')])
-def test_other_pallet_operations_cannot_skip_page_denial(warehouse_context, route, service):
+def test_other_pallet_operations_cannot_skip_function_denial(warehouse_context, route, service):
     client, _, helpers, _ = warehouse_context
     helpers['role_has_access'] = lambda key: False
     with client.session_transaction() as state:
         state.update(rola='admin', grupa='ALL')
-    with patch('app.services.warehouse_v2_service.WarehouseV2Service.' + service) as mutation:
+    with patch('app.core.function_permissions.configured_function_permission', return_value=False), patch(
+            'app.services.warehouse_v2_service.WarehouseV2Service.' + service) as mutation:
         result = client.post('/warehouse-v2/api/pallet/' + route, json={
             'id': 123, 'type': 'Surowiec', 'linia': 'PSD', 'name': 'new',
             'weight': 10, 'packaging_type': 'Big Bag'})
@@ -186,12 +189,12 @@ def test_other_pallet_operations_cannot_skip_page_denial(warehouse_context, rout
     mutation.assert_not_called()
 
 
-def test_function_grant_cannot_override_readonly_page(warehouse_context):
+def test_shared_material_function_grant_ignores_legacy_page_readonly(warehouse_context):
     client, _, helpers, move = warehouse_context
     helpers['role_is_readonly'] = lambda key: True
     with patch('app.core.function_permissions.configured_function_permission', return_value=True):
-        assert post_move(client).status_code == 403
-    move.assert_not_called()
+        assert post_move(client).status_code == 200
+    move.assert_called_once()
 
 
 def test_restoration_checks_stored_hall(warehouse_context):
@@ -214,7 +217,7 @@ def test_osip_record_requires_osip_hall_context(warehouse_context):
 
 
 @pytest.mark.parametrize('explicit', [None, False, True])
-def test_osip_page_inherits_legacy_grant_only_until_explicitly_configured(app, explicit):
+def test_osip_shared_warehouse_access_ignores_legacy_page_configuration(app, explicit):
     from app.core.contexts import inject_role_permissions
     config = {'psd.magazyn': {'magazynier': {'access': True, 'readonly': False}}}
     if explicit is not None:
@@ -222,10 +225,10 @@ def test_osip_page_inherits_legacy_grant_only_until_explicitly_configured(app, e
     with app.test_request_context('/'), patch('app.core.contexts._get_role_permissions', return_value=config):
         from flask import session
         session.update(zalogowany=True, rola='magazynier', grupa='OSIP')
-        assert inject_role_permissions()['role_has_access']('osip.magazyn') is (explicit is not False)
+        assert inject_role_permissions()['role_has_access']('osip.magazyn') is True
 
 
-def test_global_quality_lock_requires_all_warehouse_grants(warehouse_context):
+def test_quality_lock_is_denied_for_employee(warehouse_context):
     client, _, _, _ = warehouse_context
     with patch('app.services.warehouse_v2_service.WarehouseV2Service.toggle_block') as toggle:
         result = client.post('/warehouse-v2/api/pallet/toggle-block', json={

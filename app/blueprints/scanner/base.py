@@ -1,3 +1,4 @@
+# cspell:words skladniki
 """
 routes_scanner.py — API dla skanera i drukowania etykiet.
 

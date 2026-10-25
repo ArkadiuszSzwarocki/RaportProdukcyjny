@@ -1,3 +1,4 @@
+# cspell:words unrequested
 """Permission descriptions do not alter the saved ACL keys or authorization."""
 import json
 from unittest.mock import MagicMock, patch

@@ -1,3 +1,4 @@
+# cspell:words stepnpio
 """Employee warehouse access is global; sensitive stock corrections remain restricted."""
 from unittest.mock import MagicMock, patch
 from contextlib import ExitStack

@@ -1,3 +1,4 @@
+<!-- cspell:words atomowo FEFO -->
 # Aktualizacja magazynu po zmianach
 
 Widok `/warehouse-v2/` nie korzysta z globalnego sprawdzania `/api/system_state` co 3,5 sekundy. Kanał SSE `/warehouse-v2/api/live/events` przesyła wersję po zatwierdzeniu zapisu w tabelach magazynowych. Dopiero nowa wersja uruchamia odczyt `/warehouse-v2/api/live/snapshot`; ta sama wersja nie powoduje zapytania. Kilka szybkich zmian jest łączonych. Lista jest rysowana ponownie tylko przy zmianie danych, z zachowaniem wyszukiwania, filtrów, sortowania, liczby załadowanych palet i przewinięcia. Otwarte okno palety pozostaje bez zmian. Aktualizowane są także zajętości i FEFO. Nie ma przycisku ręcznego odświeżania.

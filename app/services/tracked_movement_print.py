@@ -1,3 +1,4 @@
+# cspell:words zakolejkowano
 """Render canonical warehouse reports, submit once, then only read job status."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone

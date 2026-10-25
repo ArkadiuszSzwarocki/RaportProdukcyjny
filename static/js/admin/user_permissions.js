@@ -9,7 +9,7 @@
     const describe = (item, mode) => {
         if (mode === 'inherit' && item.default_source === 'operation_policy') return 'Zasady strony i operacji';
         const effective = mode === 'inherit' ? inheritedMode(item) : mode;
-        return effective === 'deny' ? 'Zablokowane' : effective === 'readonly' ? (item.kind === 'function' ? 'Bez prawa wykonania czynności' : 'Tylko podgląd') : 'Zezwolone';
+        return effective === 'deny' ? 'Zablokowane' : effective === 'readonly' ? (item.kind === 'function' ? 'Bez prawa wykonania czynności' : 'Tylko podgląd') : 'Dozwolone';
     };
     function status() {
         if (!editor) return;

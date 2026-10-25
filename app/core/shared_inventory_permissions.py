@@ -1,3 +1,4 @@
+# cspell:words liderzmiany stepnpio
 """Warehouse materials are shared; production halls do not own stock."""
 from flask import session
 

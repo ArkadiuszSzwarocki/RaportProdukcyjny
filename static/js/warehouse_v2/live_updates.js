@@ -1,3 +1,4 @@
+// cspell:words fefo
 /* Server events trigger data-only updates; no interval or page reload. */
 (function () {
     'use strict';

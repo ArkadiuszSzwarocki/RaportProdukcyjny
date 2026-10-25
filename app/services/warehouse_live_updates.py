@@ -1,3 +1,4 @@
+# cspell:words bigbagi executemany keepalive
 """Publish warehouse invalidations only after a successful inventory commit."""
 import hashlib
 import os
