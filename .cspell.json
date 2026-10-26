@@ -3,6 +3,7 @@
   "language": "en,pl,uk",
   "import": ["@cspell/dict-pl_pl/cspell-ext.json", "@cspell/dict-uk-ua/cspell-ext.json"],
   "words": [
+    "nieoplacone", "pozostalo", "lastrowid", "ZALOZENIE", "bledow", "endpointu", "resolvera", "zalaczniki", "zgloszenia", "errorlevel", "Bagów", "czyszcz", "podzial", "przeklasyfik", "przesuni", "reclass", "relokac", "yxxx", "rstrip", "rejectattr", "wrctx", "blad", "qrserver", "unclipped", "multicell",
     "anulowal", "Szwar", "Boczk", "WTRANZYCIE", "WTRANZYCIEOSIP", "hostnames", "SMTPSSL", "socktype", "Gunicorn", "delenv", "autouse", "IPPROTO", "SECP",
     "pytest",
     "SSCC", "regen", "Segoe", "dashboardu", "QNAP", "CEXT", "dedup",

@@ -18,6 +18,7 @@ function setup({checklist = true, accepted = true} = {}) {
     const attributes = {'data-start-confirm': 'Override?', 'data-start-checklist': checklist ? '1' : '0',
         'data-required-opakowanie': 'Film', 'data-required-etykieta': 'Label'};
     const form = {
+        isConnected: true,
         getAttribute: name => attributes[name] || null,
         querySelector: selector => hidden.get(/name="([^"]+)"/.exec(selector)?.[1]) || null,
         appendChild: element => hidden.set(element.name, element),
@@ -36,7 +37,8 @@ function setup({checklist = true, accepted = true} = {}) {
             return element;
         }
     };
-    const window = {confirm() { confirmations++; return accepted; },
+    const window = {showConfirmModal(_message, onAccept) { confirmations++; if (accepted) onAccept(); },
+        confirm() { throw new Error('Expected the application dialog'); },
         openQuickPopup() { genericPopups++; }, safeAlert() { throw new Error('Unexpected alert'); }};
     vm.runInNewContext(flow + confirmation, {window, document, Date, setTimeout() {}});
     return {elements, body, hidden, counts: () => ({submissions, confirmations, genericPopups}),

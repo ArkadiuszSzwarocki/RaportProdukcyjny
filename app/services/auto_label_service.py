@@ -67,7 +67,7 @@ class AutoLabelService:
             logger.warning(
                 'Baza %s: automatyczna rejestracja palet i odzyskiwanie etykiet wstrzymane. '
                 'Brakuje %s. Wymagana migracja scripts/migrations/ensure_auto_label_recovery.py. '
-                'Struktura bazy nie zostala zmieniona; ponowne sprawdzenie za 60 s.',
+                'Struktura bazy nie została zmieniona; ponowne sprawdzenie za 60 s.',
                 conn.database, missing,
             )
         elif ready and previous and not previous[1]:

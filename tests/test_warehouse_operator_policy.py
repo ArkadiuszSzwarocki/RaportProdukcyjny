@@ -49,7 +49,8 @@ def test_every_employee_can_use_lp01_panel_across_halls(app, role, operation):
     with client.session_transaction() as state:
         state.update(zalogowany=True, rola=role, grupa='PSD', login='policy-test')
     service = 'app.services.lp01_service.Lp01Service.archive_lp01_item' if operation == 'archive' else 'app.services.warehouse_v2_service.WarehouseV2Service.move_pallet'
-    with patch(service, return_value=(True, 'OK')) as action:
+    with patch(service, return_value=(True, 'OK')) as action, patch(
+            'app.blueprints.agro_warehouse.lp01_routes._assigned_roll', return_value=False):
         response = client.post('/api/lp01/' + operation, json={
             'id': 7, 'type': 'Opakowanie', 'linia': 'AGRO', 'location': 'R010101'})
     assert response.status_code == 200
@@ -233,3 +234,19 @@ def test_missing_role_cannot_delete_picking_order():
     service._picking_repo = MagicMock()
     assert not service.delete_picking_order('TEST', None)[0]
     service._picking_repo.get_by_order_ref.assert_not_called()
+
+
+@pytest.mark.parametrize('operation', ['return', 'archive'])
+def test_assigned_film_roll_must_be_settled_before_return_or_archive(app, operation):
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state.update(zalogowany=True, rola='masteradmin', grupa='AGRO', login='policy-test')
+    with patch('app.blueprints.agro_warehouse.lp01_routes._assigned_roll', return_value=True), patch(
+            'app.services.lp01_service.Lp01Service.archive_lp01_item') as archive, patch(
+            'app.services.warehouse_v2_service.WarehouseV2Service.move_pallet') as move:
+        response = client.post('/api/lp01/' + operation, json={
+            'id': 7, 'type': 'Opakowanie', 'linia': 'AGRO', 'location': 'R010101'})
+    assert response.status_code == 400
+    assert response.json['success'] is False
+    archive.assert_not_called()
+    move.assert_not_called()
