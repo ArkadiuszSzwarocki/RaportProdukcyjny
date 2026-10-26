@@ -60,7 +60,7 @@ class WarehouseOrderService:
         Returns:
             list[dict]: Lista zamówień.
         """
-        valid_statuses = ('NOWE', 'ZAMKNIETE')
+        valid_statuses = ('NOWE', 'ZAMKNIETE', 'ANULOWANE')
         if status_filter and status_filter.upper() not in valid_statuses:
             status_filter = None
 
@@ -78,12 +78,14 @@ class WarehouseOrderService:
                     raw_items = []
             elif isinstance(order.get('items'), list):
                 raw_items = order['items']
-            order['items'] = self._clean_order_items(raw_items)
+            indexed_items = [dict(item, item_index=index) for index, item in enumerate(raw_items if isinstance(raw_items, list) else []) if isinstance(item, dict)]
+            order['items'] = self._clean_order_items(indexed_items)
             for item in order['items']:
                 assigned = sum(float(allocation['kg']) for allocation in item.get('transfer_allocations',[]))
                 item['przypisane_kg'] = assigned
                 item['pozostale_kg'] = max(0,float(item['ilosc_kg'])-assigned)
-                item['realizacja_status'] = ('ZAMKNIETE' if order['status'] == 'ZAMKNIETE' or
+                item['realizacja_status'] = ('ZAMIENIONE' if item.get('cancellation', {}).get('replacement_order_id') else
+                    'ANULOWANE' if item.get('cancellation') else 'ZAMKNIETE' if order['status'] == 'ZAMKNIETE' or
                     item['pozostale_kg'] <= 0.0001 else 'CZESCIOWE' if assigned else 'NOWE')
 
         return orders
@@ -147,6 +149,12 @@ class WarehouseOrderService:
         order = self._repository.get_by_id(order_id)
         if not order:
             return False, "Zamówienie nie istnieje lub zostało już usunięte."
+
+        items = order.get('items') or []
+        if isinstance(items, (str, bytes, bytearray)):
+            items = json.loads(items)
+        if any(item.get('cancellation') or item.get('replaces') for item in items):
+            return False, 'Zamówienie zawiera historię anulowania lub zamiany. Nie można go trwale usunąć.'
 
         rows = self._repository.delete(order_id)
         if rows == 0:

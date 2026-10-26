@@ -9,8 +9,23 @@ const OrdersModule = (function () {
     const REFRESH_INTERVAL_MS = 3000;
 
     let _refreshTimer = null;
+    let _orders = [];
+    let _change = null;
+    let _changeBusy = false;
+    let _materialsReady = false;
 
     function init() {
+        const form = document.getElementById('orderChangeForm');
+        if (form) {
+            form.addEventListener('submit', _submitChange);
+            document.getElementById('orderChangeMode').addEventListener('change', _changeMode);
+            document.getElementById('orderChangeClose').addEventListener('click', function () {
+                if (!_changeBusy) document.getElementById('orderChangeDialog').close();
+            });
+            document.getElementById('orderChangeDialog').addEventListener('cancel', function (event) {
+                if (_changeBusy) event.preventDefault();
+            });
+        }
         _loadOrders();
         _startAutoRefresh();
 
@@ -22,11 +37,14 @@ const OrdersModule = (function () {
     }
 
     function _loadOrders() {
-        fetch(API_BASE)
+        const dialog = document.getElementById('orderChangeDialog');
+        if (dialog && dialog.open) return Promise.resolve();
+        return fetch(API_BASE)
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 if (!data.success) return;
-                _renderOrders(data.orders);
+                _orders = data.orders;
+                _renderOrders(_orders);
             })
             .catch(function (err) {
                 console.error('Błąd ładowania zamówień:', err);
@@ -36,7 +54,7 @@ const OrdersModule = (function () {
     function _renderOrders(orders) {
         orders = orders.flatMap(function (order) {
             return (order.items || []).map(function (item, index) {
-                return Object.assign({}, order, {items: [item], position: index + 1,
+                return Object.assign({}, order, {items: [item], position: index + 1, itemIndex: item.item_index == null ? index : item.item_index,
                     status: item.realizacja_status || order.status});
             });
         });
@@ -49,7 +67,7 @@ const OrdersModule = (function () {
 
         badge.textContent = orders.length;
 
-        var noweCount = orders.filter(function(o) { return o.status === 'NOWE'; }).length;
+        var noweCount = orders.filter(function(o) { return ['NOWE', 'CZESCIOWE'].includes(o.status); }).length;
         var sidebarBadge = document.getElementById('sidebarOrdersBadge');
         if (sidebarBadge) {
             sidebarBadge.textContent = noweCount;
@@ -70,7 +88,10 @@ const OrdersModule = (function () {
         empty.style.display = 'none';
 
         tbody.innerHTML = orders.map(function (o) {
-            var isNowe = o.status !== 'ZAMKNIETE';
+            var isNowe = ['NOWE', 'CZESCIOWE'].includes(o.status);
+            var item = o.items[0];
+            var cancelled = item.cancellation;
+            var replaces = item.replaces;
             var komentarz = o.komentarz ? '<div style="margin-top:8px; font-size:12px; color:#64748b;"><strong>Komentarz:</strong> ' + _escapeHtml(o.komentarz) + '</div>' : '';
 
             var itemsHtml = '';
@@ -87,9 +108,9 @@ const OrdersModule = (function () {
                 displayedItems.forEach(function(it) {
                     var displayQty = (it.brakujace_kg !== undefined && it.brakujace_kg !== null) ? it.brakujace_kg : it.ilosc_kg;
                     itemsHtml += '<li><strong>' + _escapeHtml(it.surowiec_nazwa) + '</strong> — ' + _formatKg(displayQty) + ' kg</li>';
-                    if (o.status !== 'ZAMKNIETE') {
+                    if (isNowe || cancelled) {
                         itemsHtml += '<li>W transferze: ' + _formatKg(it.przypisane_kg || 0) +
-                            ' kg · Pozostało: ' + _formatKg(it.pozostale_kg == null ? displayQty : it.pozostale_kg) + ' kg</li>';
+                            ' kg · ' + (cancelled ? 'Anulowano: ' : 'Pozostało: ') + _formatKg(cancelled ? cancelled.cancelled_kg : (it.pozostale_kg == null ? displayQty : it.pozostale_kg)) + ' kg</li>';
                     }
                 });
                 itemsHtml += '</ul>';
@@ -97,13 +118,26 @@ const OrdersModule = (function () {
                 itemsHtml = '<span style="color:#94a3b8;">Brak pozycji (100% na stanie)</span>';
             }
 
+            if (cancelled) {
+                itemsHtml += '<div class="order-change-note"><strong>Powód:</strong> ' + _escapeHtml(cancelled.reason) +
+                    '<br>Zatwierdził: ' + _escapeHtml(cancelled.login) + ' · ' + _escapeHtml(cancelled.at) +
+                    (cancelled.replacement_order_id ? '<br>Nowe zamówienie: <a href="#order-' + Number(cancelled.replacement_order_id) + '-0">#' + Number(cancelled.replacement_order_id) + '</a>' : '') + '</div>';
+            }
+            if (replaces) {
+                itemsHtml += '<div class="order-change-note">Zamiast: ' + _escapeHtml(replaces.material) +
+                    ' · <a href="#order-' + Number(replaces.order_id) + '-' + Number(replaces.item_index) + '">zamówienie #' + Number(replaces.order_id) + '</a>' +
+                    '<br>Powód: ' + _escapeHtml(replaces.reason) + '<br>Zatwierdził: ' + _escapeHtml(replaces.login) + '</div>';
+            }
             var statusHtml = isNowe
                 ? '<span class="order-status-badge nowe">' + (o.status === 'CZESCIOWE' ? 'CZĘŚCIOWO' : 'NOWE') + '</span>'
                 : '<span class="order-status-badge zamkniete">ZAMKNIĘTE</span>';
 
+            if (cancelled) statusHtml = '<span class="order-status-badge cancelled">' + (cancelled.replacement_order_id ? 'ZAMIENIONE' : 'ANULOWANE') + '</span>';
+
             var actionHtml = '<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">';
             if (isNowe) {
                 actionHtml += '<span style="font-size:12px">Rozliczenie po skanie do transferu</span>';
+                if (window.CAN_DELETE_ORDERS) actionHtml += '<button type="button" class="btn btn-outline" onclick="OrdersModule.openChange(' + Number(o.id) + ',' + Number(o.itemIndex) + ')">Anuluj / zamień</button>';
             } else {
                 actionHtml += '<span style="color:#94a3b8; font-size:12px;">' +
                     _escapeHtml(o.magazynier_login || '') +
@@ -111,14 +145,14 @@ const OrdersModule = (function () {
                 '</span>';
             }
 
-            if (window.CAN_DELETE_ORDERS) {
+            if (window.CAN_DELETE_ORDERS && !cancelled && !replaces) {
                 actionHtml += '<button class="order-delete-btn" onclick="OrdersModule.deleteOrder(' + o.id + ', this)" title="Trwale usuń całe zamówienie (wszystkie pozycje)">' +
                     '<span class="material-icons" style="font-size:15px;">delete</span>' +
                 '</button>';
             }
             actionHtml += '</div>';
 
-            return '<tr>' +
+            return '<tr id="order-' + Number(o.id) + '-' + Number(o.itemIndex) + '">' +
                 '<td data-label="ID"><strong>#' + o.id + ' / ' + o.position + '</strong></td>' +
                 '<td data-label="Zamówione surowce">' + itemsHtml + komentarz + '</td>' +
                 '<td data-label="Operator">' + _escapeHtml(o.operator_login) + '</td>' +
@@ -127,6 +161,78 @@ const OrdersModule = (function () {
                 '<td data-label="Akcja">' + actionHtml + '</td>' +
             '</tr>';
         }).join('');
+    }
+
+    function _changeMode() {
+        const replace = document.getElementById('orderChangeMode').value === 'replace';
+        document.getElementById('orderReplacementFields').hidden = !replace;
+        document.getElementById('orderReplacementName').required = replace;
+        document.getElementById('orderReplacementKg').required = replace;
+        document.getElementById('orderChangeSubmit').disabled = _changeBusy || (replace && !_materialsReady);
+    }
+
+    async function openChange(orderId, index) {
+        const order = _orders.find(order => Number(order.id) === orderId);
+        const item = order && order.items.find((item, offset) => Number(item.item_index == null ? offset : item.item_index) === index);
+        if (!item || item.cancellation) return;
+        const dialog = document.getElementById('orderChangeDialog');
+        if (!dialog || dialog.open) return;
+        _change = {orderId, index};
+        const change = _change;
+        _materialsReady = false;
+        document.getElementById('orderChangeForm').reset();
+        document.getElementById('orderChangeSummary').textContent = '#' + orderId + ' — ' + item.surowiec_nazwa + ' · pozostało ' + _formatKg(item.pozostale_kg) + ' kg';
+        document.getElementById('orderReplacementKg').value = item.pozostale_kg;
+        document.getElementById('orderChangeError').textContent = '';
+        _changeMode();
+        dialog.showModal();
+        try {
+            const response = await fetch(API_BASE + '/surowce');
+            const data = await response.json();
+            if (_change !== change || !dialog.open) return;
+            if (!response.ok || !data.success) throw new Error('Nie udało się pobrać słownika surowców. Otwórz okno ponownie.');
+            const select = document.getElementById('orderReplacementName');
+            select.replaceChildren(new Option('Wybierz surowiec', ''));
+            data.surowce.filter(material => material.nazwa.trim().toLowerCase() !== item.surowiec_nazwa.trim().toLowerCase())
+                .forEach(material => select.add(new Option(material.nazwa, material.nazwa)));
+            _materialsReady = true;
+        } catch (error) {
+            if (_change !== change || !dialog.open) return;
+            document.getElementById('orderChangeError').textContent = error.message;
+        }
+        _changeMode();
+    }
+
+    async function _submitChange(event) {
+        event.preventDefault();
+        if (_changeBusy || !_change || !document.getElementById('orderChangeForm').reportValidity()) return;
+        const mode = document.getElementById('orderChangeMode').value;
+        if (mode === 'replace' && !_materialsReady) return;
+        _changeBusy = true;
+        _changeMode();
+        document.getElementById('orderChangeClose').disabled = true;
+        document.getElementById('orderChangeError').textContent = '';
+        try {
+            const response = await fetch(API_BASE + '/' + _change.orderId + '/items/' + _change.index + '/resolve', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mode, reason: document.getElementById('orderChangeReason').value,
+                    replacement_name: document.getElementById('orderReplacementName').value,
+                    replacement_kg: document.getElementById('orderReplacementKg').value})
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.message || 'Nie udało się zapisać decyzji.');
+            document.getElementById('orderChangeDialog').close();
+            _showToast(data.message, 'success');
+            _change = null;
+            await _loadOrders();
+            if (typeof window.refreshSidebarBadges === 'function') window.refreshSidebarBadges();
+        } catch (error) {
+            document.getElementById('orderChangeError').textContent = error.message;
+        } finally {
+            _changeBusy = false;
+            document.getElementById('orderChangeClose').disabled = false;
+            _changeMode();
+        }
     }
 
     function deleteOrder(orderId, btnElement) {
@@ -238,6 +344,7 @@ const OrdersModule = (function () {
     document.addEventListener('DOMContentLoaded', init);
 
     return {
+        openChange: openChange,
         confirmOrder: confirmOrder,
         deleteOrder: deleteOrder,
         loadOrders: _loadOrders

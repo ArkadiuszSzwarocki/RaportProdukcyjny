@@ -255,3 +255,15 @@ def api_orders_picking_delete(order_ref=None):
     success, message = _picking_service.delete_picking_order(str(order_ref).strip(), user_role)
     status_code = 200 if success else 403 if 'Brak uprawnień' in message else 400
     return jsonify({'success': success, 'message': message}), status_code
+
+
+@warehouse_v2_bp.route('/api/orders/<int:order_id>/items/<int:item_index>/resolve', methods=['POST'])
+def api_orders_resolve_item(order_id, item_index):
+    from app.services.warehouse_order_changes import WarehouseOrderChanges
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(success=False, message='Nieprawidłowe dane zmiany.'), 400
+    success, message, replacement_id = WarehouseOrderChanges.resolve(order_id, item_index, data,
+        session.get('login', 'nieznany'), session.get('rola') or session.get('role'))
+    code = 200 if success else 403 if 'Brak uprawnień' in message else 400
+    return jsonify(success=success, message=message, replacement_order_id=replacement_id), code

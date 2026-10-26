@@ -9,6 +9,8 @@ from app.services.magazyn_dostawy.commands.internal_transfer_processor import In
 class WarehouseOrderFulfillment:
     @staticmethod
     def requested(item):
+        if item.get('cancellation'):
+            return 0
         value = float(item.get('brakujace_kg') if item.get('brakujace_kg') is not None else item.get('ilosc_kg') or 0)
         if not math.isfinite(value) or value < 0:
             raise ValueError('Nieprawidłowa ilość zamówienia')
@@ -100,10 +102,10 @@ class WarehouseOrderFulfillment:
                     entry.pop('transfer_allocations',None)
             if json.dumps(entries,sort_keys=True) == before:
                 continue
-            requested_entries = [entry for entry in entries if cls.requested(entry) > 0]
-            complete = bool(requested_entries) and all(sum(float(allocation['kg']) for allocation in
-                entry.get('transfer_allocations',[])) >= cls.requested(entry)-0.0001 for entry in requested_entries)
+            from app.services.warehouse_order_changes import order_status
+            status = order_status(entries)
+            complete = status != 'NOWE'
             cursor.execute('UPDATE magazyn_zamowienia SET items=%s,status=%s,magazynier_login=%s, '
                            'confirmed_at=IF(%s,NOW(),NULL) WHERE id=%s',
-                           (json.dumps(entries,ensure_ascii=False),'ZAMKNIETE' if complete else 'NOWE',
+                           (json.dumps(entries,ensure_ascii=False),status,
                             login if complete else None,complete,order['id']))

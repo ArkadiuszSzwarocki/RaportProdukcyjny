@@ -41,6 +41,7 @@ OPERATOR_ACTIONS = {
     'warehouse_v2.restore_from_archive': 'Przywrócenie palety z archiwum',
     'warehouse_v2.api_orders_create': 'Utworzenie zamówienia',
     'warehouse_v2.api_orders_confirm': 'Potwierdzenie zamówienia',
+    'warehouse_v2.api_orders_resolve_item': 'Anulowanie lub zamiana pozycji zamówienia',
     'warehouse_v2.api_orders_delete': 'Usunięcie zamówienia',
     'warehouse_v2.api_orders_start_picking': 'Rozpoczęcie kompletacji',
     'warehouse_v2.api_orders_picking_confirm': 'Potwierdzenie kompletacji',
