@@ -1,5 +1,5 @@
-{% if role_lc == 'masteradmin' and not is_readonly and sekcja in ['Zasyp', 'Workowanie'] and p[3] in ['zaplanowane', 'zawieszone', 'wstrzymane'] and unfinished_section_orders|default([]) %}
-<form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:inline;"
+{% if role_lc == 'masteradmin' and not is_readonly and sekcja in ['Zasyp', 'Workowanie'] and p[3] == 'zaplanowane' and unfinished_section_orders|default([]) %}
+<form action="{{ url_for('production.start_zlecenie', id=p[0]) }}" method="POST" style="display:block;flex:0 1 100px;min-width:0;max-width:100%;margin:0;"
       data-start-confirm="Pominąć blokadę dla tego zlecenia? Inne działające zlecenia pozostaną w toku."
       data-start-checklist="{{ 1 if sekcja == 'Workowanie' and linia == 'AGRO' and p[3] == 'zaplanowane' else 0 }}"
       data-typ-produkcji="{{ (p[9] if p|length > 9 and p[9] else '')|e }}"
@@ -10,6 +10,6 @@
     <input type="hidden" name="sekcja" value="{{ sekcja }}">
     <input type="hidden" name="linia" value="{{ linia }}">
     <input type="hidden" name="override_start_rule" value="1">
-    <button type="submit" class="btn-action" style="background:#b45309;color:white;padding:6px 10px;border-radius:6px;" title="MasterAdmin: uruchom z pominięciem blokady jednego aktywnego zlecenia">Pomiń blokadę i {{ 'uruchom' if p[3] == 'zaplanowane' else 'wznów' }}</button>
+    <button type="submit" class="btn-action" style="background:#b45309;color:white;padding:6px 8px;border-radius:6px;width:100%;min-width:0;max-width:100px;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;line-height:1.25;" title="MasterAdmin: uruchom z pominięciem blokady jednego aktywnego zlecenia">Pomiń blokadę</button>
 </form>
 {% endif %}

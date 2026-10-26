@@ -9,6 +9,7 @@ from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
 from app.services.planning.status import PlanningStatusService
 from app.utils.pallet_id import generate_pallet_id
+from app.utils.pallet_receipt_rules import production_receipt_block_reason
 
 from app.blueprints.warehouse.routes.printing_routes import _select_preferred_printer
 from app.blueprints.warehouse.routes.palety_helpers import _resolve_plan_id_for_paleta
@@ -74,6 +75,36 @@ class WarehousePalletService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
+
+            prev_status = ''
+            plan_id = None
+            stored_netto = None
+            nr_palety = None
+            nr_plomby = None
+            try:
+                cursor.execute(
+                    f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, waga, 0), nr_palety, nr_plomby FROM {table_pal} WHERE id=%s FOR UPDATE",
+                    (paleta_id,),
+                )
+                prev_row = cursor.fetchone()
+                if prev_row:
+                    plan_id = prev_row[0]
+                    prev_status = prev_row[1]
+                    stored_netto = int(prev_row[2] or 0)
+                    nr_palety = prev_row[3]
+                    nr_plomby = prev_row[4] if len(prev_row) > 4 else None
+            except Exception as error:
+                current_app.logger.warning('Failed to fetch plan_id/status/weights for paleta %s: %s', paleta_id, error)
+    
+            user_login = user_login
+            if not plan_id:
+                raise ValueError('Nie znaleziono zlecenia produkcji palety.')
+
+            blocked_reason = production_receipt_block_reason(prev_status)
+            if blocked_reason:
+                conn.rollback()
+                return ({'success': False, 'message': blocked_reason}, 409, None)
+
     
             tara = 25
             try:
@@ -146,30 +177,6 @@ class WarehousePalletService:
                 except Exception:
                     pass
     
-            prev_status = ''
-            plan_id = None
-            stored_netto = None
-            nr_palety = None
-            nr_plomby = None
-            try:
-                cursor.execute(
-                    f"SELECT plan_id, COALESCE(status,''), COALESCE(waga_potwierdzona, waga, 0), nr_palety, nr_plomby FROM {table_pal} WHERE id=%s FOR UPDATE",
-                    (paleta_id,),
-                )
-                prev_row = cursor.fetchone()
-                if prev_row:
-                    plan_id = prev_row[0]
-                    prev_status = prev_row[1]
-                    stored_netto = int(prev_row[2] or 0)
-                    nr_palety = prev_row[3]
-                    nr_plomby = prev_row[4] if len(prev_row) > 4 else None
-            except Exception as error:
-                current_app.logger.warning('Failed to fetch plan_id/status/weights for paleta %s: %s', paleta_id, error)
-    
-            user_login = user_login
-            if not plan_id:
-                raise ValueError('Nie znaleziono zlecenia produkcji palety.')
-
             try:
                 if linia == 'AGRO':
                     cursor.execute(

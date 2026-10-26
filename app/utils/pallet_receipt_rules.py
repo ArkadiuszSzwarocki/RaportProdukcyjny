@@ -108,3 +108,20 @@ def delivery_pallet_type(item):
     # Compatibility with older forms that did not send a dedicated type.
     packaging = str(item.get('packageForm') or '').strip().casefold()
     return 'opakowanie' if packaging in ('packaging', 'tasma', 'taśma', 'karton') or str(item.get('unit') or '').casefold() == 'szt' else 'surowiec'
+
+
+# A production record is historical once it was converted, consumed or closed.
+# Its original weight is production history, not available warehouse stock.
+FINAL_PRODUCTION_PALLET_STATUSES = (
+    'przyjeta', 'w_magazynie', 'zamknieta', 'przeklasyfikowana',
+    'zuzyta', 'zuzyte', 'zarchiwizowana', 'archiwalna', 'usunieta',
+)
+
+
+def production_receipt_block_reason(status):
+    value = str(status or '').strip().lower()
+    if value == 'przeklasyfikowana':
+        return 'Ta paleta została już przeklasyfikowana na surowiec. Nie można przyjąć jej ponownie. Sprawdź aktualny stan surowca po numerze SSCC.'
+    if value in FINAL_PRODUCTION_PALLET_STATUSES and value not in ('przyjeta', 'w_magazynie'):
+        return 'Paleta została już zużyta, zamknięta lub zarchiwizowana. Ponowne przyjęcie jest zablokowane.'
+    return None

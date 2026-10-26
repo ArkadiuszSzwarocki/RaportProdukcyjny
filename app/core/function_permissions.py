@@ -14,6 +14,7 @@ OPERATOR_ACTIONS = {
     'production.dodaj_dosypke': 'Dodanie dosypki',
     'production.potwierdz_dosypke': 'Potwierdzenie dosypki',
     'production.anuluj_dosypke': 'Anulowanie dosypki',
+    'production.agro_folio_activate_roll': 'Założenie przygotowanej rolki folii',
     'production.agro_folio_add_roll': 'Podpięcie rolki folii',
     'production.agro_folio_close_roll': 'Rozliczenie rolki folii',
     'production.agro_folio_undo_close_roll': 'Cofnięcie rozliczenia folii',

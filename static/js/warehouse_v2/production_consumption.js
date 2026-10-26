@@ -219,6 +219,9 @@ async function executeConsumption() {
 }
 
 function prependHistoryRow(row) {
+    const rowDate = row.date || String(row.data_archiwizacji || '').slice(0, 10);
+    if (window.CONSUMPTION_HISTORY_DATE && rowDate && rowDate !== window.CONSUMPTION_HISTORY_DATE) return;
+
     const tbody = document.getElementById('consumptionHistoryBody');
     const emptyRow = document.getElementById('emptyHistoryRow');
     if (emptyRow) emptyRow.remove();
@@ -265,7 +268,11 @@ function prependHistoryRow(row) {
 
 async function refreshConsumptionHistory() {
     try {
-        const resp = await fetch('/warehouse-v2/api/zuzycie/history');
+        const historyUrl = new URL('/warehouse-v2/api/zuzycie/history', window.location.origin);
+        if (window.CAN_SEARCH_CONSUMPTION_HISTORY && window.CONSUMPTION_HISTORY_DATE) {
+            historyUrl.searchParams.set('data', window.CONSUMPTION_HISTORY_DATE);
+        }
+        const resp = await fetch(historyUrl.toString());
         const data = await resp.json();
         if (data.success && data.history) {
             const tbody = document.getElementById('consumptionHistoryBody');
@@ -278,8 +285,8 @@ async function refreshConsumptionHistory() {
                     <tr id="emptyHistoryRow">
                         <td colspan="${canRestore ? 9 : 8}" style="text-align: center; padding: 30px; color: #94a3b8;">
                             <span class="material-icons" style="font-size: 36px; color: #cbd5e1; display: block; margin-bottom: 6px;">inbox</span>
-                            <strong>Brak zarejestrowanych zużyć dzisiejszego dnia</strong>
-                            <div style="font-size: 12px; margin-top: 2px;">Zeskanuj etykietę powyżej, aby dodać pierwsze zużycie.</div>
+                            <strong>Brak zarejestrowanych zużyć dla wybranej daty.</strong>
+                            <div style="font-size: 12px; margin-top: 2px;">Nowe zużycia zapisują się z bieżącą datą.</div>
                         </td>
                     </tr>
                 `;
@@ -375,8 +382,8 @@ async function restoreFromConsumptionHistory(archiveId, nrPalety, defaultWeight,
                     <tr id="emptyHistoryRow">
                         <td colspan="${window.CAN_RESTORE_PALLET ? 9 : 8}" style="text-align: center; padding: 30px; color: #94a3b8;">
                             <span class="material-icons" style="font-size: 36px; color: #cbd5e1; display: block; margin-bottom: 6px;">inbox</span>
-                            <strong>Brak zarejestrowanych zużyć dzisiejszego dnia</strong>
-                            <div style="font-size: 12px; margin-top: 2px;">Zeskanuj etykietę powyżej, aby dodać pierwsze zużycie.</div>
+                            <strong>Brak zarejestrowanych zużyć dla wybranej daty.</strong>
+                            <div style="font-size: 12px; margin-top: 2px;">Nowe zużycia zapisują się z bieżącą datą.</div>
                         </td>
                     </tr>
                 `;

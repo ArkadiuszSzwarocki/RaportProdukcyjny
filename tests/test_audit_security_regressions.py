@@ -262,14 +262,14 @@ def test_runtime_database_switch_requires_masteradmin_and_explicit_opt_in(app, m
     view = app.view_functions['admin.admin_secret_db_switch']
     monkeypatch.delenv('ALLOW_RUNTIME_DB_SWITCH', raising=False)
 
-    with app.test_request_context('/admin/sekretna-baza/switch', method='POST'):
+    with app.test_request_context('/admin/sekretna-baza/switch', method='POST', headers={'Accept': 'application/json'}):
         session['zalogowany'] = True
         session['rola'] = 'admin'
         response, status = view()
         assert status == 403
         assert response.get_json()['success'] is False
 
-    with app.test_request_context('/admin/sekretna-baza/switch', method='POST'):
+    with app.test_request_context('/admin/sekretna-baza/switch', method='POST', headers={'Accept': 'application/json'}):
         session['zalogowany'] = True
         session['rola'] = 'masteradmin'
         response, status = view()

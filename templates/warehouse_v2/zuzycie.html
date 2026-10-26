@@ -1,6 +1,10 @@
 {% extends "layout.html" %}
 
 {% block content %}
+{# Keep a valid JS configuration when an older caller omits the history context. #}
+{% set can_search_history = can_search_history|default(false) %}
+{% set history_date = history_date|default('') %}
+
 {% include 'warehouse_v2/_styles.html' %}
 
 <div class="consumption-container" style="max-width: 1200px; margin: 0 auto; padding: 10px 15px 40px;">
@@ -131,11 +135,19 @@
             <div style="display: flex; align-items: center; gap: 10px;">
                 <span class="material-icons" style="color: #0284c7; font-size: 24px;">history</span>
                 <div>
-                    <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">Dzisiejsza Historia Zużyć na Produkcji</h3>
-                    <div style="font-size: 12px; color: #64748b;">Zarejestrowane dziś palety wyzerowane do 0 kg</div>
+                    <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #0f172a;">{{ 'Historia Zużyć na Produkcji' if can_search_history else 'Dzisiejsza Historia Zużyć na Produkcji' }}</h3>
+                    <div style="font-size: 12px; color: #64748b;">Zarejestrowane palety wyzerowane do 0 kg — {{ history_date }}</div>
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 10px;">
+                {% if can_search_history %}
+                <form method="GET" action="{{ url_for('warehouse_v2.zuzycie_view') }}" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <input type="hidden" name="linia" value="{{ linia }}">
+                    <label for="consumptionHistoryDate" style="font-size:12px;font-weight:700;">Data zużycia</label>
+                    <input id="consumptionHistoryDate" type="date" name="data" value="{{ history_date }}" required style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;">
+                    <button type="submit" class="btn-action" style="padding:7px 12px;">Szukaj</button>
+                </form>
+                {% endif %}
                 <span id="historyCountBadge" style="background: #e0f2fe; color: #0369a1; font-weight: 800; font-size: 12px; padding: 4px 12px; border-radius: 12px;">
                     Pozycji: {{ daily_history|length }}
                 </span>
@@ -168,8 +180,8 @@
                         <tr id="emptyHistoryRow">
                             <td colspan="{{ 9 if can_restore else 8 }}" style="text-align: center; padding: 30px; color: #94a3b8;">
                                 <span class="material-icons" style="font-size: 36px; color: #cbd5e1; display: block; margin-bottom: 6px;">inbox</span>
-                                <strong>Brak zarejestrowanych zużyć dzisiejszego dnia</strong>
-                                <div style="font-size: 12px; margin-top: 2px;">Zeskanuj etykietę powyżej, aby dodać pierwsze zużycie.</div>
+                                <strong>Brak zarejestrowanych zużyć dla wybranej daty.</strong>
+                                <div style="font-size: 12px; margin-top: 2px;">Nowe zużycia zapisują się z bieżącą datą.</div>
                             </td>
                         </tr>
                         {% else %}
@@ -215,8 +227,10 @@
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
     window.CAN_RESTORE_PALLET = {{ 'true' if can_restore else 'false' }};
+    window.CAN_SEARCH_CONSUMPTION_HISTORY = {{ can_search_history|tojson }};
+    window.CONSUMPTION_HISTORY_DATE = {{ history_date|tojson }};
 </script>
 <script src="{{ url_for('static', filename='js/qr_scanner.js') }}?v={{ static_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/production_consumption.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/production_consumption.js') }}?v={{ static_version }}&history_dates=1"></script>
 
 {% endblock %}

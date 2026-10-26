@@ -143,10 +143,10 @@ document.addEventListener('DOMContentLoaded', function () {
         </thead>
         <tbody id="plans-agro-tbody">
             {% for p in plany_agro %}
-            <tr data-plan-id="{{ p.id }}" data-plan-status="{{ p.status }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-opakowanie-id="{{ p.opakowanie_id or '' }}" data-etykieta-id="{{ p.etykieta_id or '' }}" data-produkt="{{ p.produkt }}">
+            <tr data-plan-id="{{ p.id }}" data-plan-status="{{ p.status }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-opakowanie-id="{{ p.opakowanie_id or '' }}" data-etykieta-id="{{ p.etykieta_id or '' }}" data-produkt="{{ p.produkt }}" {% if p.status in ['w toku', 'zawieszone', 'zakonczone'] %}class="plan-locked"{% endif %}>
                 <td class="text-muted font-bold" data-label="Lp.">{{ loop.index }}</td>
                 <td class="planner-order text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;" data-label="">
-                    {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
+                    {% if p.status not in ['w toku', 'zawieszone', 'zakonczone'] and can_manage_plans %}
                     <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
                         <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w górę" title="Przenieś w górę" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↑</button>
                         <button type="button" data-action="move-down" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w dół" title="Przenieś w dół" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↓</button>
@@ -195,6 +195,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td data-label="Status">
                     {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
                     {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
+                    {% elif p.status == 'zawieszone' %}<span class="status-badge status-zaplanowane">⏸ ZAWIESZONE</span>
                     {% else %}<span class="status-badge status-zaplanowane">ZAPLANOWANE</span>{% endif %}
                 </td>
                 <td class="planner-actions text-right" data-label="">
@@ -204,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             ⚙️ Akcje <span style="font-size: 10px;">▼</span>
                         </button>
                         <div class="actions-dropdown-menu">
-                            {% if p.status not in ['w toku', 'zakonczone'] %}
+                            {% if p.status not in ['w toku', 'zawieszone', 'zakonczone'] %}
                             <button type="button" data-action="open-move-modal" data-plan-id="{{ p.id }}" data-plan-day="{{ p.produkt }}" class="actions-dropdown-item">
                                 📅 Przenieś plan
                             </button>
@@ -220,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             </button>
                             {% endif %}
                             
-                            {% if p.status not in ['w toku', 'zakonczone'] %}
+                            {% if p.status not in ['w toku', 'zawieszone', 'zakonczone'] %}
                             <div class="actions-dropdown-divider"></div>
                             <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form" data-confirm="Usunąć zlecenie AGRO?" style="margin: 0; width: 100%;">
                                 <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
@@ -357,10 +358,10 @@ document.addEventListener('DOMContentLoaded', function () {
         </thead>
         <tbody id="plans-tbody" class="sortable-tbody">
             {% for p in plany %}
-            <tr data-plan-id="{{ p.id }}" data-plan-status="{{ p.status }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-produkt="{{ p.produkt }}" {% if p.status in ['w toku', 'zakonczone'] %}class="plan-locked"{% endif %}>
+            <tr data-plan-id="{{ p.id }}" data-plan-status="{{ p.status }}" data-data-produkcji="{{ p.data_produkcji or '' }}" data-data-planu="{{ p.data_planu or '' }}" data-produkt="{{ p.produkt }}" {% if p.status in ['w toku', 'zawieszone', 'zakonczone'] %}class="plan-locked"{% endif %}>
                 <td class="text-muted font-bold" data-label="Lp.">{{ loop.index }}</td>
                 <td class="planner-order text-center" style="white-space: nowrap; width: 50px; padding: 10px 4px;" data-label="">
-                    {% if p.status not in ['w toku', 'zakonczone'] and can_manage_plans %}
+                    {% if p.status not in ['w toku', 'zawieszone', 'zakonczone'] and can_manage_plans %}
                     <div style="display: flex; gap: 4px; justify-content: center; align-items: center;">
                         <button type="button" data-action="move-up" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w górę" title="Przenieś w górę" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↑</button>
                         <button type="button" data-action="move-down" data-plan-id="{{ p.id }}" class="btn-icon-move" aria-label="Przenieś w dół" title="Przenieś w dół" style="padding: 4px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #475569; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">↓</button>
@@ -409,6 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td data-label="Status">
                     {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
                     {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
+                    {% elif p.status == 'zawieszone' %}<span class="status-badge status-zaplanowane">⏸ ZAWIESZONE</span>
                     {% else %}<span class="status-badge status-zaplanowane">{{ _('zaplanowane_btn') }}</span>{% endif %}
                 </td>
                 <td class="planner-actions text-right" data-label="">
@@ -427,7 +429,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 ⚙️ Akcje <span style="font-size: 10px;">▼</span>
                             </button>
                             <div class="actions-dropdown-menu">
-                                {% if p.status not in ['w toku', 'zakonczone'] %}
+                                {% if p.status not in ['w toku', 'zawieszone', 'zakonczone'] %}
                                 <button type="button" data-action="open-move-modal" data-plan-id="{{ p.id }}" data-plan-day="{{ p.produkt }}" class="actions-dropdown-item">
                                     📅 Przenieś plan
                                 </button>
@@ -449,7 +451,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 </button>
                                 {% endif %}
                                 
-                                {% if p.status not in ['w toku', 'zakonczone'] %}
+                                {% if p.status not in ['w toku', 'zawieszone', 'zakonczone'] %}
                                 <div class="actions-dropdown-divider"></div>
                                 <form action="{{ url_for('planning.usun_plan', id=p.id) }}" method="POST" class="inline-form" data-confirm="Usunąć zlecenie?" style="margin: 0; width: 100%;">
                                     <input type="hidden" name="data_planu" value="{{ wybrana_data }}">
@@ -463,7 +465,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             </div>
                         </div>
                         {% else %}
-                            {% if p.status not in ['w toku', 'zakonczone'] %}
+                            {% if p.status not in ['w toku', 'zawieszone', 'zakonczone'] %}
                             <button type="button" class="btn-icon" style="opacity: 0.5;" onclick="safeAlert('Brak uprawnień', 'Twoja rola ({{ session.get('rola') }}) nie pozwala na modyfikację planów PSD. To nie jest błąd systemu.')" title="Brak uprawnień">🔒</button>
                             {% else %}
                             <span class="text-muted">-</span>
@@ -874,6 +876,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleEdit(id) {
         var tr = document.querySelector('tr[data-plan-id="' + id + '"]');
         if (!tr) return;
+        if (['w toku', 'zawieszone', 'zakonczone'].includes(tr.getAttribute('data-plan-status'))) return;
         // Table columns: 0=Lp, 1=Arrows, 2=Produkt, 3=Typ, 4=Plan
         var produkt = tr.getAttribute('data-produkt') || (tr.children[2].querySelector('strong') ? tr.children[2].querySelector('strong').innerText.trim() : tr.children[2].innerText.trim());
         var typ = tr.querySelector('.badge-sekcja') ? tr.querySelector('.badge-sekcja').innerText : '';
@@ -991,13 +994,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         var html = '<form id="editTonazForm_' + id + '" class="form-group">';
         html += '<div class="form-group"><label>Plan (kg):</label><input id="e_ton_only_' + id + '" name="tonaz" type="number" step="0.1" required></div>';
-        html += '<p class="text-muted small mt-10">⚠️ Gdy zlecenie w toku, możesz edytować tylko tonaż (kg)</p>';
+        html += '<p class="text-muted small mt-10">⚠️ Po rozpoczęciu, także przy zawieszeniu, możesz edytować tylko tonaż (kg)</p>';
         html += '<div class="d-flex gap-10 mt-15">';
         html += '  <button type="button" class="btn-action btn-success" onclick="submitTonazEdit(' + id + ')">Zapisz</button>';
         html += '  <button type="button" class="btn-action btn-cancel" onclick="if(window.createQuickPopup && window.createQuickPopup._lastInst) window.createQuickPopup._lastInst.close()">Anuluj</button>';
         html += '</div>';
         html += '</form>';
-        var popup = showQuickPopup('Edytuj tonaż (w toku)', html);
+        var popup = showQuickPopup('Edytuj tonaż', html);
         if (popup) window.createQuickPopup._lastInst = popup;
         setTimeout(function () { var inp = document.getElementById('e_ton_only_' + id); if (inp) inp.focus(); }, 200);
     }

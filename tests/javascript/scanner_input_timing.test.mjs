@@ -60,3 +60,22 @@ test('open menu keeps keyboard focus, scanner capture resumes after closing', ()
   scanner.globalListeners.keydown({ key: 'A' });
   assert.equal(focusCount, 1);
 });
+
+for (const code of ['OPK000001788773014226', 'SUR000001792400504394', '123456789012345678', '00123456789012345678']) {
+  test(`complete SSCC automatically looks up without Enter: ${code}`, () => {
+    const scanner = setup();
+    scanner.input.value = code;
+    scanner.listeners.input.call(scanner.input);
+    scanner.settle();
+    assert.deepEqual(scanner.submitted, [code]);
+  });
+}
+
+test('incomplete typed SSCC waits, a completed pasted SSCC submits', () => {
+  const scanner = setup();
+  scanner.type('OPK000001788', 200); scanner.settle();
+  assert.deepEqual(scanner.submitted, []);
+  scanner.listeners.paste(); scanner.input.value = 'OPK000001788773014226';
+  scanner.listeners.input.call(scanner.input); scanner.settle();
+  assert.deepEqual(scanner.submitted, ['OPK000001788773014226']);
+});

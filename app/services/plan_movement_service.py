@@ -8,7 +8,7 @@ from flask import current_app
 class PlanMovementService:
     """Service for managing plan movement operations (move to different section, shift order)."""
 
-    _LOCKED_STATUSES = {'w toku', 'zakonczone'}
+    _LOCKED_STATUSES = {'w toku', 'zawieszone', 'zakonczone'}
 
     @staticmethod
     def renormalize_sequences(cursor, table_name, data_planu, sekcja=None):
@@ -49,7 +49,7 @@ class PlanMovementService:
             # Get current plan info
             table_plan = get_table_name('plan_produkcji', linia)
             cursor.execute(
-                f"SELECT sekcja, produkt, data_planu FROM {table_plan} WHERE id=%s",
+                f"SELECT sekcja, produkt, data_planu, status FROM {table_plan} WHERE id=%s",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -63,6 +63,10 @@ class PlanMovementService:
             produkt = res[1] if len(res) > 1 else ''
             data_planu = res[2] if len(res) > 2 else None
             
+            if len(res) > 3 and res[3] in PlanMovementService._LOCKED_STATUSES:
+                conn.close()
+                return (False, 'Nie można zmieniać sekcji rozpoczętego zlecenia.')
+
             # Cannot move if already in target section
             if current_sekcja == target_sekcja:
                 conn.close()
@@ -175,6 +179,17 @@ class PlanMovementService:
             # De-duplicate
             linked_ids = list(set(linked_ids))
             
+            if len(linked_ids) > 1:
+                placeholders = ','.join(['%s'] * len(linked_ids))
+                cursor.execute(
+                    f"SELECT id FROM {table_plan} WHERE id IN ({placeholders}) AND status IN ('w toku', 'zawieszone', 'zakonczone') LIMIT 1",
+                    tuple(linked_ids),
+                )
+                if cursor.fetchone():
+                    conn.rollback()
+                    conn.close()
+                    return False, 'Nie można przesuwać zlecenia z rozpoczętym etapem produkcji.'
+
             # 2. Renormalize BEFORE shift to ensure clean sequence base
             # For simplicity, renormalize all sections that might be affected
             affected_sections = {sekcja}
@@ -212,7 +227,7 @@ class PlanMovementService:
                         f"SELECT id, kolejnosc FROM {table_plan} "
                         f"WHERE data_planu=%s AND kolejnosc < %s {m_filter} "
                         f"AND (is_deleted=0 OR is_deleted IS NULL) "
-                        f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone') "
+                        f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zawieszone', 'zakonczone') "
                         f"ORDER BY kolejnosc DESC LIMIT 1",
                         tuple(m_params)
                     )
@@ -221,7 +236,7 @@ class PlanMovementService:
                         f"SELECT id, kolejnosc FROM {table_plan} "
                         f"WHERE data_planu=%s AND kolejnosc > %s {m_filter} "
                         f"AND (is_deleted=0 OR is_deleted IS NULL) "
-                        f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone') "
+                        f"AND COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zawieszone', 'zakonczone') "
                         f"ORDER BY kolejnosc ASC LIMIT 1",
                         tuple(m_params)
                     )
@@ -281,6 +296,17 @@ class PlanMovementService:
             
             table_plan = get_table_name('plan_produkcji', linia)
             
+            if new_order:
+                placeholders = ','.join(['%s'] * len(new_order))
+                cursor.execute(
+                    f"SELECT p.id, p.kolejnosc, p.status FROM {table_plan} p WHERE p.data_planu=%s AND p.id IN ({placeholders}) AND (p.status IN ('w toku', 'zawieszone', 'zakonczone') OR EXISTS (SELECT 1 FROM {table_plan} child WHERE child.zasyp_id=p.id AND child.status IN ('w toku', 'zawieszone', 'zakonczone') AND (child.is_deleted=0 OR child.is_deleted IS NULL))) FOR UPDATE",
+                    (date_planu, *[int(pid) for pid in new_order]),
+                )
+                locked_positions = {int(row[0]): row[1] for row in cursor.fetchall()}
+                if any(int(pid) in locked_positions and locked_positions[int(pid)] != seq for seq, pid in enumerate(new_order, start=1)):
+                    conn.rollback()
+                    return False, 'Nie można zmieniać kolejności rozpoczętego zlecenia.'
+
             # Update each plan's sequence based on position in new_order
             # We remove the sekcja filter here to allow bulk reordering of mixed lists (e.g. Zasyp + Czyszczenie)
             for seq, plan_id in enumerate(new_order, start=1):

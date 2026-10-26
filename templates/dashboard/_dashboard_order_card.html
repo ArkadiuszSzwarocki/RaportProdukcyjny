@@ -23,6 +23,10 @@
             {% if p[7] and p[7]|int > 0 %}
             <div style="white-space: nowrap; font-size: 0.9em;"><strong>✅ Wykonanie:</strong> <span class="text-success">{{ p[7]|int }} kg</span></div>
             {% endif %}
+            {% if sekcja == 'Workowanie' and linia|upper == 'AGRO' %}
+            {% set excel_kg = zasyp_excel_mapa.get(p[0]) if zasyp_excel_mapa is defined else none %}
+            <div style="font-size:.9em;"><strong>Zasypy wg Excel:</strong> {{ ('%.3f'|format(excel_kg)).rstrip('0').rstrip('.') ~ ' kg' if excel_kg is not none else 'brak wpisu' }}</div>
+            {% endif %}
             {% if sekcja == 'Zasyp' and linia == 'AGRO' and rola != 'laborant' and false %}
             <div style="white-space: nowrap; font-size: 0.9em; display:flex; align-items:center; gap:5px; margin-left:10px;">
                 <strong class="text-danger" style="display:flex; align-items:center;" title="Odrzuty na przesiewaczu">🗑️ Odrzuty:</strong>

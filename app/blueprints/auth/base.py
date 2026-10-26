@@ -519,6 +519,8 @@ def my_bug_reports():
                         report['zalaczniki'] = []
                 elif not attachments:
                     report['zalaczniki'] = []
+                from app.services.bug_attachment_service import BugAttachmentService
+                report['attachment_items'] = BugAttachmentService.items(report.get('zalaczniki'))
                 report['odpowiedzi'] = replies_by_bug.get(report['id'], [])
     except Exception:
         flash('Nie udało się pobrać Twoich zgłoszeń.', 'error')

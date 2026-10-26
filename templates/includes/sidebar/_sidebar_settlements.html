@@ -1,0 +1,18 @@
+{% set can_open_mom = effective_hall != 'OSIP' and role_has_access('magazyn.mom') %}
+{% set can_open_traceability = effective_hall != 'OSIP' and role not in ['laborant', 'laboratorium'] %}
+{% if can_open_mom or can_open_traceability %}
+<div class="nav-item-group">
+    <button type="button" class="nav-item main-cat-btn">
+        <span>ROZLICZENIA I PARTIE</span>
+        <span class="material-icons chevron">expand_more</span>
+    </button>
+    <div id="settlements-sub" class="nav-sub {% if request.path.startswith('/agro/mom') or request.blueprint == 'traceability' %}open{% endif %}">
+        {% if can_open_mom %}
+        <a href="/agro/mom" class="nav-sub-item {% if request.path.startswith('/agro/mom') %}active{% endif %}">Rozliczenie MOM</a>
+        {% endif %}
+        {% if can_open_traceability %}
+        <a href="{{ url_for('traceability.index') }}" class="nav-sub-item {% if request.blueprint == 'traceability' %}active{% endif %}">Traceability (Śledzenie partii)</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

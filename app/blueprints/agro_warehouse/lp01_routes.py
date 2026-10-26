@@ -46,6 +46,19 @@ def api_lp01_available():
     items = Lp01Service.get_available_warehouse_consumables(linia=linia)
     return jsonify({'success': True, 'items': items})
 
+def _assigned_roll(item_id, item_type):
+    if item_type != 'Opakowanie':
+        return False
+    from app.db import get_db_connection
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM agro_plan_opakowania WHERE opakowanie_id=%s AND is_active=TRUE LIMIT 1", (item_id,))
+        return cursor.fetchone() is not None
+    finally:
+        conn.close()
+
+
 @agro_warehouse_bp.route('/api/lp01/archive', methods=['POST'])
 @login_required
 def api_lp01_archive():
@@ -59,6 +72,9 @@ def api_lp01_archive():
 
     if not item_id:
         return jsonify({'success': False, 'error': 'Brak ID materiału'}), 400
+
+    if _assigned_roll(item_id, item_type):
+        return jsonify(success=False, message='Najpierw rozlicz lub zwolnij rolkę w sekcji Folia zlecenia.'), 400
 
     ok, msg = Lp01Service.archive_lp01_item(
         item_id=int(item_id),
@@ -112,6 +128,9 @@ def api_lp01_return():
     if not item_id or not target_loc:
         return jsonify({'success': False, 'error': 'Brak parametrów (id, location)'}), 400
 
+    if _assigned_roll(item_id, item_type):
+        return jsonify(success=False, message='Najpierw rozlicz lub zwolnij rolkę w sekcji Folia zlecenia.'), 400
+
     is_valid, err_msg = validate_warehouse_location(target_loc, allow_empty=False)
     if not is_valid:
         return jsonify({'success': False, 'error': err_msg}), 400
@@ -129,3 +148,25 @@ def api_lp01_return():
     split_info = res[2] if len(res) > 2 else None
     return jsonify({'success': ok, 'message': msg, 'split_info': split_info})
 
+
+
+@agro_warehouse_bp.route('/api/lp01/film-plans', methods=['GET'])
+@login_required
+def api_lp01_film_plans():
+    from app.services.folio_assignment_service import FolioAssignmentService
+    source_id = request.args.get('source_id', type=int)
+    if not source_id:
+        return jsonify(success=False, message='Najpierw wybierz lub zeskanuj paletę folii.'), 400
+    return jsonify(success=True, plans=FolioAssignmentService.plans(source_id))
+
+
+@agro_warehouse_bp.route('/api/lp01/film-roll', methods=['POST'])
+@login_required
+def api_lp01_film_roll():
+    from app.services.folio_assignment_service import FolioAssignmentService
+    data = request.get_json(silent=True) or {}
+    if str(data.get('linia', 'AGRO')).upper() != 'AGRO' or data.get('type', 'Opakowanie') != 'Opakowanie':
+        return jsonify(success=False, message='Do zlecenia można przypisać folię z magazynu opakowań AGRO.'), 400
+    ok, message = FolioAssignmentService.assign(data.get('id'), data.get('plan_id'), data.get('amount'),
+        session.get('login', 'System'), role=data.get('roll_role','prepared'), request_key=data.get('request_key'), previous_remaining=data.get('previous_remaining'))
+    return jsonify(success=ok, message=message), 200 if ok else 400

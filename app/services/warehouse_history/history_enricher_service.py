@@ -89,7 +89,11 @@ class HistoryEnricherService:
             ]
 
         # 7. Final canonical deduplication pass
-        return HistoryDeduplicator.deduplicate_canonical_pass(result_slice)
+        result = HistoryDeduplicator.deduplicate_canonical_pass(result_slice)
+        # Later enrichers can change the displayed route; validate the final rows too.
+        if station_pattern:
+            result = [item for item in result if matches_station(item, station_pattern)]
+        return result
 
     @classmethod
     def _build_candidate_item(cls, r: dict, rec_sigs: set, split_sigs: set) -> dict | None:

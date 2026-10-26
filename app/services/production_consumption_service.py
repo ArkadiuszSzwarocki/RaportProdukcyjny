@@ -3,7 +3,7 @@ ProductionConsumptionService — obsługa zużywania etykiet/palet na produkcji 
 oraz archiwizacji do magazyn_archiwum z pełną historią operacji.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.db import get_db_connection, get_table_name
 from app.services.scanner_service import ScannerService
 
@@ -271,9 +271,9 @@ class ProductionConsumptionService:
             conn.close()
 
     @staticmethod
-    def get_daily_consumption_history(worker_login: str = None, limit: int = 100) -> list[dict]:
+    def get_daily_consumption_history(worker_login: str = None, limit: int = 100, history_date=None, all_workers: bool = False) -> list[dict]:
         """
-        Zwraca listę dzisiejszych zużyć palet z tabeli `magazyn_archiwum`.
+        Zwraca zużycia palet z wybranego dnia; domyślnie z dzisiaj.
         """
         conn = get_db_connection()
         try:
@@ -286,10 +286,11 @@ class ProductionConsumptionService:
                        data_archiwizacji, user_login, komentarz
                 FROM magazyn_archiwum
                 WHERE (komentarz LIKE '%Zużycie w produkcji%' OR komentarz LIKE '%wydozowano do 0 kg%')
-                  AND DATE(data_archiwizacji) = CURDATE()
+                  AND data_archiwizacji >= %s AND data_archiwizacji < %s
             """
-            params = []
-            if worker_login and worker_login.lower() not in ('admin', 'masteradmin', 'kierownik', 'zarzad'):
+            day = history_date or datetime.now().date()
+            params = [datetime.combine(day, datetime.min.time()), datetime.combine(day + timedelta(days=1), datetime.min.time())]
+            if not all_workers and worker_login and worker_login.lower() not in ('admin', 'masteradmin', 'kierownik', 'zarzad'):
                 query += " AND user_login = %s"
                 params.append(worker_login)
 

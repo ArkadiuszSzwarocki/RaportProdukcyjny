@@ -73,3 +73,36 @@ def test_sql_filters_all_station_sources_with_bound_complete_code_pattern():
         assert ' REGEXP %s' in call.args[0]
         assert station_search_pattern('BB14') in call.args[1]
         assert '% bb14 %' not in call.args[1]
+
+
+@pytest.mark.parametrize('material,station,expected', [
+    ('bb14',None,(None,'BB14')),(' BB 14 ',None,(None,'BB14')),
+    ('mZ07','',(None,'MZ07')),('MGW01',None,(None,'MGW01')),
+    ('Milk',None,('Milk',None)),('SUR000000123',None,('SUR000000123',None)),
+    ('Milk',' bb14 ',('Milk','BB14')),('BB14','MZ07',('BB14','MZ07')),
+])
+def test_general_search_recognizes_complete_station_codes(material,station,expected):
+    from app.services.warehouse_history.station_filter import normalize_station_filters
+    assert normalize_station_filters(material,station)==expected
+
+
+def test_service_applies_station_filter_when_code_is_entered_in_material_search():
+    from app.services.warehouse_history_service import WarehouseHistoryService
+    connection=MagicMock()
+    with patch('app.services.warehouse_history_service.get_db_connection',return_value=connection), \
+         patch('app.services.warehouse_history_service.HistoryQueryService.query_all_history_sources',return_value=[]) as query, \
+         patch('app.services.warehouse_history_service.HistoryEnricherService.enrich_and_filter_history',return_value=[]) as final:
+        WarehouseHistoryService.get_unified_station_and_movement_history(surowiec='bb14')
+    assert query.call_args.kwargs['stacja']=='BB14'
+    assert query.call_args.kwargs['surowiec'] is None
+    assert final.call_args.kwargs['stacja']=='BB14'
+
+
+def test_final_displayed_routes_still_respect_station_after_enrichment():
+    def change_route(cursor,items):
+        items[0].update(stacja='MS01 -> BB15',skad='MS01',dokad='BB15')
+    with patch('app.services.warehouse_history.history_enricher_service.HistoryIndexer.get_table_columns',return_value=set()), \
+         patch('app.services.warehouse_history.history_enricher_service.PalletDetailsEnricher.enrich_unresolved_pallets'), \
+         patch('app.services.warehouse_history.history_enricher_service.OrderDetailsEnricher.attach_production_orders',side_effect=change_route):
+        result=HistoryEnricherService.enrich_and_filter_history(MagicMock(),[row(1,'MS01','BB14')],'AGRO',None,'BB14',None,100)
+    assert result==[]

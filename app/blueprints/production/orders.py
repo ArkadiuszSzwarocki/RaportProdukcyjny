@@ -491,6 +491,17 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     flash(msg, 'error')
                     return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
 
+            zasyp_excel_kg = None
+            if sekcja == 'Zasyp' and str(linia).upper() == 'AGRO':
+                from app.services.zasyp_excel_service import ZasypExcelService
+                try:
+                    zasyp_excel_kg = ZasypExcelService.parse(request.form.get('zasyp_excel_kg'))
+                except ValueError as error:
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify(success=False, message=str(error)), 400
+                    flash(str(error), 'error')
+                    return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
+
             rzeczywista_waga = 0
             if final_tonaz:
                 try:
@@ -509,6 +520,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             if sekcja == 'Zasyp' and str(linia).upper() == 'AGRO':
                 sql += ', odrzuty_przesiewacz=%s'
                 params.append(odrzuty_przesiewacz)
+                sql += ', zasyp_excel_kg=%s'
+                params.append(zasyp_excel_kg)
             if uszkodzone_worki and sekcja in ('Workowanie', 'Czyszczenie'):
                 try:
                     uszkodzone_count = int(uszkodzone_worki)
@@ -545,7 +558,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 active_rolls = FolioService.get_active_rolls(id, external_conn=conn)
                 for roll in active_rolls:
                     link_id = roll['link_id']
-                    form_pozostalo = request.form.get(f'pozostalo_szt_{link_id}')
+                    form_pozostalo = str(roll['stan_poczatkowy']) if roll.get('is_prepared') else request.form.get(f'pozostalo_szt_{link_id}')
                     if form_pozostalo is not None and str(form_pozostalo).strip() != '':
                         try:
                             pozostalo_szt = float(str(form_pozostalo).replace(',', '.'))
@@ -638,7 +651,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     current_app.logger.error(f"[MQTT] Blad podczas wysylania zerowania dla zlecenia {id}: {str(ex)}")
             
             current_app.logger.info('Zakończono zlecenie ID=%s przez %s', id, session.get('login'))
-            audit_log('Zakończył zlecenie', f'ID={id}, tonaz_rz={rzeczywista_waga} kg')
+            audit_log('Zakończył zlecenie', f'ID={id}, tonaz_rz={rzeczywista_waga} kg' + (f', zasypy_excel={zasyp_excel_kg} kg' if zasyp_excel_kg is not None else ''))
             try:
                 status_logger = logging.getLogger('status_changes')
                 status_logger.info(f"action=koniec_zlecenie plan_id={id} new=zakonczone user={session.get('login')} endpoint={request.path} caller=production.koniec_zlecenie sekcja={sekcja}")
@@ -902,6 +915,36 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
     # ─────────────────────────────────────────────────────────────────────────
     # BIG BAG REPACK & SETTLEMENT API (Workowanie AGRO)
     # ─────────────────────────────────────────────────────────────────────────
+
+    @production_bp.route('/agro/wsad-bigbag', methods=['GET'])
+    @login_required
+    def agro_bigbag_scanner():
+        from flask import abort
+        from app.core.production_permissions import _page_allowed
+        if not _page_allowed('AGRO', 'workowanie', write=False):
+            abort(403)
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""SELECT id,produkt,status,data_planu FROM plan_produkcji_agro
+                WHERE sekcja='Workowanie' AND COALESCE(is_deleted,0)=0
+                AND status IN ('zaplanowane','w toku','zawieszone')
+                AND (status<>'zaplanowane' OR data_planu BETWEEN CURRENT_DATE - INTERVAL 6 DAY AND CURRENT_DATE)
+                ORDER BY FIELD(status,'w toku','zawieszone','zaplanowane'),data_planu DESC,id DESC""")
+            orders = cursor.fetchall()
+        finally:
+            conn.close()
+        selected_id = request.args.get('plan_id', type=int)
+        selected = next((order for order in orders if order['id']==selected_id), None)
+        if selected_id and not selected:
+            abort(404)
+        if not selected_id:
+            running = [order for order in orders if order['status']=='w toku']
+            if len(running)==1:
+                selected = running[0]
+        from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService
+        settlement = AgroWorkowanieBigBagService.get_plan_bigbag_settlement(selected['id'] if selected else None, linia='AGRO')
+        return render_template('agro/bigbag_scanner.html', orders=orders, selected=selected, settlement=settlement)
 
     @production_bp.route('/agro/workowanie/bigbag/lookup', methods=['POST'])
     @login_required

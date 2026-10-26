@@ -1,0 +1,29 @@
+{% extends 'layout.html' %}
+{% block content %}
+<section class="section-box" style="max-width:1100px;margin:auto;">
+  <h2>Wsad Big Bagów — AGRO</h2>
+  <form method="get" action="{{ url_for('production.agro_bigbag_scanner') }}" style="margin-bottom:20px;">
+    <label for="bigbag-order">Zlecenie Workowania</label>
+    <select id="bigbag-order" name="plan_id" onchange="this.form.submit()" style="display:block;width:100%;padding:12px;">
+      <option value="">Wybierz zlecenie</option>
+      {% for order in orders %}<option value="{{ order.id }}" {% if selected and selected.id==order.id %}selected{% endif %}>#{{ order.id }} — {{ order.produkt }} — {{ order.status }} — {{ order.data_planu }}</option>{% endfor %}
+    </select>
+  </form>
+  {% if selected %}
+  <p><strong>#{{ selected.id }} — {{ selected.produkt }}</strong> · {{ selected.status }}</p>
+  <form id="bigbag-scan-form" data-plan-id="{{ selected.id }}" style="display:flex;flex-wrap:wrap;gap:10px;">
+    <label for="bigbag-code" style="width:100%;">Zeskanuj kod QR / SSCC Big Baga i zatwierdź Enterem</label>
+    <input id="bigbag-code" autocomplete="off" autofocus required placeholder="Kod Big Baga" style="flex:1 1 240px;min-width:0;padding:14px;font-size:18px;">
+    <button class="btn-action" type="submit" id="bigbag-save">Zapisz skan</button>
+  </form>
+  <p id="bigbag-feedback" role="status" aria-live="polite"></p>
+  <p id="bigbag-summary"></p>
+  <div style="overflow-x:auto;">
+    <table class="table" style="width:100%;"><thead><tr><th>SSCC</th><th>Produkt</th><th>Partia</th><th>Wsad kg</th><th>Magazyn</th><th>Pobrał / kiedy</th><th></th></tr></thead><tbody id="bigbag-rows"></tbody></table>
+  </div>
+  <a href="{{ url_for('main.index',sekcja='Workowanie',linia='AGRO') }}">Przejdź do Workowania AGRO</a>
+  <script type="application/json" id="bigbag-initial">{{ settlement|tojson }}</script>
+  {% else %}<p>Wybierz zlecenie, aby skanować Big Bagi i wyświetlić jego listę wsadu.</p>{% endif %}
+</section>
+{% endblock %}
+{% block footer_scripts %}<script src="{{ url_for('static',filename='js/agro_bigbag_scanner.js') }}?v={{ static_version }}"></script>{% endblock %}

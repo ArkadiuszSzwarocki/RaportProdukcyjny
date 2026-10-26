@@ -37,10 +37,7 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Workowanie' and request.args.get('linia') == 'PSD' %}active{% endif %}">
             Workowanie PSD
         </a>
-        <a href="{{ url_for('production.przestoje_list', linia='PSD') }}"
-            class="nav-sub-item {% if 'przestoje' in request.path and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
-            Przestoje PSD
-        </a>
+
         {% endif %}
 
         {% if role_has_access('psd.magazyn') %}
@@ -50,23 +47,6 @@
         </a>
         {% endif %}
 
-        {% if role_has_access('psd.zasyp_summary') %}
-        <a href="{{ url_for('warehouse.podsumowanie_zasypow') }}" 
-           class="nav-sub-item {% if request.endpoint == 'warehouse.podsumowanie_zasypow' %}active{% endif %}">
-            Podsumowanie zasypów
-        </a>
-        {% endif %}
-
-          {% set zasypy_dosypki_endpoint = 'production.raport_zasypy_dosypki' if app.view_functions.get('production.raport_zasypy_dosypki') else 'warehouse.podsumowanie_zasypow' %}
-          <a href="{{ url_for(zasypy_dosypki_endpoint, linia='PSD') }}" 
-              class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'PSD' %}active{% elif request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
-            Raport Zasypów i Dosypek
-        </a>
-
-        <a href="/warehouse-v2/psd/raport_palet" 
-           class="nav-sub-item {% if request.path == '/warehouse-v2/psd/raport_palet' %}active{% endif %}">
-          Raport Palet
-        </a>
     </div>
 </div>
 {% endif %}

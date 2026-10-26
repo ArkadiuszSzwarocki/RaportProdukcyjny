@@ -149,245 +149,8 @@ class AgroOpakowaniaPlanRepository:
             )
 
     def link_packaging_to_plan(opakowanie_id, plan_id, ilosc_pobrana=None, user_login=None):
-            """Manually link a packaging item to a production plan (confirmed by operator).
-            Jeśli podano ilosc_pobrana mniejszą niż aktualny stan_magazynowy, rekord zostanie podzielony.
-            Sumuje pozostałe na maszynie opakowania tego samego typu.
-            """
-            conn = get_db_connection()
-            try:
-                cursor = conn.cursor(dictionary=True)
-                
-                # 1. Get current state of new packaging
-                cursor.execute("SELECT nazwa, stan_magazynowy, lokalizacja FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
-                new_row = cursor.fetchone()
-                if not new_row: return False, "Opakowanie nie istnieje"
-                stan_poczatkowy_nowego = float(new_row['stan_magazynowy'])
-                nazwa = new_row['nazwa']
-                lokalizacja = new_row['lokalizacja']
-                
-                # Zdobądźmy aktualny licznik MQTT przed pętlą, bo będzie potrzebny do zamykania starych rolek
-                mqtt_licznik_start = 0
-                try:
-                    from app.services.mqtt_service import get_latest_data
-                    mqtt_licznik_start = int(get_latest_data().get('counter', 0) or 0)
-                except Exception:
-                    pass
-
-                # 2. Find any active links for this plan (to close them or carry over)
-                cursor.execute("""
-                    SELECT ap.id as link_id, ap.opakowanie_id, ap.stan_poczatkowy, o.nazwa, ap.licznik_start
-                    FROM agro_plan_opakowania ap
-                    JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
-                    WHERE ap.plan_id = %s AND ap.is_active = TRUE
-                """, (plan_id,))
-                active_links = cursor.fetchall()
-                
-                carryover_qty = 0.0
-                
-                for al in active_links:
-                    if al['nazwa'] == nazwa:
-                        # Zamiast zamykać starą rolkę, po prostu powiększamy pulę aktywnej folii
-                        # Licznik start zostaje bez zmian (ten z pierwszej rolki)!
-                        # Rejestrujemy tylko zdarzenie WSADZENIE w historii.
-                        
-                        cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
-                        p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
-                        
-                        ilosc_docelowa = float(ilosc_pobrana) if ilosc_pobrana is not None else stan_poczatkowy_nowego
-                        
-                        c_counter = 0
-                        try:
-                            from app.services.mqtt_service import get_latest_data
-                            c_counter = int(get_latest_data().get('counter', 0) or 0)
-                        except: pass
-                        
-                        # Update existing active link -> add the new amount
-                        cursor.execute(
-                            "UPDATE agro_plan_opakowania SET stan_poczatkowy = stan_poczatkowy + %s WHERE id = %s",
-                            (ilosc_docelowa, al['link_id'])
-                        )
-                        
-                        # Log WSADZENIE in history for this specific roll addition
-                        cursor.execute("""
-                            INSERT INTO agro_workowanie_rozliczenie (
-                                plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
-                                stan_przed, zuzyte_worki, stan_po, autor_login,
-                                licznik_start, licznik_stop, typ_zdarzenia, link_id
-                            ) VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s, %s, %s, 'WSADZENIE', %s)
-                        """, (
-                            plan_id, p_meta['data_planu'], p_meta['produkt'], opakowanie_id, nazwa,
-                            ilosc_docelowa, ilosc_docelowa, user_login or 'System',
-                            c_counter, c_counter, al['link_id']
-                        ))
-                        
-                        # Odejmujemy ze stanu w magazynie i zapisujemy ruch magazynowy POBRANIE_DO_PRODUKCJI
-                        stan_pozostaly = stan_poczatkowy_nowego - ilosc_docelowa
-                        if stan_pozostaly > 0:
-                            cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s", (stan_pozostaly, opakowanie_id))
-                        else:
-                            cursor.execute(
-                                "UPDATE magazyn_opakowania SET stan_magazynowy = 0, lokalizacja = 'Maszyna' WHERE id = %s",
-                                (opakowanie_id,)
-                            )
-                            
-                        table_ruch = get_table_name('magazyn_ruch', 'AGRO')
-                        cursor.execute(
-                            f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                            "VALUES (%s, 'POBRANIE_DO_PRODUKCJI', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                            (opakowanie_id, -ilosc_docelowa, stan_pozostaly, user_login or 'System',
-                             f"Dobrana rolka na produkcję AGRO (lok: {lokalizacja}) plan #{plan_id}")
-                        )
-                        
-                        conn.commit()
-                        return True, None
-                    else:
-                        # Different material: close it with 0 left and ZUŻYTE
-                        stan_poczatkowy_al = float(al['stan_poczatkowy'] or 0)
-                        cursor.execute(
-                            "UPDATE agro_plan_opakowania SET stan_koncowy = 0, is_active = FALSE WHERE id = %s",
-                            (al['link_id'],)
-                        )
-                        
-                        cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
-                        p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
-                        
-                        old_start = int(al.get('licznik_start') or 0)
-                        old_stop = mqtt_licznik_start if mqtt_licznik_start > old_start else old_start
-                        zuzyte_worki = old_stop - old_start
-                        straty = max(stan_poczatkowy_al - zuzyte_worki, 0)
-                        
-                        cursor.execute("""
-                            INSERT INTO agro_workowanie_rozliczenie (
-                                plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
-                                stan_przed, zuzyte_worki, stan_po, autor_login,
-                                licznik_start, licznik_stop, typ_zdarzenia, link_id, straty_worki
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'ZAMKNIECIE', %s, %s)
-                        """, (
-                            plan_id, p_meta['data_planu'], p_meta['produkt'], al['opakowanie_id'], al['nazwa'],
-                            stan_poczatkowy_al, zuzyte_worki, 0.0, user_login or 'System',
-                            old_start, old_stop, al['link_id'], straty
-                        ))
-                        
-                        cursor.execute(
-                            "INSERT INTO magazyn_opakowania_historia (oryginalny_id, nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, is_blocked, linia) "
-                            "SELECT id, nr_palety, nazwa, 0, 'ZUŻYTE', nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, is_blocked, linia "
-                            "FROM magazyn_opakowania WHERE id = %s",
-                            (al['opakowanie_id'],)
-                        )
-                        cursor.execute("DELETE FROM magazyn_opakowania WHERE id = %s", (al['opakowanie_id'],))
-                
-                # Oblicz pobraną ilość (jeśli podano ułamek, to traktujemy jako część)
-                ilosc_docelowa = stan_poczatkowy_nowego
-                if ilosc_pobrana is not None:
-                    try:
-                        ilosc_docelowa = float(ilosc_pobrana)
-                    except:
-                        pass
-                        
-                target_opakowanie_id = opakowanie_id
-                
-                # Licznik MQTT odczytany wcześniej
-
-                if 0 < ilosc_docelowa < stan_poczatkowy_nowego:
-                    # Rozdzielenie partii (utworzenie nowego rekordu dla maszyny, zostawienie reszty na starym)
-                    stan_pozostaly = stan_poczatkowy_nowego - ilosc_docelowa
-                    # Aktualizacja starego rekordu — odejmij pobraną ilość ze stanu magazynowego
-                    cursor.execute("UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s", (stan_pozostaly, opakowanie_id))
-
-                    # Utworzenie nowego rekordu (ilość pobrana + carryover) — nowy wpis reprezentuje rolkę na maszynie
-                    ilosc_na_maszyne = ilosc_docelowa + carryover_qty
-                    cursor.execute(
-                        "INSERT INTO magazyn_opakowania (nazwa, stan_magazynowy, lokalizacja) VALUES (%s, %s, %s)",
-                        (nazwa, ilosc_na_maszyne, 'Maszyna')
-                    )
-                    target_opakowanie_id = cursor.lastrowid
-
-                    # FIX: Zapis ruchu POBRANIE_DO_PRODUKCJI (odejmuje ze stanu magazynowego)
-                    table_ruch = get_table_name('magazyn_ruch', 'AGRO')
-                    try:
-                        cursor.execute(
-                            f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                            "VALUES (%s, 'POBRANIE_DO_PRODUKCJI', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                            (opakowanie_id, -ilosc_docelowa, stan_pozostaly, user_login or 'System',
-                             f"Pobranie folii na produkcję AGRO (podział z lok: {lokalizacja}) plan #{plan_id}")
-                        )
-                        komentarz_pobrania = f"Wsadzenie rolki z lok: {lokalizacja}"
-                        if carryover_qty > 0:
-                            komentarz_pobrania += f" (w tym carryover {int(carryover_qty)} szt. z poprzedniej rolki)"
-                        cursor.execute(
-                            f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                            "VALUES (%s, 'POBRANIE_NA_MASZYNE', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                            (target_opakowanie_id, ilosc_na_maszyne, ilosc_na_maszyne, user_login or 'System', komentarz_pobrania)
-                        )
-                    except Exception as ex:
-                        print(f"Error logging partial move: {ex}")
-
-                    stan_poczatkowy_plan = ilosc_na_maszyne
-                else:
-                    # Brak podziału — sprawdzamy czy już podpięte
-                    cursor.execute("SELECT id FROM agro_plan_opakowania WHERE plan_id = %s AND opakowanie_id = %s AND is_active = TRUE", (plan_id, target_opakowanie_id))
-                    if cursor.fetchone(): return True, "Już podpięte"
-
-                    stan_w_magazynie_przed = stan_poczatkowy_nowego
-                    ilosc_na_maszyne = stan_poczatkowy_nowego + carryover_qty
-
-                    # FIX: Odejmij całą rolkę ze stanu magazynowego (stan = 0, lokal = Maszyna)
-                    cursor.execute(
-                        "UPDATE magazyn_opakowania SET stan_magazynowy = 0, lokalizacja = 'Maszyna' WHERE id = %s",
-                        (target_opakowanie_id,)
-                    )
-
-                    table_ruch = get_table_name('magazyn_ruch', 'AGRO')
-                    try:
-                        # FIX: Ruch POBRANIE_DO_PRODUKCJI — poprawnie zmniejsza stan magazynowy
-                        cursor.execute(
-                            f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                            "VALUES (%s, 'POBRANIE_DO_PRODUKCJI', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                            (target_opakowanie_id, -stan_w_magazynie_przed, 0, user_login or 'System',
-                             f"Pobranie folii na produkcję AGRO (lok: {lokalizacja}) plan #{plan_id}")
-                        )
-                        komentarz_pobrania = f"Wsadzenie rolki z lok: {lokalizacja}"
-                        if carryover_qty > 0:
-                            komentarz_pobrania += f" (w tym carryover {int(carryover_qty)} szt. z poprzedniej rolki)"
-                        cursor.execute(
-                            f"INSERT INTO {table_ruch} (surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                            "VALUES (%s, 'POBRANIE_NA_MASZYNE', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                            (target_opakowanie_id, ilosc_na_maszyne, ilosc_na_maszyne, user_login or 'System', komentarz_pobrania)
-                        )
-                    except Exception as ex:
-                        print(f"Error logging full pull move: {ex}")
-
-                    stan_poczatkowy_plan = ilosc_na_maszyne
-                    
-                # 3. Link — zapisz licznik MQTT przy wsadzeniu
-                cursor.execute(
-                    "INSERT INTO agro_plan_opakowania (plan_id, opakowanie_id, stan_poczatkowy, is_active, licznik_start) VALUES (%s, %s, %s, TRUE, %s)",
-                    (plan_id, target_opakowanie_id, stan_poczatkowy_plan, mqtt_licznik_start)
-                )
-                new_link_id = cursor.lastrowid
-
-                # Log wsadzenia rolki w agro_workowanie_rozliczenie
-                cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
-                p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
-                cursor.execute("""
-                    INSERT INTO agro_workowanie_rozliczenie (
-                        plan_id, data_planu, produkt, opakowanie_id, opakowanie_nazwa,
-                        stan_przed, zuzyte_worki, stan_po, autor_login,
-                        typ_zdarzenia, licznik_start, link_id
-                    ) VALUES (%s, %s, %s, %s, %s, %s, 0, %s, %s, 'WSADZENIE', %s, %s)
-                """, (
-                    plan_id, p_meta['data_planu'], p_meta['produkt'], target_opakowanie_id, nazwa,
-                    stan_poczatkowy_plan, stan_poczatkowy_plan, user_login or 'System',
-                    mqtt_licznik_start, new_link_id
-                ))
-                
-                conn.commit()
-                return True, None
-            except Exception as e:
-                conn.rollback()
-                return False, str(e)
-            finally:
-                conn.close()
+        from app.services.folio_assignment_service import FolioAssignmentService
+        return FolioAssignmentService.assign(opakowanie_id, plan_id, ilosc_pobrana, user_login or 'System', role='auto')
 
     def undo_packaging_link(link_id):
             """Delete an active packaging link (Undo addition)."""
@@ -399,6 +162,10 @@ class AgroOpakowaniaPlanRepository:
                 if not row:
                     return False, "Nie znaleziono takiego powiązania"
                 
+                cursor.execute("SELECT id FROM magazyn_ruch WHERE surowiec_id=%s AND typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", (row['opakowanie_id'],'%source_sscc%'))
+                if cursor.fetchone():
+                    return False, 'Rolkę zwolnij lub rozlicz w sekcji Folia zlecenia.'
+
                 cursor.execute("DELETE FROM agro_plan_opakowania WHERE id = %s", (link_id,))
                 
                 # Delete corresponding "wsadzenie" (where zuzyte_worki = 0)
@@ -560,6 +327,10 @@ class AgroOpakowaniaPlanRepository:
                     (opakowanie_id,),
                 )
                 link = cursor.fetchone()
+                if link:
+                    cursor.execute("SELECT id FROM magazyn_ruch WHERE surowiec_id=%s AND typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", (opakowanie_id,'%source_sscc%'))
+                    if cursor.fetchone():
+                        return False, 'Najpierw rozlicz lub zwolnij rolkę w sekcji Folia.', {'print_result': print_result}
 
                 if is_partial:
                     ilosc_zwracana = numeric_val

@@ -17,19 +17,6 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Zasyp' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
             Zasyp Agro
         </a>
-        {% if role not in ['laborant', 'laboratorium'] %}
-        <a href="{{ url_for('maluchy.index', linia='AGRO') }}"
-            class="nav-sub-item {% if request.endpoint == 'maluchy.index' and request.args.get('linia', 'AGRO') == 'AGRO' %}active{% endif %}">
-            Maluchy (Wiadra)
-        </a>
-        {% endif %}
-        {% endif %}
-
-        {% if role not in ['laborant', 'laboratorium'] %}
-        <a href="{{ url_for('production.agro_station_history') }}"
-            class="nav-sub-item {% if request.endpoint == 'production.agro_station_history' %}active{% endif %}">
-            Historia Stacji (BB/MZ/WZ)
-        </a>
         {% endif %}
 
         {% if role_has_access('agro.bufor') %}
@@ -44,26 +31,20 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Workowanie' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
             Workowanie Agro
         </a>
-        {% if role not in ['laborant', 'laboratorium'] %}
-        {% if role not in ['admin', 'zarzad', 'masteradmin', 'lider'] %}
-        <a href="/maszyny"
-            class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}"
-            style="color: #0284c7; font-weight: 700;">
-            Maszyny & Telemetria 3D
+
+        {% endif %}
+
+        {% if role_has_access('agro.zasyp') and role not in ['laborant', 'laboratorium'] %}
+        <a href="{{ url_for('maluchy.index', linia='AGRO') }}"
+            class="nav-sub-item {% if request.endpoint == 'maluchy.index' and request.args.get('linia', 'AGRO') == 'AGRO' %}active{% endif %}">
+            Maluchy (Wiadra)
         </a>
         {% endif %}
-        {% if not role_has_access('magazyn.agro_packaging') %}
-        <a href="{{ url_for('agro_warehouse.lp01_view', linia='AGRO') }}"
-            class="nav-sub-item {% if '/lp01' in request.path %}active{% endif %}"
-            style="color: #0d9488; font-weight: 700;">
-            Maszyna LP01 (Materiały)
+        {% if role_has_access('agro.workowanie') %}
+        <a href="{{ url_for('production.agro_bigbag_scanner') }}"
+            class="nav-sub-item {% if request.endpoint == 'production.agro_bigbag_scanner' %}active{% endif %}">
+            Wsad Big Bagów
         </a>
-        {% endif %}
-        <a href="{{ url_for('production.przestoje_list', linia='AGRO') }}"
-            class="nav-sub-item {% if 'przestoje' in request.path %}active{% endif %}">
-            Przestoje AGRO
-        </a>
-        {% endif %}
         {% endif %}
 
         {% if role_has_access('agro.magazyn') %}
@@ -73,37 +54,18 @@
         </a>
         {% endif %}
 
-        {% if role_has_access('agro.zasyp_summary') %}
-        <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia='AGRO') }}"
-           class="nav-sub-item {% if 'zasyp_etapy_podsumowanie' in request.path %}active{% endif %}">
-            Raport Czasu Pracy
+        {% if role not in ['laborant', 'laboratorium'] %}
+        <a href="{{ url_for('production.agro_station_history') }}"
+            class="nav-sub-item {% if request.endpoint == 'production.agro_station_history' %}active{% endif %}">
+            Historia Stacji (BB/MZ/WZ)
         </a>
         {% endif %}
-        
+
         {% if role_has_access('agro.magazyn') %}
           {% set surowce_endpoint = 'agro_warehouse.surowce_w_produkcji' if app.view_functions.get('agro_warehouse.surowce_w_produkcji') else 'agro_warehouse.report_production' %}
           <a href="{{ url_for(surowce_endpoint, linia='AGRO') }}"
               class="nav-sub-item {% if request.endpoint == 'agro_warehouse.surowce_w_produkcji' %}active{% elif request.endpoint == 'agro_warehouse.report_production' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
             Surowce w produkcji
-        </a>
-        {% endif %}
-        {% if role_has_access('agro.zasyp_summary') %}
-        <a href="{{ url_for('warehouse.podsumowanie_zasypow', linia='AGRO') }}" 
-           class="nav-sub-item {% if request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
-            Podsumowanie zasypów
-        </a>
-        {% endif %}
-
-          {% set zasypy_dosypki_endpoint = 'production.raport_zasypy_dosypki' if app.view_functions.get('production.raport_zasypy_dosypki') else 'warehouse.podsumowanie_zasypow' %}
-          <a href="{{ url_for(zasypy_dosypki_endpoint, linia='AGRO') }}" 
-              class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'AGRO' %}active{% elif request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
-            Raport Zasypów i Dosypek
-        </a>
-
-        {% if role in ['pracownik', 'magazynier'] %}
-        <a href="{{ url_for('agro_warehouse.raport_palet', select=1) }}" 
-           class="nav-sub-item {% if request.endpoint == 'agro_warehouse.raport_palet' %}active{% endif %}">
-            Raport Palet AGRO
         </a>
         {% endif %}
         {% if role not in ['pracownik', 'laborant', 'laboratorium'] %}
@@ -115,6 +77,19 @@
                 </span>
             </span>
         </a>
+        {% endif %}
+        {% set can_open_packaging = role_has_access('magazyn.agro_packaging') %}
+        {% set can_open_lp01 = can_open_packaging or (role_has_access('agro.workowanie') and role not in ['laborant', 'laboratorium']) %}
+        {% if can_open_packaging or can_open_lp01 %}
+        <details class="nav-sub-group" {% if request.endpoint in ['agro_warehouse.lp01_view', 'agro_warehouse.opakowania'] %}open{% endif %}>
+            <summary class="nav-sub-item"><span>Opakowania i LP01</span><span class="material-icons chevron" aria-hidden="true">expand_more</span></summary>
+            {% if can_open_lp01 %}
+            <a href="{{ url_for('agro_warehouse.lp01_view', linia='AGRO') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.lp01_view' %}active{% endif %}">Stanowisko LP01</a>
+            {% endif %}
+            {% if can_open_packaging %}
+            <a href="{{ url_for('agro_warehouse.opakowania', linia='AGRO') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.opakowania' %}active{% endif %}">Opakowania Agro</a>
+            {% endif %}
+        </details>
         {% endif %}
     </div>
 </div>

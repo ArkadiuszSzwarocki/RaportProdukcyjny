@@ -13,7 +13,7 @@ ZASYP_PLAN_ACTIONS = {
     'dodaj_dosypke',
 }
 FIXED_SECTIONS = {
-    'agro_folio_add_roll': 'workowanie', 'agro_folio_close_roll': 'workowanie',
+    'agro_folio_activate_roll': 'workowanie', 'agro_folio_add_roll': 'workowanie', 'agro_folio_close_roll': 'workowanie',
     'agro_folio_undo_close_roll': 'workowanie', 'agro_folio_edit_active_roll': 'workowanie',
     'agro_mix_rozliczenie_add': 'zasyp', 'agro_workowanie_rozliczenie_add': 'workowanie',
     'agro_mix_consume': 'zasyp', 'api_workowanie_bigbag_add': 'workowanie',

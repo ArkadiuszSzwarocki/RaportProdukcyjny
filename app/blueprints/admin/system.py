@@ -200,12 +200,14 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     @admin_bp.route('/admin/sekretna-baza')
     @dynamic_role_required('baza_danych')
     def admin_secret_db():
+        from app.core.runtime_security_hardening import runtime_database_switch_enabled, _normalized_role
         current_db = get_active_database_name()
         allowed_databases = get_runtime_switchable_databases()
         return render_template(
             'admin/sekretna_baza.html',
             current_db=current_db,
             allowed_databases=allowed_databases,
+            can_switch_db=runtime_database_switch_enabled() and _normalized_role() == 'masteradmin',
         )
 
     @admin_bp.route('/admin/sekretna-baza/switch', methods=['POST'])
@@ -215,6 +217,18 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         from datetime import datetime
         target_db = (request.form.get('database') or '').strip()
         previous_db = get_active_database_name()
+        from app.core.instance_mode import is_local_instance
+        if is_local_instance():
+            try:
+                selected_db = set_active_database_name(target_db, verify_connection=True)
+            except Exception:
+                flash('Nie udało się połączyć z wybraną bazą. Poprzednia baza pozostaje aktywna.', 'error')
+                return redirect(url_for('admin.admin_secret_db'))
+            # Account IDs and roles can differ between databases. Authenticate there
+            # instead of copying passwords, permissions or session rows across them.
+            session.clear()
+            flash(f'Przełączono lokalną aplikację na bazę {selected_db}. Zaloguj się kontem z tej bazy.', 'success')
+            return redirect('/login', code=303)
         
         session_id = session.get('session_tracking_id')
         session_row = None

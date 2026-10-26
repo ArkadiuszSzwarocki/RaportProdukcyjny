@@ -953,10 +953,18 @@
         }, 50);
     }
 
-    window.confirmStartOrder = function(form, productName, planId) {
-        // Keep override confirmation in the same flow as the start checklist.
+    window.confirmStartOrder = function(form, productName, planId, startConfirmed) {
+        // Continue the existing checklist only after the application's dialog is accepted.
         var startConfirmation = form.getAttribute('data-start-confirm');
-        if (startConfirmation && !window.confirm(startConfirmation)) return false;
+        if (startConfirmation && !startConfirmed) {
+            window.showConfirmModal(startConfirmation, function() {
+                if (!form.isConnected) return;
+                if (window.confirmStartOrder(form, productName, planId, true)) {
+                    form.submit();
+                }
+            });
+            return false;
+        }
 
         var liniaInput = form.querySelector('input[name="linia"]');
         var linia = liniaInput ? liniaInput.value.trim().toUpperCase() : '';

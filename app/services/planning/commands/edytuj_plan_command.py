@@ -49,7 +49,16 @@ class EdytujPlanCommand:
             collision_warning = True
 
         current_role = session.get('rola', '')
-        if before[5] == 'zakonczone':
+        effective_status = before[5]
+        if linia.upper() == 'AGRO' and (before[3] or '').lower() == 'zasyp':
+            cursor.execute(
+                f"SELECT status FROM {table_plan} WHERE zasyp_id=%s AND LOWER(sekcja) IN ('workowanie', 'czyszczenie') AND (is_deleted=0 OR is_deleted IS NULL) FOR UPDATE",
+                (pid,),
+            )
+            stage_statuses = [row[0] for row in cursor.fetchall()]
+            priorities = {'zakonczone': 1, 'zawieszone': 2, 'w toku': 3}
+            effective_status = max([effective_status] + stage_statuses, key=lambda value: priorities.get(value, 0))
+        if effective_status == 'zakonczone':
             return False, 'Edytowanie zakończonego zlecenia jest zakazane', {}, 403
 
         updates = []
@@ -122,7 +131,7 @@ class EdytujPlanCommand:
                 else:
                     etykieta_id_int = before[12]
 
-                if not opakowanie_id_int or not etykieta_id_int:
+                if effective_status not in ('w toku', 'zawieszone') and (not opakowanie_id_int or not etykieta_id_int):
                     return False, 'Dla zlecenia Workowanie w linii AGRO wyznaczony worek (opakowanie) oraz etykieta są obowiązkowe!', {}, 400
 
                 if opakowanie_id is not None and opakowanie_id_int != before[11]:
@@ -168,13 +177,13 @@ class EdytujPlanCommand:
                 params.append(data_prod_val)
                 changes['data_produkcji'] = {'before': before_prod_date_str, 'after': data_prod_val}
 
-        if before[5] == 'w toku':
+        if effective_status in ('w toku', 'zawieszone'):
             if current_role in ['planista', 'admin', 'zarzad', 'lider', 'masteradmin']:
                 non_tonaz_changes = [k for k in changes.keys() if k != 'tonaz']
                 if non_tonaz_changes:
-                    return False, 'Gdy zlecenie w toku, możesz zmieniać tylko kg', {}, 403
+                    return False, 'Po rozpoczęciu zlecenia (także zawieszonego) możesz zmieniać tylko tonaż (kg)', {}, 403
             else:
-                return False, 'Nie można edytować zleceń w toku', {}, 403
+                return False, 'Nie można edytować rozpoczętych zleceń', {}, 403
 
         if updates:
             sql = f"UPDATE {table_plan} SET {', '.join(updates)} WHERE id=%s"

@@ -55,7 +55,7 @@
             {% endwith %}
             <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
         </div>
-        {% if rola|lower not in ['laborant', 'laboratorium'] %}
+        {% if production_toolbar_visible and rola|lower not in ['laborant', 'laboratorium'] %}
         <div style="margin: 0; padding: 0;">
             <a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
                style="display:block;width:100%;text-align:left;text-decoration:none;border-radius:10px;font-size:.9rem;padding:10px 14px;color:#334155;font-weight:700;box-sizing:border-box;"
@@ -84,7 +84,7 @@
         {% endif %}
         
         <!-- Zgłoś Przestój -->
-        {% if rola|lower not in ['laborant', 'laboratorium'] %}
+        {% if production_toolbar_visible and rola|lower not in ['laborant', 'laboratorium'] %}
         <div style="margin: 0; padding: 0;">
             <a href="{{ url_for('production.zglos_przestoj_page', linia=linia, sekcja=sekcja) }}"
                style="display: block; width: 100%; text-align: left; text-decoration: none; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; color: #dc2626; font-weight: 700; box-sizing: border-box;"

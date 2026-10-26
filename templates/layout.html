@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ _('system_produkcyjny') }}</title>
+    <title>{% if test_instance or local_instance %}LOKALNIE — {% endif %}{{ _('system_produkcyjny') }}</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <!-- Removed meta[name=theme-color] due to limited browser support (Firefox/Opera). Use msapplication-TileColor for broader support. -->
@@ -67,6 +67,12 @@
     <div class="app-layout">
         {% include 'includes/sidebar.html' %}
         <main class="main-content" id="mainContent">
+            {% if test_instance or local_instance %}
+            <div role="status" style="padding:12px 16px;margin-bottom:16px;background:#fef3c7;border:2px solid #d97706;border-radius:8px;color:#78350f;font-weight:700;">
+                LOKALNA KOPIA — aktywna baza: {{ active_database }}.{% if active_database == 'biblioteka' %} DANE PRODUKCYJNE.{% endif %} {% if test_instance %}E-maile, drukowanie i komendy do maszyn są wyłączone.{% else %}E-maile, drukowanie i komendy do maszyn są aktywne.{% endif %}
+            </div>
+            {% endif %}
+
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             <div class="flash-container">

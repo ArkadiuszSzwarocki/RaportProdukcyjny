@@ -80,6 +80,13 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, 
                     data_do=data_do
                 )
 
+            zasyp_excel_mapa = {}
+            if linia == 'AGRO' and aktywna_sekcja == 'Workowanie' and plan_dnia:
+                from app.services.zasyp_excel_service import ZasypExcelService
+                zasyp_excel_mapa = ZasypExcelService.for_work_orders(conn, [p[0] for p in plan_dnia])
+            excel_values = [zasyp_excel_mapa.get(p[0]) for p in plan_dnia] if zasyp_excel_mapa else []
+            zasyp_excel_total = sum(excel_values) if excel_values and all(v is not None for v in excel_values) else None
+
             bigbagi_mapa = {}
             if linia == 'AGRO' and plan_dnia:
                 plan_ids = [p[0] for p in plan_dnia]
@@ -120,6 +127,8 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, 
                 'plan_dnia': plan_dnia,
                 'palety_mapa': palety_mapa,
                 'bigbagi_mapa': bigbagi_mapa,
+                'zasyp_excel_mapa': zasyp_excel_mapa,
+                'zasyp_excel_total': zasyp_excel_total,
                 'suma_plan': suma_plan,
                 'suma_wykonanie': suma_wykonanie,
                 'magazyn_palety': magazyn_palety,

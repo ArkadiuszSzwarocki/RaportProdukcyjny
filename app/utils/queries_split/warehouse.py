@@ -4,6 +4,7 @@ Opis: Zapytania SQL dla magazynu i palet.
 """
 from app.db import get_db_connection, get_table_name
 from datetime import date
+from app.utils.pallet_receipt_rules import FINAL_PRODUCTION_PALLET_STATUSES
 
 class WarehouseQueries:
     @staticmethod
@@ -81,14 +82,16 @@ class WarehouseQueries:
             
         table_palety = get_table_name('palety_workowanie', linia)
         table_plan = get_table_name('plan_produkcji', linia)
+        final_statuses = ','.join(['%s'] * len(FINAL_PRODUCTION_PALLET_STATUSES))
         cursor.execute(
             f"SELECT pw.id, pw.plan_id, p.produkt, pw.data_dodania, "
             f"(SELECT COUNT(1) FROM {table_palety} pw2 WHERE pw2.plan_id = pw.plan_id AND pw2.id <= pw.id) as seq "
             f", pw.nr_palety "
             f"FROM {table_palety} pw JOIN {table_plan} p ON pw.plan_id = p.id "
             "WHERE p.sekcja IN ('Workowanie', 'Czyszczenie') "
-            "AND pw.waga > 0 AND COALESCE(pw.status,'') NOT IN ('przyjeta', 'zamknieta', 'w_magazynie') "
-            "ORDER BY pw.data_dodania ASC"
+            f"AND pw.waga > 0 AND LOWER(TRIM(COALESCE(pw.status,''))) NOT IN ({final_statuses}) "
+            "ORDER BY pw.data_dodania ASC",
+            FINAL_PRODUCTION_PALLET_STATUSES,
         )
         result = cursor.fetchall()
         

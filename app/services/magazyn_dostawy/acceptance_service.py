@@ -748,6 +748,12 @@ class AcceptanceService:
                 if not pallet:
                     return False, f"Nie znaleziono palety wyrobu gotowego: {pallet_id}."
 
+                from app.utils.pallet_receipt_rules import production_receipt_block_reason
+                blocked_reason = production_receipt_block_reason(pallet.get('status'))
+                if blocked_reason:
+                    conn.rollback()
+                    return False, blocked_reason
+
                 actual_pallet_id = pallet['id']
                 linia = matched_line
 

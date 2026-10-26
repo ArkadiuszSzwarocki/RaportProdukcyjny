@@ -196,3 +196,6 @@ printer_server/runtime/
 
 # Cross-worker warehouse update notifications
 instance/warehouse-events/
+
+# Database selection belongs only to the local application
+.active_db_name.local

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import math
+import json
 from typing import Optional
 
 from app.db import get_db_connection, get_table_name
@@ -49,7 +50,10 @@ class FolioService:
                        ap.stan_poczatkowy, ap.stan_koncowy, ap.is_active,
                        ap.licznik_start,
                        o.nazwa, o.stan_magazynowy AS stan_na_maszynie,
-                       o.lokalizacja
+                       o.lokalizacja,
+                       (SELECT mr.komentarz FROM magazyn_ruch mr WHERE mr.surowiec_id=o.id AND mr.typ_ruchu='POBRANIE_NA_MASZYNE' ORDER BY mr.id DESC LIMIT 1) AS source_metadata,
+                       (SELECT r.autor_login FROM agro_workowanie_rozliczenie r WHERE r.link_id=ap.id AND r.typ_zdarzenia='WSADZENIE' ORDER BY r.id LIMIT 1) AS assigned_by,
+                       ap.created_at
                 FROM agro_plan_opakowania ap
                 JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
                 WHERE ap.plan_id = %s AND ap.is_active = TRUE
@@ -64,16 +68,25 @@ class FolioService:
             result = []
             for r in rows:
                 stan_poczatkowy = float(r.get('stan_poczatkowy') or 0)
+                is_prepared = r.get('licznik_start') is None
                 licznik_start = int(r.get('licznik_start') or 0)
+                try:
+                    source_meta = json.loads(r.get('source_metadata') or '{}')
+                except (ValueError, TypeError):
+                    source_meta = {}
 
                 # Zużycie z licznika MQTT
                 live_zuzyte = 0
-                if current_counter >= 0 and licznik_start >= 0 and current_counter >= licznik_start:
+                if not is_prepared and current_counter >= 0 and licznik_start >= 0 and current_counter >= licznik_start:
                     live_zuzyte = current_counter - licznik_start
 
                 szacowane_pozostalo = max(stan_poczatkowy - live_zuzyte, 0)
 
                 result.append({
+                    'is_prepared': is_prepared,
+                    'source_sscc': source_meta.get('source_sscc', ''),
+                    'assigned_by': r.get('assigned_by') or '',
+                    'assigned_at': str(r.get('created_at') or ''),
                     'link_id': r['link_id'],
                     'plan_id': r['plan_id'],
                     'opakowanie_id': r['opakowanie_id'],
@@ -87,6 +100,7 @@ class FolioService:
                 })
             return result
         finally:
+            cursor.close()
             if external_conn is None:
                 conn.close()
 
@@ -102,7 +116,8 @@ class FolioService:
                        r.stan_przed, r.zuzyte_worki, r.stan_po,
                        r.straty_worki, r.pozostalo_na_rolce,
                        r.lokalizacja_zwrotu, r.licznik_start, r.licznik_stop,
-                       r.link_id, r.autor_login, r.created_at
+                       r.link_id, r.autor_login, r.created_at,
+                       EXISTS(SELECT 1 FROM magazyn_ruch mr WHERE mr.surowiec_id=r.opakowanie_id AND mr.typ_ruchu='POBRANIE_NA_MASZYNE' AND LOCATE('source_sscc',mr.komentarz)>0) AS individual_roll
                 FROM agro_workowanie_rozliczenie r
                 WHERE r.plan_id = %s
                 ORDER BY r.created_at ASC
@@ -179,6 +194,7 @@ class FolioService:
             opak_nazwa = link.get('opak_nazwa') or ''
             stan_poczatkowy = float(link.get('stan_poczatkowy') or 0)
             
+            is_prepared = link.get('licznik_start') is None
             licznik_start = int(link.get('licznik_start') or 0)
             if custom_licznik_start is not None:
                 licznik_start = custom_licznik_start
@@ -187,15 +203,21 @@ class FolioService:
             if not math.isfinite(pozostalo_szt) or not 0 <= pozostalo_szt <= stan_poczatkowy:
                 raise ValueError('Pozostała ilość musi być między 0 a ilością pobraną na rolkę.')
 
+            if is_prepared and pozostalo_szt != stan_poczatkowy:
+                raise ValueError('Przygotowana rolka nie była używana: zwróć całą pobraną ilość.')
+
             # 2. Pobierz aktualny licznik MQTT (stop)
             if custom_licznik_stop is not None:
                 licznik_stop = custom_licznik_stop
             else:
                 licznik_stop = _get_mqtt_counter()
 
+            if is_prepared:
+                licznik_start = licznik_stop = 0
+
             # 3. Wylicz zużycie z licznika i straty
             zuzyte_licznik = 0
-            if licznik_stop >= 0 and licznik_start >= 0 and licznik_stop >= licznik_start:
+            if not is_prepared and licznik_stop >= 0 and licznik_start >= 0 and licznik_stop >= licznik_start:
                 zuzyte_licznik = licznik_stop - licznik_start
 
             # Fizyczne zużycie folii (ile faktycznie zniknęło z rolki)
@@ -368,6 +390,10 @@ class FolioService:
             link_id = roz['link_id']
             straty = float(roz['straty_worki'] or 0)
 
+            cursor.execute("SELECT id FROM magazyn_ruch WHERE surowiec_id=%s AND typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", (opak_id,'%source_sscc%'))
+            if cursor.fetchone():
+                return False, 'Ta rolka została rozliczona osobno. Pozostałość pobierz ponownie przez LP01; cofnięcie mogłoby zmienić rozliczenie kolejnej rolki.'
+
             # Re-activate the roll link
             if link_id:
                 cursor.execute(
@@ -424,6 +450,9 @@ class FolioService:
                 return False, "Nie znaleziono aktywnego podpięcia na maszynie."
 
             opakowanie_id = link['opakowanie_id']
+            cursor.execute("SELECT id FROM magazyn_ruch WHERE surowiec_id=%s AND typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", (opakowanie_id,'%source_sscc%'))
+            if cursor.fetchone():
+                return False, 'Pobranie jest przypisane do osobnej rolki. Przygotowaną rolkę zwolnij i pobierz ponownie z prawidłową ilością.'
             old_amount = float(link['stan_poczatkowy'] or 0)
             diff = new_amount - old_amount
 

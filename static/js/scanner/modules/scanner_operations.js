@@ -1,7 +1,17 @@
 /* ─── Scanner LP01, Print & Restore Operations ─── */
 
+function isLP01Packaging(pallet) {
+  return Boolean(pallet && (pallet.inventory_type === 'Opakowanie' || pallet.is_pkg ||
+    ['szt', 'szt.'].includes(String(pallet.jednostka || pallet.unit || '').trim().toLowerCase())));
+}
+
 function openLP01Modal(loc) {
   if (!currentPallet) return;
+  const filmEnabled = String(LINIA).toUpperCase() === 'AGRO' && isLP01Packaging(currentPallet);
+  if (filmEnabled && !window.Lp01Film) {
+    showToast('Moduł wydania folii jeszcze się ładuje. Spróbuj ponownie za chwilę.', 'warn');
+    return;
+  }
   const scanInput = document.getElementById('scanInput');
   if (scanInput) scanInput.value = '';
   pendingLP01Loc = loc || 'LP01';
@@ -27,6 +37,8 @@ function openLP01Modal(loc) {
     qtyInput.max = maxQty;
   }
 
+  if (window.Lp01Film) window.Lp01Film.load('lp01', currentPallet.nazwa || currentPallet.produkt, filmEnabled, currentPallet.id);
+  if (qtyInput && isLP01Packaging(currentPallet)) qtyInput.value = '';
   overlay.style.display = 'flex';
   setTimeout(() => {
     if (qtyInput) {
@@ -62,6 +74,12 @@ function setLP01Qty(val) {
 
 function submitLP01Modal() {
   if (!currentPallet) return;
+  const submitButton = document.getElementById('btnConfirmLP01');
+  if (submitButton && submitButton.disabled) return;
+  if (String(LINIA).toUpperCase() === 'AGRO' && isLP01Packaging(currentPallet) && (!window.Lp01Film || !window.Lp01Film.ready('lp01'))) {
+    showToast('Lista zleceń folii nie jest jeszcze gotowa. Zaczekaj albo otwórz ponownie wydanie.', 'warn');
+    return;
+  }
   const qtyInput = document.getElementById('lp01ModalQty');
   const maxQty = parseFloat(currentPallet.stan_magazynowy || 0);
   const parsedQty = parseFloat(qtyInput ? qtyInput.value : 0);
@@ -88,15 +106,18 @@ function submitLP01Modal() {
         currentPallet.jednostka === 'szt'
       )
     );
-    const targetPalletCode = currentPallet ? (currentPallet.nr_palety || 'SUR-' + currentPallet.id) : null;
 
-    fetch('/agro/scanner/move', {
+    const film = window.Lp01Film ? window.Lp01Film.selection('lp01') : null;
+    return fetch(film ? '/api/lp01/film-roll' : '/agro/scanner/move', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
+        ...(film || {}),
+        id: currentPallet.id,
+        amount: parsedQty,
         surowiec_id: currentPallet.id,
         nr_palety: currentPallet.nr_palety || currentPallet.sscc,
-        type: currentPallet.inventory_type,
+        type: isPackaging ? 'Opakowanie' : currentPallet.inventory_type,
         lokalizacja: pendingLP01Loc || 'LP01',
         linia: LINIA,
         amount_to_move: parsedQty
@@ -105,20 +126,14 @@ function submitLP01Modal() {
     .then(r => r.json())
     .then(d => {
       showToast(scannerResponseMessage(d), d.success ? 'success' : 'danger');
-      closeLP01Modal();
       if (d.success) {
-        if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
-          if (!isPackaging && (pendingLP01Loc || 'LP01') !== 'LP01' && (pendingLP01Loc || 'LP01') !== 'MASZYNA') {
-            showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram etykietę...`, 'success');
-            window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
-          } else {
-            const unitStr = isPackaging ? 'szt.' : 'kg';
-            showToast(`✅ Pomyślnie wydano ${parsedQty} ${unitStr} na ${pendingLP01Loc || 'LP01'}.`, 'success');
-          }
+        closeLP01Modal();
+        if (d.split_info && d.split_info.is_split && d.split_info.new_sscc &&
+            !isPackaging && !['LP01', 'MASZYNA'].includes(pendingLP01Loc || 'LP01')) {
+          window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
         }
-        if (targetPalletCode) {
-          lookupPallet(targetPalletCode);
-        }
+        resetScanner({ silent: true });
+        refreshSidebarBadgesSilently();
       }
     })
   .catch(e => {

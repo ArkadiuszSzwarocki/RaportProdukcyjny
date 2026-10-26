@@ -37,7 +37,7 @@ function resetLocationInputDetection() {
   scanTimeout = null;
 }
 
-function resetScanner() {
+function resetScanner(options = {}) {
   clearTimeout(scanTimeout);
   scanTimeout = null;
   isProcessingScan = false;
@@ -73,7 +73,7 @@ function resetScanner() {
   const iconEl = document.querySelector('.input-icon');
   if (iconEl) iconEl.style.color = '';
   
-  showToast('🔄 Skaner gotowy do nowego skanu', 'info');
+  if (!options.silent) showToast('🔄 Skaner gotowy do nowego skanu', 'info');
 }
 
 function setProcessingState(processing) {
@@ -533,10 +533,11 @@ async function lookupPallet(code) {
   }
 
   setProcessingState(true);
+  let lookupTimeout;
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    lookupTimeout = setTimeout(() => controller.abort(), 20000);
 
     const res = await fetch('/agro/scanner/lookup', {
       method: 'POST',
@@ -547,7 +548,7 @@ async function lookupPallet(code) {
       }),
       signal: controller.signal
     });
-    clearTimeout(timeoutId);
+    clearTimeout(lookupTimeout);
 
     const d = await res.json();
     if (d.success && d.pallet) {
@@ -581,6 +582,7 @@ async function lookupPallet(code) {
       input.select();
     }
   } finally {
+    clearTimeout(lookupTimeout);
     setProcessingState(false);
   }
 }
@@ -603,7 +605,7 @@ function initScanInputListeners() {
     }
   });
 
-  // Only a fast reader burst may submit automatically. Typing waits for Enter/button.
+  // Complete SSCC values also submit when the reader sends the code in one input event.
   scanInput.addEventListener('input', function() {
     const raw = this.value;
     const cleaned = extractSSCCFromScan(raw);
@@ -636,18 +638,19 @@ function initScanInputListeners() {
     previousInputTime = now;
     previousInputLength = code.length;
 
-    if (code.length >= 3 && fastInputIntervals >= 2 && !manualInput) {
+    const completeSSCC = /^(?:(?:SUR|OPK|OPA|AGR|PSD|DOD|WYR|PAL)\d{18}|\d{18}|00\d{18})$/i.test(code);
+    if (completeSSCC || (code.length >= 3 && fastInputIntervals >= 2 && !manualInput)) {
       scanTimeout = setTimeout(() => {
         const currInput = getScanInput();
         const currVal = (currInput ? currInput.value : '').trim();
         if (currVal.length >= 3 && !/^[0-9]{6}$/.test(currVal) && !isProcessingScan) {
           triggerScan();
         }
-      }, 150);
+      }, completeSSCC ? 300 : 150);
     }
   });
 
-  // Pasting is a manual action and waits for explicit confirmation.
+  // Short pasted values wait for confirmation; a complete SSCC is handled by input.
   scanInput.addEventListener('paste', function() {
     clearTimeout(scanTimeout);
     manualInput = true;

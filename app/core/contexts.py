@@ -126,6 +126,18 @@ def _compute_warehouse_ui_version():
     return digest.hexdigest()[:20]
 
 
+def _compute_scanner_ui_version():
+    """Version scanner HTML and all modules together, including LP01 film assignment."""
+    root = Path(current_app.root_path)
+    paths = sorted((root / 'static/js/scanner').rglob('*.js'))
+    paths += [root / 'static/js/lp01_film.js', root / 'templates/scanner/index.html']
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(path.relative_to(root).as_posix().encode('utf-8'))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:20]
+
+
 def inject_static_version():
     """Inject cache-busting static file version based on CSS modification time (cached 30s)."""
     try:
@@ -134,7 +146,9 @@ def inject_static_version():
         v = int(time.time())
     warehouse_version = (_get_cached_context('warehouse_ui_version', 30.0, _compute_warehouse_ui_version)
                          if request.endpoint == 'warehouse_v2.index' else v)
-    return dict(static_version=v, warehouse_ui_version=warehouse_version)
+    scanner_version = (_get_cached_context('scanner_ui_version', 30.0, _compute_scanner_ui_version)
+                       if request.endpoint in {'agro_scanner.scanner_ui', 'agro_warehouse.lp01_view'} or request.path.startswith('/agro/scanner') else v)
+    return dict(static_version=v, warehouse_ui_version=warehouse_version, scanner_ui_version=scanner_version)
 
 
 _PERMS_CACHE = {'mtime': 0, 'data': {}}

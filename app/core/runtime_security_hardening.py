@@ -6,7 +6,7 @@ import re
 import uuid
 from functools import wraps
 
-from flask import current_app, flash, jsonify, redirect, render_template, request, session
+from flask import current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 
 def _normalized_role() -> str:
@@ -87,20 +87,25 @@ def _reject_plaintext_credential_qr(original_view):
     return guarded
 
 
+def runtime_database_switch_enabled():
+    from app.core.instance_mode import database_name_locked
+    return _env_bool('ALLOW_RUNTIME_DB_SWITCH', False) and not database_name_locked()
+
+
 def _masteradmin_runtime_db_switch(original_view):
-    """Make global runtime database switching an explicit break-glass operation."""
+    """Keep global database switching opt-in and show browser denials in the UI."""
+    def deny(message):
+        if _wants_json() or request.accept_mimetypes.best == 'application/json':
+            return jsonify(success=False, message=message), 403
+        flash(message, 'error')
+        return redirect(url_for('admin.admin_secret_db'), code=303)
+
     @wraps(original_view)
     def guarded(*args, **kwargs):
         if _normalized_role() != 'masteradmin':
-            return jsonify({
-                'success': False,
-                'message': 'Przełączanie aktywnej bazy wymaga roli masteradmin.',
-            }), 403
-        if not _env_bool('ALLOW_RUNTIME_DB_SWITCH', False):
-            return jsonify({
-                'success': False,
-                'message': 'Przełączanie aktywnej bazy jest wyłączone w tym środowisku.',
-            }), 403
+            return deny('Przełączanie aktywnej bazy wymaga roli masteradmin.')
+        if not runtime_database_switch_enabled():
+            return deny('Przełączanie bazy całej instancji jest wyłączone. Do testów użyj osobnej instancji testowej.')
         return original_view(*args, **kwargs)
 
     return guarded

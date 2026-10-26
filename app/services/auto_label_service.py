@@ -1,5 +1,8 @@
 """Recoverable auto-label intent stored on the pallet, including MyISAM pallets."""
 import logging
+import time
+
+from mysql.connector import Error as DatabaseError
 
 from app.db import get_db_connection, get_table_name
 
@@ -33,6 +36,44 @@ def ensure_auto_label_schema(cursor):
 
 
 class AutoLabelService:
+    # Cache per actual connection target, not the mutable process-wide DB config.
+    _schema_checks = {}
+
+    @staticmethod
+    def schema_ready(conn, cursor, linia='AGRO'):
+        """Read-only preflight. A local instance must never migrate the remote DB."""
+        table = get_table_name('palety_workowanie', linia)
+        key = (str(conn.server_host), str(conn.server_port), str(conn.database), table)
+        now = time.monotonic()
+        previous = AutoLabelService._schema_checks.get(key)
+        if previous and now < previous[0]:
+            return previous[1]
+        ready = False
+        missing = table + '.auto_label_state'
+        try:
+            cursor.execute(f"SHOW COLUMNS FROM {table} LIKE 'auto_label_state'")
+            if cursor.fetchone():
+                missing = 'print_jobs.job_key'
+                cursor.execute("SHOW COLUMNS FROM print_jobs LIKE 'job_key'")
+                if cursor.fetchone():
+                    missing = 'print_jobs.uq_print_job_key'
+                    cursor.execute("SHOW INDEX FROM print_jobs WHERE Key_name = 'uq_print_job_key' AND Non_unique = 0")
+                    ready = bool(cursor.fetchone())
+        except DatabaseError as error:
+            if error.errno != 1146:  # Missing table; connection and permission errors remain visible.
+                raise
+        AutoLabelService._schema_checks[key] = (now + 60.0, ready)
+        if not ready and (not previous or previous[1]):
+            logger.warning(
+                'Baza %s: automatyczna rejestracja palet i odzyskiwanie etykiet wstrzymane. '
+                'Brakuje %s. Wymagana migracja scripts/migrations/ensure_auto_label_recovery.py. '
+                'Struktura bazy nie zostala zmieniona; ponowne sprawdzenie za 60 s.',
+                conn.database, missing,
+            )
+        elif ready and previous and not previous[1]:
+            logger.info('Baza %s: schemat etykiet gotowy, automatyczna rejestracja wznowiona.', conn.database)
+        return ready
+
     @staticmethod
     def queue_for_pallet(conn, cursor, pallet_id, linia='AGRO'):
         """Caller holds agro_pallet_register. Commit job BEFORE marking intent fulfilled."""
@@ -67,12 +108,15 @@ class AutoLabelService:
         conn = get_db_connection()
         acquired = False
         recovered = 0
+        cursor = None
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT GET_LOCK('agro_pallet_register', 0)")
             row = cursor.fetchone()
             acquired = bool(row and row[0] == 1)
             if not acquired:
+                return 0
+            if not AutoLabelService.schema_ready(conn, cursor, linia):
                 return 0
             table = get_table_name('palety_workowanie', linia)
             cursor.execute(f"SELECT id FROM {table} WHERE auto_label_state='pending' ORDER BY id ASC LIMIT %s", (int(limit),))
@@ -91,4 +135,8 @@ class AutoLabelService:
                     cursor.execute("SELECT RELEASE_LOCK('agro_pallet_register')")
                     cursor.fetchone()
             finally:
-                conn.close()
+                try:
+                    if cursor is not None:
+                        cursor.close()
+                finally:
+                    conn.close()

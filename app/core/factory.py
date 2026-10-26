@@ -135,6 +135,7 @@ def _configure_sessions(app):
     trusted_hosts = os.environ.get('TRUSTED_HOSTS', '')
     if trusted_hosts.strip():
         app.config['TRUSTED_HOSTS'] = [host.strip() for host in trusted_hosts.split(',') if host.strip()]
+    app.config['SESSION_COOKIE_NAME'] = os.getenv('SESSION_COOKIE_NAME', 'session')
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
@@ -203,6 +204,10 @@ def _is_werkzeug_reloader_parent():
 
 
 def _maybe_start_background_daemons(app, is_reloader_parent):
+    from app.core.instance_mode import is_test_instance
+    if is_test_instance():
+        app.logger.info('External integrations and background workers disabled in test instance')
+        return
     if 'PYTEST_CURRENT_TEST' in os.environ:
         app.logger.debug('Skipping background daemons under pytest')
         return
@@ -243,6 +248,8 @@ def create_app(config_secret_key=None, init_db=True):
     _restore_fallback_config(app, project_root)
     _configure_secret_key(app, config_secret_key)
     _configure_sessions(app)
+    from app.core.instance_mode import configure_instance
+    configure_instance(app)
 
     setup_logging(app)
     register_error_handlers(app)

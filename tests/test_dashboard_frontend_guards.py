@@ -116,11 +116,12 @@ def test_dashboard_template_keeps_cache_busting_suffix_for_dashboard_assets():
 
 
 def test_sidebar_time_report_is_only_exposed_for_agro_and_laboratory_roles():
-    content = SIDEBAR_AGRO_TEMPLATE.read_text(encoding='utf-8')
+    content = (ROOT / 'templates/includes/sidebar/_sidebar_reports.html').read_text(encoding='utf-8')
 
     assert "url_for('production.zasyp_etapy_podsumowanie', linia='PSD')" not in content
     assert "url_for('production.zasyp_etapy_podsumowanie', linia='AGRO')" in content
     assert "{% if role_has_access('agro.zasyp_summary') %}" in content
+    assert 'production.zasyp_etapy_podsumowanie' not in SIDEBAR_AGRO_TEMPLATE.read_text(encoding='utf-8')
 
 
 def test_dosypki_action_in_order_tile_is_limited_to_production_roles():

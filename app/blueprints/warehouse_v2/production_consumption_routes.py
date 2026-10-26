@@ -1,7 +1,25 @@
-from flask import render_template, request, jsonify, session
+from datetime import date
+from flask import render_template, request, jsonify, session, abort, flash, redirect, url_for
 from app.decorators import login_required
 from app.services.production_consumption_service import ProductionConsumptionService
 from .blueprint import warehouse_v2_bp
+
+
+def _history_selection():
+    role = str(session.get('rola') or session.get('role') or '').lower().replace('_', '').replace(' ', '')
+    can_search = role == 'masteradmin'
+    raw = request.args.get('data')
+    if raw is not None and not can_search:
+        abort(403, description='Wyszukiwanie historii według daty jest dostępne tylko dla MasterAdmina.')
+    selected = date.today()
+    if raw:
+        try:
+            selected = date.fromisoformat(raw)
+            if selected.isoformat() != raw or selected == date.max:
+                raise ValueError
+        except ValueError:
+            raise ValueError('Podaj prawidłową datę w formacie RRRR-MM-DD.') from None
+    return selected, can_search
 
 
 @warehouse_v2_bp.route('/zuzycie', methods=['GET'])
@@ -11,14 +29,22 @@ def zuzycie_view():
     linia = request.args.get('linia', 'PSD').upper()
     worker_login = session.get('login') or session.get('username') or 'Magazynier'
     
-    # Pobierz dzisiejszą historię zużyć
-    daily_history = ProductionConsumptionService.get_daily_consumption_history(worker_login=worker_login)
+    try:
+        history_date, can_search_history = _history_selection()
+    except ValueError as error:
+        flash(str(error), 'danger')
+        return redirect(url_for('warehouse_v2.zuzycie_view', linia=linia))
+    daily_history = ProductionConsumptionService.get_daily_consumption_history(
+        worker_login=worker_login, history_date=history_date, all_workers=can_search_history)
+
     
     return render_template(
         'warehouse_v2/zuzycie.html',
         linia=linia,
         worker_login=worker_login,
-        daily_history=daily_history
+        daily_history=daily_history,
+        history_date=history_date.isoformat(),
+        can_search_history=can_search_history
     )
 
 
@@ -86,10 +112,16 @@ def api_zuzycie_confirm():
 @warehouse_v2_bp.route('/api/zuzycie/history', methods=['GET'])
 @login_required
 def api_zuzycie_history():
-    """Zwraca zaktualizowaną dzisiejszą listę zużyć dla bieżącego użytkownika/dnia."""
+    """Return the selected day for MasterAdmin, today for other employees."""
     worker_login = session.get('login') or session.get('username') or 'Magazynier'
-    history = ProductionConsumptionService.get_daily_consumption_history(worker_login=worker_login)
+    try:
+        history_date, can_search_history = _history_selection()
+    except ValueError as error:
+        return jsonify(success=False, message=str(error)), 400
+    history = ProductionConsumptionService.get_daily_consumption_history(
+        worker_login=worker_login, history_date=history_date, all_workers=can_search_history)
     return jsonify({
         'success': True,
-        'history': history
+        'history': history,
+        'date': history_date.isoformat()
     })

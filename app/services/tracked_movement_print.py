@@ -93,6 +93,9 @@ def _work(app, request_id, printer_key, paths):
 
 
 def submit(app, request_id, printer_key, login, documents):
+    from app.core.instance_mode import is_test_instance
+    if is_test_instance():
+        raise ValueError('Drukowanie jest wyłączone w instancji testowej.')
     printers = office_printers()
     if printer_key not in printers:
         raise ValueError('Brak skonfigurowanej drukarki A4. Uzupełnij konfigurację po sprawdzeniu IP.')

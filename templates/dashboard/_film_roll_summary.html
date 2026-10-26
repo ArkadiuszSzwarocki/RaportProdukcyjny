@@ -1,0 +1,12 @@
+{% if wrctx and wrctx.active_plan %}
+<section style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;min-width:0;">
+  <strong>Folia w zleceniu #{{ wrctx.active_plan.id }}</strong>
+  {% for roll in wrctx.maszyna_opakowania %}
+  <div style="margin-top:8px;overflow-wrap:anywhere;">
+    <strong>{{ 'Przygotowana do wymiany' if roll.is_prepared else 'Używana' }}:</strong> {{ roll.nazwa }} · {{ roll.stan_poczatkowy|int }} szt.<br>
+    <small>Rolka #{{ roll.link_id }} · SSCC palety: {{ roll.source_sscc or 'brak danych historycznych' }} · Pobrał {{ roll.assigned_by or '—' }}</small>
+  </div>
+  {% else %}<p>Brak przypisanych rolek folii.</p>{% endfor %}
+  <a href="{{ url_for('production.agro_folio_rozliczenie', plan_id=wrctx.active_plan.id, data=dzisiaj) }}" style="display:inline-block;margin-top:10px;">Rozlicz folię / zmień rolkę</a>
+</section>
+{% endif %}

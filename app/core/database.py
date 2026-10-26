@@ -18,10 +18,11 @@ import threading
 from datetime import date, timedelta
 import uuid
 from app.db_tables import resolve_table_name
+from app.core.instance_mode import database_name_locked, is_test_instance, is_local_instance
 
 _DB_CONFIG_LOCK = threading.Lock()
 _RUNTIME_SWITCHABLE_DATABASES = ('biblioteka', 'biblioteka_testowa', 'biblioteka_test')
-_DB_PERSISTENCE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.active_db_name')
+_DB_PERSISTENCE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.active_db_name.local' if is_local_instance() else '.active_db_name')
 is_local = os.getenv('LOCAL_ENV', 'false').lower() == 'true' or os.getenv('IS_LOCAL', 'false').lower() == 'true' or os.getenv('FLASK_ENV', 'production').lower() == 'development'
 _is_ci_env = str(os.getenv('CI', '')).lower() == 'true' or str(os.getenv('GITHUB_ACTIONS', '')).lower() == 'true'
 _is_test_env = str(os.getenv('FLASK_ENV', '')).lower() == 'testing' or 'PYTEST_CURRENT_TEST' in os.environ
@@ -40,6 +41,8 @@ def get_runtime_switchable_databases():
 
 
 def _persist_database_name(name):
+    if database_name_locked():
+        return
     try:
         with open(_DB_PERSISTENCE_FILE, 'w', encoding='utf-8') as f:
             f.write(name)
@@ -48,6 +51,8 @@ def _persist_database_name(name):
 
 
 def _load_persisted_database_name():
+    if database_name_locked():
+        return None
     if os.path.exists(_DB_PERSISTENCE_FILE):
         try:
             with open(_DB_PERSISTENCE_FILE, 'r', encoding='utf-8') as f:
@@ -77,6 +82,11 @@ def set_active_database_name(database_name, verify_connection=True):
         raise ValueError('Nie podano nazwy bazy danych.')
     if target_name not in _RUNTIME_SWITCHABLE_DATABASES:
         raise ValueError(f'Baza {target_name} nie jest dozwolona do przełączania.')
+    if database_name_locked():
+        pinned_database = 'biblioteka_testowa' if is_test_instance() else DB_CONFIG.get('database')
+        if target_name != pinned_database:
+            raise ValueError('Ta instancja jest przypisana do jednej bazy danych.')
+
 
     # Validate connectivity before mutating global runtime config.
     if verify_connection:
@@ -95,6 +105,10 @@ def set_active_database_name(database_name, verify_connection=True):
         _DB_POOL = None
 
     _persist_database_name(target_name)
+
+    # Local switching changes only the connection; never migrate remote databases.
+    if is_local_instance() or _env_bool('SKIP_DB_SETUP', False):
+        return target_name
 
     # Automatically initialize / migrate tables in the newly active database.
     try:
@@ -192,7 +206,7 @@ def get_db_connection(retries=2):
         is_local
         or _is_test_env
         or _env_bool('DB_ALLOW_LOCALHOST_FALLBACK', False)
-    )
+    ) and not (is_test_instance() or is_local_instance())
     if allow_local_fallback and primary_host not in ('127.0.0.1', 'localhost'):
         candidate_hosts.extend(['127.0.0.1', 'localhost'])
 

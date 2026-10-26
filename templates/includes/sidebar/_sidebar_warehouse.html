@@ -15,10 +15,9 @@
         </span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="mag-sub" class="nav-sub {% if (request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner', 'traceability'] and request.endpoint not in ['warehouse_v2.kompletacja', 'magazyn_dostawy.movement_print_history']) or '/agro/mom' in request.path or '/scanner' in request.path or request.endpoint in ['agro_warehouse.opakowania', 'agro_warehouse.index'] %}open{% endif %}">
+    <div id="mag-sub" class="nav-sub {% if (request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner'] and request.endpoint not in ['warehouse_v2.kompletacja', 'magazyn_dostawy.movement_print_history']) or '/scanner' in request.path or request.endpoint in ['agro_warehouse.index'] %}open{% endif %}">
         {% if role_has_access('magazyn.view') %}
         <a href="{{ url_for('warehouse_v2.index', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.index' %}active{% endif %}">Wszystkie Magazyny</a>
-        <a href="{{ url_for('warehouse_v2.racks_3d_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.racks_3d_view' %}active{% endif %}">Widok 3D Regałów</a>
         {% endif %}
         {% if role_has_access('magazyn.reception') %}
         <a href="{{ url_for('magazyn_dostawy.reception_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' %}active{% endif %}">Przyjęcie dostawy</a>
@@ -67,15 +66,6 @@
         {% if role_has_access('magazyn.agro_total') %}
         <a href="{{ url_for('agro_warehouse.index') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.index' %}active{% endif %}">Suma surowców</a>
         {% endif %}
-        {% if role_has_access('magazyn.agro_packaging') %}
-        <a href="{{ url_for('agro_warehouse.opakowania') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.opakowania' %}active{% endif %}">Opakowania Agro</a>
-        <a href="{{ url_for('agro_warehouse.lp01_view') }}" class="nav-sub-item {% if '/lp01' in request.path %}active{% endif %}">Stanowisko LP01</a>
-        {% endif %}
-        
-        {% if role_has_access('magazyn.mom') %}
-        <a href="/agro/mom" class="nav-sub-item {% if request.path.startswith('/agro/mom') %}active{% endif %}">Rozliczenie MOM</a>
-        {% endif %}
-        
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
         {% if role not in ['laborant', 'laboratorium'] %}
@@ -91,10 +81,6 @@
         <a href="{{ url_for('warehouse_v2.zuzycie_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zuzycie_view' %}active{% endif %}">
             Zużycie w Produkcji
         </a>
-        
-        <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
-        
-        <a href="{{ url_for('traceability.index') }}" class="nav-sub-item {% if request.blueprint == 'traceability' %}active{% endif %}">Traceability (Śledzenie partii)</a>
         
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         

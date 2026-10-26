@@ -91,6 +91,15 @@ class PdfProductionSections:
                     pdf, col_w, [zlec, prod_name, plan_str, wyk_str, s_str, e_str],
                     col_aligns=['L', 'L', 'C', 'C', 'C', 'C'], fill=fill, fill_color=row_color, font_style=''
                 )
+                if tytul == 'WORKOWANIE' and '_zasyp_excel_kg' in prod_map.get(prod, {}):
+                    excel_kg = prod_map[prod]['_zasyp_excel_kg']
+                    try:
+                        excel_text = f'{float(excel_kg):.3f}'.rstrip('0').rstrip('.') + ' kg' if excel_kg is not None and math.isfinite(float(excel_kg)) else 'brak wpisu'
+                    except (TypeError, ValueError):
+                        excel_text = 'brak wpisu'
+                    pdf.set_font('Arial', size=8)
+                    pdf.cell(0, 5, polskie_znaki_pdf('Zasypy wg Excel: ' + excel_text), ln=1)
+                    pdf.set_font('Arial', size=9)
                 fill = not fill
 
                 if tytul == 'WORKOWANIE':

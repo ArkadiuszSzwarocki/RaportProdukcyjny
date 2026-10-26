@@ -27,7 +27,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD python -c "import requests; r=requests.get('http://127.0.0.1:8082/', timeout=5); r.raise_for_status()" || exit 1
 
 EXPOSE 8082
-RUN mkdir -p /app/raporty /app/logs /app/certs && \
+RUN mkdir -p /app/raporty /app/logs /app/certs /app/static/uploads/bugs && \
     cp -r /app/config /app/config_fallback && \
     chown -R appuser:appgroup /app && \
     chmod 750 /app && \

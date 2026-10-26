@@ -33,7 +33,7 @@
                     </div>
                     <div style="text-align: right;">
                         <span class="badge-info">PRODUKCJA</span>
-                        <div style="margin-top: 5px; font-weight: 600; color: #3498db;">{{ p.w_kg }} kg</div>
+                        <div style="margin-top: 5px; font-weight: 600; color: #3498db;">{{ p.w_kg }} kg</div><div style="margin-top:5px;font-size:.85em;color:#475569;">Zasypy wg Excel: {{ ('%.3f'|format(p.zasyp_excel_kg|default(none))).rstrip('0').rstrip('.') ~ ' kg' if p.zasyp_excel_kg|default(none) is not none else 'brak wpisu' }}</div>
                     </div>
                 </div>
             </a>

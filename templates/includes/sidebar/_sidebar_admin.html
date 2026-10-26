@@ -1,33 +1,5 @@
 {% set can_open_system_settings = role_has_access('ustawienia') %}
-{% if role not in ['pracownik', 'magazynier'] %}
-<!-- RAPORTY -->
-<div class="nav-item-group">
-    <button type="button" class="nav-item main-cat-btn">
-        <span>RAPORTY</span>
-        <span class="material-icons chevron">expand_more</span>
-    </button>
-    <div id="reports-sub" class="nav-sub {% if 'raport' in request.path or request.path.startswith('/agro/report') %}open{% endif %}">
-        {% if role_has_access('raporty.dostawy') %}
-        <a href="{{ url_for('magazyn_dostawy.raport', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.raport' %}active{% endif %}">Raport Dostaw</a>
-        {% endif %}
-        
-        {% if role_has_access('raporty.okresowe') %}
-        <a href="{{ url_for('zarzad.raporty_okresowe', linia=effective_hall) }}" class="nav-sub-item {% if request.path.startswith('/raporty_okresowe') %}active{% endif %}">Raporty Okresowe</a>
-        {% endif %}
-        
-        {% if role_has_access('raporty.agro_warehouse') %}
-        <a href="/agro/report/warehouse?linia=AGRO" class="nav-sub-item">Raport Magazynu Agro</a>
-        {% endif %}
-        {% if role_has_access('raporty.agro_production') %}
-        <a href="/agro/report/production?linia=AGRO" class="nav-sub-item">Raport Produkcji Agro</a>
-        {% endif %}
-        <a href="/agro/raport_palet?select=1" class="nav-sub-item">Raport Palet AGRO</a>
-        {% if role_has_access('raporty.agro_production') %}
-        <a href="/agro/report/combined?linia=AGRO" class="nav-sub-item">Raport Połączony Agro</a>
-        {% endif %}
-    </div>
-</div>
-{% endif %}
+{% include 'includes/sidebar/_sidebar_reports.html' %}
 
 <!-- ADMINISTRACJA & ANALIZA -->
 <div class="nav-item-group">
@@ -44,11 +16,8 @@
         <a href="{{ url_for('panels.moje_godziny') }}" class="nav-sub-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">Moje Godziny</a>
         {% endif %}
 
-        {% if role_has_access('wyniki') %}
-        <a href="/zarzad" class="nav-sub-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki i Statystyki</a>
-        {% endif %}
 
-        {% if role in ['admin', 'zarzad', 'masteradmin', 'lider'] %}
+        {% if role in ['admin', 'zarzad', 'masteradmin', 'lider'] or (effective_hall in ['AGRO', 'ALL'] and role_has_access('agro.workowanie') and role not in ['laborant', 'laboratorium']) %}
         <a href="/maszyny" class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}" style="color: #0284c7; font-weight: 700;">
             🤖 Maszyny & Telemetria 3D
         </a>
@@ -64,7 +33,6 @@
     </button>
     <div id="jakosc-sub" class="nav-sub {% if request.path.startswith('/jakosc') or request.path.startswith('/quality/magnet-cleaning') %}open{% endif %}">
         <a href="{{ url_for('quality.jakosc_index') }}" class="nav-sub-item {% if request.endpoint == 'quality.jakosc_index' %}active{% endif %}">Strona Jakość</a>
-        <a href="{{ url_for('quality.jakosc_podsumowanie_zasypow') }}" class="nav-sub-item {% if request.endpoint == 'quality.jakosc_podsumowanie_zasypow' %}active{% endif %}">Analiza zasypów</a>
         <a href="{{ url_for('magnet_cleaning.get_history') }}" class="nav-sub-item {% if request.endpoint == 'magnet_cleaning.get_history' %}active{% endif %}">Czyszczenie Magnesów</a>
         <a href="{{ url_for('separator_cleaning.get_history') }}" class="nav-sub-item {% if request.endpoint == 'separator_cleaning.get_history' %}active{% endif %}">Czyszczenie Separatorów</a>
     </div>
@@ -72,15 +40,25 @@
 {% endif %}
 
 <!-- AWARIE I USTERKI -->
-{% if role_has_access('awarie') %}
+{% set downtime_agro = effective_hall in ['AGRO', 'ALL'] and role_has_access('agro.workowanie') and role not in ['laborant', 'laboratorium'] %}
+{% set downtime_psd = effective_hall in ['PSD', 'ALL'] and role_has_access('psd.workowanie') %}
+{% if role_has_access('awarie') or downtime_agro or downtime_psd %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span class="material-icons" style="font-size: 18px; margin-right: 8px; color: #f87171;">report_problem</span>
         <span>AWARIE I USTERKI</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="awarie-sub" class="nav-sub {% if request.path.startswith('/dur/awarie') %}open{% endif %}">
+    <div id="awarie-sub" class="nav-sub {% if request.path.startswith('/dur/awarie') or request.endpoint == 'production.przestoje_list' %}open{% endif %}">
+        {% if role_has_access('awarie') %}
         <a href="{{ url_for('quality.dur_awarie') }}" class="nav-sub-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">Lista Zgłoszeń</a>
+        {% endif %}
+        {% if downtime_agro %}
+        <a href="{{ url_for('production.przestoje_list', linia='AGRO') }}" class="nav-sub-item {% if request.endpoint == 'production.przestoje_list' and request.args.get('linia', 'PSD')|upper == 'AGRO' %}active{% endif %}">Rejestr przestojów AGRO</a>
+        {% endif %}
+        {% if downtime_psd %}
+        <a href="{{ url_for('production.przestoje_list', linia='PSD') }}" class="nav-sub-item {% if request.endpoint == 'production.przestoje_list' and request.args.get('linia', 'PSD')|upper == 'PSD' %}active{% endif %}">Rejestr przestojów PSD</a>
+        {% endif %}
     </div>
 </div>
 {% endif %}

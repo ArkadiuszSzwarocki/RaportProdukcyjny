@@ -92,8 +92,13 @@ class ScannerResolutionService:
         if res_list:
             results.extend(res_list)
         
-        if try_all_lines:
-            other_lines = ['AGRO', 'PSD', 'Agro', 'Psd']
+        packaging_match = normalized_scan_code.upper().startswith('OPK') and any(
+            str(item.get('inventory_key') or '').upper() == 'OPK'
+            and str(item.get('nr_palety') or '').upper() == normalized_scan_code.upper()
+            for item in results)
+        if try_all_lines and not packaging_match:
+            # Hall aliases address the same tables; search each hall only once.
+            other_lines = ['AGRO', 'PSD']
             normalized_linia = str(linia).upper()
             for other_linia in other_lines:
                 if str(other_linia).upper() == normalized_linia:
@@ -145,12 +150,21 @@ class ScannerResolutionService:
             results.sort(key=sort_key, reverse=True)
             final_res = results[0]
 
-        transfer_info = ScannerLookupService.check_active_transfer_for_code(normalized_scan_code)
+        checked_transfer_codes = set()
+        def check_transfer(code):
+            normalized = ScannerCodeNormalizer.normalize_scanned_code(str(code or '')) or str(code or '').strip()
+            key = normalized.upper()
+            if not key or key in checked_transfer_codes:
+                return None
+            checked_transfer_codes.add(key)
+            return ScannerLookupService.check_active_transfer_for_code(normalized)
+
+        transfer_info = check_transfer(normalized_scan_code)
         if not transfer_info and final_res:
             if final_res.get('nr_palety'):
-                transfer_info = ScannerLookupService.check_active_transfer_for_code(final_res.get('nr_palety'))
+                transfer_info = check_transfer(final_res.get('nr_palety'))
             if not transfer_info and final_res.get('id'):
-                transfer_info = ScannerLookupService.check_active_transfer_for_code(str(final_res.get('id')))
+                transfer_info = check_transfer(str(final_res.get('id')))
 
         if final_res:
             if transfer_info:

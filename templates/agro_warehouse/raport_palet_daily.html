@@ -20,6 +20,7 @@
                 <th>Nr Partii</th>
                 <th>Waga (kg)</th>
                 <th>Plan / Zlecenie</th>
+                <th>Zasypy wg Excel — zlecenie (kg)</th>
                 <th>Dodał</th>
                 <th>Potwierdził</th>
                 <th>Status</th>
@@ -34,12 +35,13 @@
                 <td>{{ r.nr_partii or '' }}</td>
                 <td>{{ r.waga or 0 }}</td>
                 <td>{{ r.plan_id or '' }}</td>
+                <td>{{ ('%.3f'|format(r.zasyp_excel_kg|default(none))).rstrip('0').rstrip('.') if r.zasyp_excel_kg|default(none) is not none else 'brak wpisu' }}</td>
                 <td>{{ r.dodal or '' }}</td>
                 <td>{{ r.potwierdzil or '' }}</td>
                 <td>{{ r.status or '' }}</td>
             </tr>
         {% else %}
-            <tr><td colspan="9">Brak danych dla wybranego dnia.</td></tr>
+            <tr><td colspan="10">Brak danych dla wybranego dnia.</td></tr>
         {% endfor %}
         </tbody>
     </table>

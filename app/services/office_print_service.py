@@ -139,6 +139,9 @@ def _printer_assignment(typ_raportu: str):
 
 def trigger_office_print(plan_id, typ_raportu='raport_palet_agro'):
     """Queue one report generation job in a bounded executor."""
+    from app.core.instance_mode import is_test_instance
+    if is_test_instance():
+        return False
     try:
         printer_target = _printer_assignment(typ_raportu)
         if not printer_target:
@@ -155,6 +158,9 @@ def trigger_office_print(plan_id, typ_raportu='raport_palet_agro'):
 
 def trigger_office_print_url(report_url, typ_raportu='raport_palet_agro', prefix='raport_'):
     """Queue a URL render job after validating that it targets this application."""
+    from app.core.instance_mode import is_test_instance
+    if is_test_instance():
+        return False
     try:
         parsed = urllib.parse.urlparse(str(report_url or ''))
         if not parsed.path.startswith('/'):

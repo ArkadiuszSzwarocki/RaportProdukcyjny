@@ -1,3 +1,9 @@
+{# Production tools belong to a running order, not the waiting-order list. #}
+{% set dashboard_running = namespace(found=false) %}
+{% for order in plan|default([], true) %}
+    {% if order[3] == 'w toku' %}{% set dashboard_running.found = true %}{% endif %}
+{% endfor %}
+{% set production_toolbar_visible = sekcja not in ['Zasyp', 'Workowanie'] or dashboard_running.found %}
 <script src="{{ url_for('static', filename='js/dashboard/popovers.js') }}?v={{ static_version }}"></script>
 <div class="section-header" id="dashboard-config"
     data-current-role="{{ rola }}"
@@ -45,12 +51,14 @@
                     {% include 'components/_date_picker.html' %}
                 {% endwith %}
                 <input type="hidden" id="current-date-iso" value="{{ dzisiaj.strftime('%Y-%m-%d') if dzisiaj else '' }}">
+                {% if production_toolbar_visible %}
                 <div class="topbar-printer-container" style="display: inline-flex; align-items: center; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 10px; padding: 3px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-left: 4px; height: 38px; box-sizing: border-box;" title="Drukarka ZPL przypisana do tego stanowiska">
                     <span class="material-icons" style="font-size: 19px; color: #2563eb; margin-right: 6px; flex-shrink: 0;">print</span>
                     <select id="topbarZplPrinterSelect" onchange="if(typeof handleTopbarPrinterChange === 'function') handleTopbarPrinterChange(this)" style="border: none; outline: none; background: transparent; font-size: 0.85rem; font-weight: 700; color: #1e293b; cursor: pointer; max-width: 230px; text-overflow: ellipsis; padding: 2px 0;">
                         <option value="">Wczytywanie...</option>
                     </select>
                 </div>
+                {% endif %}
             </div>
             {% endif %}
 
@@ -64,14 +72,14 @@
             </a>
             {% endif %}
 
-            {% if sekcja in ['Workowanie', 'Zasyp'] and rola|lower not in ['laborant', 'laboratorium'] %}
+            {% if production_toolbar_visible and sekcja in ['Workowanie', 'Zasyp'] and rola|lower not in ['laborant', 'laboratorium'] %}
             <a href="{{ url_for('production.zglos_przestoj_page', linia=linia, sekcja=sekcja) }}"
                class="btn btn-danger px-3 py-2 fw-bold"
                title="Zgłoś przestój maszyny / linii dla sekcji {{ sekcja }} ({{ linia }})"
                style="border-radius: 8px; background: #dc2626; border: 1px solid #b91c1c; color: #ffffff; display: inline-flex; align-items: center; gap: 6px; font-size: 0.92rem; font-weight: 800; text-decoration: none; box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25); white-space: nowrap;">
                 <span class="material-icons" style="font-size: 18px;">warning</span> <span>Zgłoś Przestój</span>
             </a>
-            {% if not (sekcja == 'Zasyp' and linia == 'AGRO') %}<a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
+            {% if sekcja != 'Workowanie' and not (sekcja == 'Zasyp' and linia == 'AGRO') %}<a href="{{ url_for('production.przestoje_list', linia=linia, sekcja=sekcja) }}"
                class="btn btn-outline-secondary px-3 py-2 fw-bold"
                title="Rejestr przestojów sekcji {{ sekcja }} ({{ linia }})"
                style="border-radius: 8px; background: #ffffff; border: 1px solid #cbd5e1; color: #334155; display: inline-flex; align-items: center; gap: 6px; font-size: 0.92rem; font-weight: 700; text-decoration: none; box-shadow: 0 1px 3px rgba(0,0,0,0.04); white-space: nowrap;">
@@ -84,7 +92,7 @@
 
         <div class="d-flex align-center gap-12 header-stats">
             {% if sekcja == 'Zasyp' %}{% include 'dashboard/_agro_measurements.html' %}{% endif %}
-            {% if rola|lower not in ['laborant', 'laboratorium'] %}{% include 'dashboard/_cleaning_notifications.html' %}{% endif %}
+            {% if production_toolbar_visible and sekcja != 'Workowanie' and rola|lower not in ['laborant', 'laboratorium'] %}{% include 'dashboard/_cleaning_notifications.html' %}{% endif %}
             {% if sekcja == 'Magazyn' %}
                 <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
                 <div class="stat-inline stat-przyjeto"><span class="label">{{ _('przyjeto') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>
@@ -96,10 +104,11 @@
                     {% endif %}
                 {% endif %}
             {% else %}
-                {% set active_plan = namespace(tonaz=0, wykonanie=0, found=false) %}
+                {% set active_plan = namespace(id=none, tonaz=0, wykonanie=0, found=false) %}
                 {% if plan %}
                     {% for p in plan %}
                         {% if p[3] == 'w toku' and not active_plan.found %}
+                            {% set active_plan.id = p[0] %}
                             {% set active_plan.tonaz = p[2] %}
                             {% set active_plan.wykonanie = p[7] %}
                             {% set active_plan.found = true %}
@@ -110,6 +119,10 @@
                 {% set display_wykonanie = active_plan.wykonanie if active_plan.found else suma_wykonanie %}
                 <div class="stat-inline stat-plan"><span class="label">{{ _('plan') }}</span><strong class="value">{{ display_plan|int }} kg</strong></div>
                 <div class="stat-inline stat-wykonanie"><span class="label">{{ _('wykonanie') }}</span><strong class="value text-success">{{ display_wykonanie|int }} kg</strong></div>
+                {% if sekcja == 'Workowanie' and linia|upper == 'AGRO' %}
+                {% set excel_kg = zasyp_excel_mapa.get(active_plan.id) if active_plan.found and zasyp_excel_mapa is defined else zasyp_excel_total|default(none) %}
+                <div class="stat-inline stat-zasyp-excel" title="Faktyczna masa zasypów wpisana przy zakończeniu Zasypu na podstawie rozliczenia Excel"><span class="label">Zasypy wg Excel</span><strong class="value">{{ ('%.3f'|format(excel_kg)).rstrip('0').rstrip('.') ~ ' kg' if excel_kg is not none else 'brak wpisu' }}</strong></div>
+                {% endif %}
                 <div class="stat-inline stat-realizacja"><span class="label">% Realizacja</span><strong class="value">{{ (display_wykonanie/display_plan*100)|int if display_plan>0 else 0 }}%</strong></div>
             {% endif %}
         </div>

@@ -540,11 +540,18 @@
                         <span>📷</span> Załączone zrzuty ekranu / zdjęcia ({{ bug.zalaczniki|length }}):
                     </div>
                     <div class="bug-images-container">
-                        {% for img in bug.zalaczniki %}
-                        <div class="bug-image-thumb" onclick="openOverlay('{{ url_for('admin.admin_view_attachment', filename=img) }}')" title="Kliknij, aby powiększyć zdjęcie">
-                            <img src="{{ url_for('admin.admin_view_attachment', filename=img) }}" alt="Zrzut ekranu" onerror="this.onerror=null; this.src='{{ url_for('static', filename='uploads/bugs/' + img) }}';">
+                        {% for attachment in bug.attachment_items %}
+                        {% if attachment.available %}
+                        <div class="bug-image-thumb" onclick="openOverlay({{ attachment.url|tojson|forceescape }})" title="Kliknij, aby powiększyć zdjęcie">
+                            <img src="{{ attachment.url }}" alt="Zrzut ekranu" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.parentElement.querySelector('.thumb-zoom-badge').style.display='none';">
+                            <span style="display:none;padding:10px;height:100%;align-items:center;text-align:center;font-size:12px;">Nie można wczytać załącznika.</span>
                             <span class="thumb-zoom-badge">🔍 Powiększ</span>
                         </div>
+                        {% else %}
+                        <div class="bug-image-thumb" style="height:auto;min-height:95px;cursor:default;padding:10px;box-sizing:border-box;background:#fff7ed;font-size:12px;color:#9a3412;" title="{{ attachment.filename }}">
+                            Plik niedostępny na tym serwerze.<br><small>Sprawdź katalog załączników.</small>
+                        </div>
+                        {% endif %}
                         {% endfor %}
                     </div>
                 </div>
@@ -643,13 +650,20 @@
 <!-- Fullscreen Image Lightbox -->
 <div id="imageOverlay" onclick="this.style.display='none'">
     <img id="overlayImg" src="" alt="Powiększone zdjęcie">
+    <div id="overlayImageError" style="display:none;background:#fff;padding:24px;border-radius:12px;color:#334155;max-width:420px;text-align:center;">Nie można wczytać załącznika. Plik może być niedostępny na tym serwerze.<br>Kliknij, aby zamknąć podgląd.</div>
 </div>
 
 <script>
     const CURRENT_SORT = '{{ current_sort or "id_desc" }}';
 
     function openOverlay(src) {
-        document.getElementById('overlayImg').src = src;
+        const image = document.getElementById('overlayImg');
+        const error = document.getElementById('overlayImageError');
+        error.style.display = 'none';
+        image.style.display = 'none';
+        image.onload = () => { image.style.display = 'block'; error.style.display = 'none'; };
+        image.onerror = () => { image.style.display = 'none'; error.style.display = 'block'; };
+        image.src = src;
         document.getElementById('imageOverlay').style.display = 'flex';
     }
 

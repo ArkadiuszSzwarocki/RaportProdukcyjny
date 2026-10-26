@@ -72,6 +72,8 @@ class PdfReportGenerator:
                 prod_map[key] = {'_display': prod}
                 products.append(key)
             prod_map[key][sec] = (plan, wyk, r_start, r_stop, zlec)
+            if str(linia).upper() == 'AGRO' and sec in ('Workowanie', 'Czyszczenie'):
+                prod_map[key]['_zasyp_excel_kg'] = r[8] if len(r) > 8 else None
 
         # Production, Pallets, Downtime
         PdfProductionSections.render_production(pdf, products, prod_map, dzisiaj, awarie_rows)

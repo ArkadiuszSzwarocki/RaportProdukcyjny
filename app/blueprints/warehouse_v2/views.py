@@ -103,8 +103,6 @@ def kompletacja():
     # missing pallets afterwards; do not synchronize every order twice on entry.
     from app.repositories.picking_repository import PickingRepository
     active_orders = PickingRepository.get_active_orders()
-    if not order_ref and active_orders:
-        order_ref = active_orders[0].get('order_ref', '')
     return render_template(
         'warehouse_v2/kompletacja.html',
         linia=linia,

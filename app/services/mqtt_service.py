@@ -422,6 +422,9 @@ def publish_command(topic: str, payload_dict: dict):
     Asynchronously publishes a JSON command message to the specified topic using the active MQTT client.
     Example payload_dict: {"d": {"zerowanieLicznikow": [1]}, "ts": "2026-06-24T..."}
     """
+    from app.core.instance_mode import is_test_instance
+    if is_test_instance():
+        return False
     if _active_mqtt_client is None:
         print(f"[MQTT-SERVER] Ostrzezenie: Nie mozna opublikowac - brak podlaczonego klienta dla topic={topic}")
         return False

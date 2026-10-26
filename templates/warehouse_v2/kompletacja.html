@@ -142,6 +142,8 @@ function disconnectPickingUpdates() {
 let _currentTab = 'active';
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Entry always shows the list; details are an explicit action on an order.
+    switchPickingViewMode('list');
     loadCurrentPickingTab();
 
     connectPickingUpdates();
@@ -155,12 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     refreshPickingOrderSelect();
 
-    var initRef = "{{ initial_order_ref or '' }}";
-    if (initRef && typeof PickingViewModule !== 'undefined') {
-        setTimeout(function() {
-            PickingViewModule.openPickingModal(initRef);
-        }, 300);
-    }
+
 });
 
 window.addEventListener('pagehide', disconnectPickingUpdates);

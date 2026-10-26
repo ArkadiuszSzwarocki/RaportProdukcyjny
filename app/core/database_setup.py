@@ -1266,6 +1266,8 @@ def _migrate_columns(cursor):
     """Add missing columns to existing tables (schema migrations)."""
     from app.services.auto_label_service import ensure_auto_label_schema
     ensure_auto_label_schema(cursor)
+    from app.services.zasyp_excel_service import ensure_zasyp_excel_schema
+    ensure_zasyp_excel_schema(cursor)
     # plan_produkcji columns
     _add_column_if_missing(cursor, "plan_produkcji", "typ_produkcji", "VARCHAR(20) DEFAULT 'worki_zgrzewane_25'", "Dodawanie kolumny 'typ_produkcji'")
     _add_column_if_missing(cursor, "plan_produkcji", "nazwa_zlecenia", "VARCHAR(255) DEFAULT ''", "Dodawanie kolumny 'nazwa_zlecenia'")

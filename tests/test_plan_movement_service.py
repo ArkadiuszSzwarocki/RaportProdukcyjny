@@ -173,7 +173,7 @@ class TestShiftPlanOrder:
             # In new implementation, renormalize_sequences is called before adjacent lookup.
             # So execute calls are: 1. SELECT current, 2. SELECT for renormalize, 3. SELECT adjacent
             execute_calls = [str(c[0][0]) for c in mock_cursor.execute.call_args_list]
-            found = any("COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zakonczone')" in c for c in execute_calls)
+            found = any("COALESCE(status, 'zaplanowane') NOT IN ('w toku', 'zawieszone', 'zakonczone')" in c for c in execute_calls)
             assert found is True
 
     @patch('app.services.plan_movement_service.get_db_connection')

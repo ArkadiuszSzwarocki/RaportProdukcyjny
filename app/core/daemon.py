@@ -808,9 +808,13 @@ def start_daemon_threads(app, cleanup_enabled=False):
 
                 try:
                     if time.time() >= next_label_recovery_at:
-                        from app.services.auto_label_service import AutoLabelService
-                        AutoLabelService.recover_pending(linia='AGRO')
+                        # Set the deadline before recovery: failures must not retry every loop.
                         next_label_recovery_at = time.time() + 15.0
+                        try:
+                            from app.services.auto_label_service import AutoLabelService
+                            AutoLabelService.recover_pending(linia='AGRO')
+                        except Exception:
+                            _safe_log_exception('AGRO auto-label recovery failed; retry in 15 s')
                     active_plan = AgroTanksService.get_active_workowanie_plan(linia='AGRO')
                     if active_plan:
                         plan_id = active_plan['id']

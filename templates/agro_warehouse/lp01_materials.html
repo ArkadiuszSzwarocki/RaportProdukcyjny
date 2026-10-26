@@ -525,6 +525,22 @@
                     Wydanie tej ilości natychmiast pomniejszy stan na regale magazynowym i przypisze materiał do stanowiska LP01.
                 </small>
             </div>
+<div id="dispatchFilmFields" hidden style="margin:12px 0;padding:12px;background:#eff6ff;border-radius:8px;">
+  <label for="dispatchFilmPlan" style="display:block;font-weight:700;">Przypisz rolkę folii do zlecenia</label>
+  <select id="dispatchFilmPlan" class="form-control" style="width:100%;min-width:0;margin:6px 0;"><option value="">Bez przypisania do zlecenia</option></select>
+  <label for="dispatchFilmRole">Przeznaczenie rolki</label>
+  <select id="dispatchFilmRole" class="form-control" style="width:100%;margin-top:6px;"><option value="active">Aktualnie używana</option><option value="prepared" selected>Przygotowana do wymiany / rozpoczęcia</option><option value="replace">Zmiana rolki — zamknij poprzednią i załóż nową</option></select>
+  <div id="dispatchPreviousWrap" hidden style="margin-top:10px;">
+    <label for="dispatchPreviousRemaining">Pozostało na poprzedniej rolce (szt.)</label>
+    <input id="dispatchPreviousRemaining" type="number" min="0" step="1" placeholder="Wpisz również 0" style="width:100%;padding:10px;box-sizing:border-box;">
+    <small>Poprzednia rolka zostanie automatycznie rozliczona i zamknięta.</small>
+  </div>
+  <small>Wpisz ilość na pobieranej rolce. Każde pobranie zapisuje się osobno; maksymalnie dwie rolki na zlecenie.</small>
+  <div data-film-status role="status" style="margin-top:8px;color:#334155;"></div>
+  <div data-film-error style="color:#b91c1c;"></div>
+  <button type="button" data-film-retry hidden class="btn btn-outline" style="margin-top:8px;">Ponów pobieranie</button>
+</div>
+
         </div>
         <div class="modal-foot-lp01">
             <button class="btn btn-outline" onclick="closeDispatchModal()">Anuluj</button>
@@ -665,6 +681,7 @@ function openDispatchModal() {
     document.getElementById('dispatchSelectMat').value = '';
     document.getElementById('dispatchQtyInput').value = '';
     document.getElementById('dispatchInfoBox').style.display = 'none';
+    document.getElementById('dispatchFilmFields').hidden = true;
     document.getElementById('dispatchModalBackdrop').style.display = 'flex';
 }
 
@@ -677,6 +694,7 @@ function onDispatchSelectChange() {
     const opt = sel.options[sel.selectedIndex];
     const infoBox = document.getElementById('dispatchInfoBox');
     if (!sel.value) {
+        document.getElementById('dispatchFilmFields').hidden = true;
         infoBox.style.display = 'none';
         return;
     }
@@ -684,7 +702,8 @@ function onDispatchSelectChange() {
     const loc = opt.getAttribute('data-loc');
     document.getElementById('dispStockQty').textContent = qty;
     document.getElementById('dispSourceLoc').textContent = loc;
-    document.getElementById('dispatchQtyInput').value = qty;
+    document.getElementById('dispatchQtyInput').value = '';
+    if (window.Lp01Film) window.Lp01Film.load('dispatch', opt.getAttribute('data-name') || opt.textContent.split(' (')[0].trim(), '{{ linia }}' === 'AGRO' && opt.getAttribute('data-type') === 'Opakowanie', sel.value);
     infoBox.style.display = 'block';
 }
 
@@ -698,6 +717,10 @@ function submitDispatchToLp01() {
     const maxQty = parseFloat(opt.getAttribute('data-qty') || 0);
     const qty = parseFloat(document.getElementById('dispatchQtyInput').value);
     const type = opt.getAttribute('data-type') || 'Opakowanie';
+    if ('{{ linia }}' === 'AGRO' && type === 'Opakowanie' && (!window.Lp01Film || !window.Lp01Film.ready('dispatch'))) {
+        AppDialog.alert('Lista zleceń folii nie jest jeszcze gotowa. Zaczekaj albo otwórz ponownie wydanie.');
+        return;
+    }
     const btn = document.getElementById('dispConfirmBtn');
 
     if (isNaN(qty) || qty <= 0 || (maxQty > 0 && qty > maxQty)) {
@@ -708,10 +731,12 @@ function submitDispatchToLp01() {
     btn.disabled = true;
     btn.innerHTML = '<span class="material-icons" style="font-size:16px;">hourglass_top</span> Wydawanie...';
 
-    fetch('/api/lp01/dispatch', {
+    const film = window.Lp01Film ? window.Lp01Film.selection('dispatch') : null;
+    fetch(film ? '/api/lp01/film-roll' : '/api/lp01/dispatch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+            ...(film || {}),
             id: sel.value,
             type: type,
             amount: qty,
@@ -808,4 +833,5 @@ function filterHistoryTable() {
     });
 }
 </script>
+<script src="{{ url_for('static', filename='js/lp01_film.js') }}?v={{ scanner_ui_version }}"></script>
 {% endblock %}

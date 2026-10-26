@@ -227,30 +227,19 @@ def load_agro_plan_rows(cursor, wybrana_data):
     )
     agro_all = [dict(row) for row in cursor.fetchall()]
 
-    zasyp_products = {(row['produkt'] or '').strip().lower() for row in agro_all if row['sekcja'].lower() == 'zasyp'}
+    # Join production stages by their actual relationship, not product name:
+    # separate orders may manufacture the same product on the same day.
+    zasyp_lookup = {row['id']: row for row in agro_all if row['sekcja'].lower() == 'zasyp'}
     plany_agro = []
-    zasyp_lookup = {}
-
+    status_priority = {'zaplanowane': 0, 'nieoplacone': 0, 'zakonczone': 1, 'zawieszone': 2, 'w toku': 3}
     for row in agro_all:
-        sekcja = row['sekcja'].lower()
-        product_name = (row['produkt'] or '').strip().lower()
-
-        if sekcja == 'zasyp':
-            zasyp_lookup[product_name] = row
+        target = zasyp_lookup.get(row.get('zasyp_id')) if row['sekcja'].lower() == 'workowanie' else None
+        if target is None:
             plany_agro.append(row)
-        elif sekcja == 'workowanie':
-            if product_name in zasyp_products:
-                continue
-            plany_agro.append(row)
-        else:
-            plany_agro.append(row)
-
-    for row in agro_all:
-        if row['sekcja'].lower() == 'workowanie' and (row['produkt'] or '').strip().lower() in zasyp_products:
-            product_name = (row['produkt'] or '').strip().lower()
-            target = zasyp_lookup.get(product_name)
-            if target:
-                target['uszkodzone_worki'] = (target.get('uszkodzone_worki') or 0) + (row.get('uszkodzone_worki') or 0)
+            continue
+        target['uszkodzone_worki'] = (target.get('uszkodzone_worki') or 0) + (row.get('uszkodzone_worki') or 0)
+        if status_priority.get(row['status'], 0) > status_priority.get(target['status'], 0):
+            target['status'] = row['status']
 
     for plan in plany_agro:
         if plan.get('data_produkcji') and hasattr(plan['data_produkcji'], 'strftime'):

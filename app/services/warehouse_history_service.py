@@ -63,6 +63,8 @@ class WarehouseHistoryService:
         Return unified warehouse and station movement history combining palety_historia
         and legacy movement tables (magazyn_ruch / magazyn_agro_ruch).
         """
+        from app.services.warehouse_history.station_filter import normalize_station_filters
+        surowiec, stacja = normalize_station_filters(surowiec, stacja)
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)

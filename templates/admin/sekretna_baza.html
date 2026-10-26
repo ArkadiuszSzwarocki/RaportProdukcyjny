@@ -101,7 +101,7 @@
     <div class="secret-db-shell">
         <section class="secret-db-panel">
             <div class="secret-db-eyebrow">Strefa techniczna</div>
-            <h2 class="secret-db-title">Tajemniczy przelacznik baz</h2>
+            <h2 class="secret-db-title">Baza danych i środowisko testowe</h2>
             <p class="secret-db-description">
                 Przelacznik zmienia aktywna baze danych dla calej uruchomionej instancji aplikacji.
                 Zmiana jest natychmiastowa dla kolejnych zapytan.
@@ -110,6 +110,16 @@
             <div class="secret-db-current">
                 Aktywna baza: {{ current_db }}
             </div>
+
+            {% if not can_switch_db %}
+            <p class="secret-db-note" role="status" style="margin-top: 16px;">
+                {% if test_instance or local_instance %}
+                Ta lokalna kopia łączy się z biblioteką testową na QNAP. Aplikacja produkcyjna działa niezależnie.
+                {% else %}
+                Przełączanie bazy całej instancji jest wyłączone. Do testów służy lokalna kopia aplikacji.
+                {% endif %}
+            </p>
+            {% endif %}
 
             <div class="secret-db-grid">
                 {% for db_name in allowed_databases %}
@@ -127,6 +137,8 @@
                         <input type="hidden" name="database" value="{{ db_name }}">
                         {% if db_name == current_db %}
                         <button type="submit" class="btn btn-secondary" disabled>Aktywna</button>
+                        {% elif not can_switch_db %}
+                        <button type="button" class="btn btn-secondary" disabled>Przełączanie wyłączone</button>
                         {% else %}
                         <button type="submit" class="btn btn-primary">Przelacz na {{ db_name }}</button>
                         {% endif %}
@@ -137,8 +149,12 @@
         </section>
 
         <p class="secret-db-note">
-            Uwaga: to ustawienie jest globalne dla serwera, wiec przejecie dotyczy wszystkich uzytkownikow.
-            Po restarcie aplikacja wraca do wartosci z pliku .env.
+            {% if test_instance or local_instance %}
+            Przełączasz wyłącznie połączenie lokalnej aplikacji z bazą na QNAP. Po zmianie zaloguj się kontem z wybranej bazy. Wybór zostaje zapamiętany lokalnie. Wybranie biblioteka oznacza pracę na danych produkcyjnych.
+            {% else %}
+            Przełączenie bazy dotyczy wszystkich użytkowników bieżącej instancji aplikacji.
+            Wybór może zostać zapamiętany na kolejne uruchomienie.
+            {% endif %}
         </p>
     </div>
 </div>

@@ -430,6 +430,9 @@ class PrintServer:
 
     def queue_print_job(self, zpl_content: str, override_ip: str | None = None, override_name: str | None = None) -> tuple[bool, str]:
         """Persist a print job; target authorization is enforced again by the bridge."""
+        from app.core.instance_mode import is_test_instance
+        if is_test_instance():
+            return False, 'Drukowanie jest wyłączone w instancji testowej.'
         try:
             from app.db import get_db_connection
             from app.repositories.settings_repository import SettingsRepository
@@ -491,6 +494,9 @@ class PrintServer:
 
     def send_direct_tcp(self, zpl: str, ip: str, port: int = 9100, timeout: float = 3.0) -> tuple[bool, str]:
         """Legacy compatibility: direct TCP is disabled unless explicitly constrained."""
+        from app.core.instance_mode import is_test_instance
+        if is_test_instance():
+            return False, 'Drukowanie jest wyłączone w instancji testowej.'
         if not _env_bool('PRINTER_ALLOW_DIRECT_TCP_FALLBACK', False):
             return False, 'Bezpośredni TCP jest wyłączony; użyj uwierzytelnionego mostka.'
         configured_ip = str(self.printer_ip or '').strip()
@@ -508,6 +514,9 @@ class PrintServer:
             return False, f'Błąd TCP: {exc}'
 
     def _send_to_bridge_once(self, payload: dict, target_hint: str) -> tuple[bool, str, bool]:
+        from app.core.instance_mode import is_test_instance
+        if is_test_instance():
+            return False, 'Drukowanie jest wyłączone w instancji testowej.', False
         try:
             response, bridge_base = self._request_bridge(
                 'POST',

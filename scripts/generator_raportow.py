@@ -167,6 +167,10 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
         params=plan_params,
         columns=['id', 'sekcja', 'produkt', 'tonaz', 'tonaz_rzeczywisty', 'real_start', 'real_stop', 'nazwa_zlecenia']
     )
+    if str(linia).upper() == 'AGRO' and not df_plan.empty:
+        from app.services.zasyp_excel_service import ZasypExcelService
+        excel_totals = ZasypExcelService.for_work_orders(conn, df_plan['id'].tolist())
+        df_plan['zasyp_excel_kg'] = df_plan['id'].map(excel_totals)
     logger.info(f"[GENERATOR] Production data: {len(df_plan)} rows from {table_plan}")
     print(f"[GENERATOR] OK Production data: {len(df_plan)} rows from {table_plan}", flush=True)
     
@@ -418,7 +422,8 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
                 row.get('real_start', None),
                 row.get('real_stop', None),
                 row.get('nazwa_zlecenia', ''),
-                row.get('id', '')
+                row.get('id', ''),
+                row.get('zasyp_excel_kg', None)
             ))
 
         # Sortuj: najpierw według kolejności produktu w planie (`kolejnosc`/id),

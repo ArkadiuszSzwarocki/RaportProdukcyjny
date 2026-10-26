@@ -156,3 +156,21 @@ def test_lookup_finds_finished_goods_by_non_sscc_pallet_number():
     assert result is not None
     assert result['inventory_type'] == 'Wyrób Gotowy'
     assert result['inventory_code'] == 'PAL-77'
+
+
+
+def test_global_packaging_lookup_skips_duplicate_halls_and_transfer_codes():
+    from app.services.scanner.scanner_resolution_service import ScannerResolutionService
+    pallet={'id':123,'nr_palety':'OPK000001788773014226','inventory_key':'OPK','inventory_type':'Opakowanie','stan_magazynowy':552,'lokalizacja':'R071003'}
+    with patch('app.services.scanner.scanner_resolution_service.ScannerLocationQueryService.lookup_by_location_internal',return_value=[pallet]) as lookup, patch('app.services.scanner.scanner_resolution_service.ScannerLookupService.check_active_transfer_for_code',return_value=None) as transfer:
+        result=ScannerResolutionService.lookup_by_location(pallet['nr_palety'],'AGRO')
+    assert result['id']==123
+    lookup.assert_called_once()
+    assert [call.args[0] for call in transfer.call_args_list]==[pallet['nr_palety'],'123']
+
+
+def test_other_inventory_searches_each_hall_only_once():
+    from app.services.scanner.scanner_resolution_service import ScannerResolutionService
+    with patch('app.services.scanner.scanner_resolution_service.ScannerLocationQueryService.lookup_by_location_internal',return_value=[]) as lookup, patch('app.services.scanner.scanner_resolution_service.ScannerLookupService.check_active_transfer_for_code',return_value=None):
+        assert ScannerResolutionService.lookup_by_location('SUR000001788773014226','AGRO') is None
+    assert [call.args[1] for call in lookup.call_args_list]==['AGRO','PSD']

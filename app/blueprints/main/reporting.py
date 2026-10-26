@@ -365,12 +365,13 @@ def register_main_reporting_routes(main_bp):
 
         files = [f for f in request.files.getlist('zalaczniki') if f and f.filename]
         if files:
-            static_dir = current_app.static_folder or os.path.join(current_app.root_path, 'static')
-            upload_dir = os.path.abspath(os.path.join(static_dir, 'uploads', 'bugs'))
+            from app.services.bug_attachment_service import BugAttachmentService
+            upload_dir = str(BugAttachmentService.storage_dir().resolve())
             try:
                 os.makedirs(upload_dir, exist_ok=True)
             except Exception as dir_err:
                 current_app.logger.warning('Błąd tworzenia katalogu uploads/bugs: %s', dir_err)
+                return jsonify(success=False, message='Nie zapisano zgłoszenia: katalog załączników jest niedostępny.'), 500
 
             for index, file in enumerate(files[:3]):
                 ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
@@ -382,6 +383,7 @@ def register_main_reporting_routes(main_bp):
                     saved_files.append(filename)
                 except Exception as error:
                     current_app.logger.warning('Błąd zapisu pliku: %s', error)
+                    return jsonify(success=False, message='Nie zapisano zgłoszenia: nie udało się zapisać załącznika.'), 500
 
         # 1. Zapis do zgłoszeń błędów / DUR
         conn = db.get_db_connection()

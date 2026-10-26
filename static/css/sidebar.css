@@ -258,3 +258,10 @@
         visibility: visible !important;
     }
 }
+
+/* Native nested production submenu, also operable with the keyboard. */
+.nav-sub-group > summary.nav-sub-item {display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;list-style:none;font-weight:700;}
+.nav-sub-group > summary::-webkit-details-marker {display:none;}
+.nav-sub-group > summary .chevron {font-size:18px;transition:transform .15s;}
+.nav-sub-group[open] > summary .chevron {transform:rotate(180deg);}
+.nav-sub-group > a.nav-sub-item {padding-left:48px;}

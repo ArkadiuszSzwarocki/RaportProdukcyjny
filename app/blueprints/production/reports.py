@@ -30,4 +30,7 @@ def register_production_reports_routes(bp):
     @bp.route('/raporty/agro-historia-stacji')
     @login_required
     def agro_station_history():
-        return render_template('production/agro_station_history.html', active_tab='agro_station_history', effective_hall='AGRO')
+        history_line = str(request.args.get('linia') or 'AGRO').upper()
+        if history_line not in ('AGRO', 'PSD', 'ALL'):
+            history_line = 'AGRO'
+        return render_template('production/agro_station_history.html', active_tab='agro_station_history', effective_hall='AGRO', history_line=history_line)

@@ -119,6 +119,9 @@ class _PinnedSMTPSSL(_PinnedSMTP):
 
 def secure_smtp_connection(host, port, security, *, timeout=15, context=None):
     """Open SMTP without resolving DNS a second time or disabling TLS verification."""
+    from app.core.instance_mode import is_test_instance
+    if is_test_instance():
+        raise ValueError('Wysyłanie e-maili jest wyłączone w instancji testowej.')
     host, port, addresses = _resolve_smtp_target(host, port, security)
     context = context or ssl.create_default_context()
     if not context.check_hostname or context.verify_mode != ssl.CERT_REQUIRED:

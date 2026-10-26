@@ -172,11 +172,20 @@ class PlanningMutationService:
             current_app.logger.debug(f'[SERVICE-DELETE] Found plan: status={status}, produkt={produkt}, sekcja={sekcja}, data={data_planu}')
             
             # Cannot delete if in progress or completed
-            if status in ['w toku', 'zakonczone']:
+            if status in ['w toku', 'zawieszone', 'zakonczone']:
                 current_app.logger.debug(f'[SERVICE-DELETE] Plan has protected status: {status}')
                 conn.close()
-                return (False, 'Nie można usunąć zlecenia w toku lub zakonczone.')
+                return (False, 'Nie można usunąć zlecenia rozpoczętego, zawieszonego lub zakończonego.')
             
+            if str(linia).upper() == 'AGRO' and str(sekcja).lower() == 'zasyp':
+                cursor.execute(
+                    f"SELECT id FROM {table_plan} WHERE zasyp_id=%s AND status IN ('w toku', 'zawieszone', 'zakonczone') AND (is_deleted=0 OR is_deleted IS NULL) LIMIT 1",
+                    (plan_id,),
+                )
+                if cursor.fetchone():
+                    conn.close()
+                    return False, 'Nie można usunąć zlecenia z rozpoczętym Workowaniem.'
+
             # Hard delete: DELETE FROM table
             current_app.logger.debug(f'[SERVICE-DELETE] Executing DELETE...')
             cursor.execute(f"DELETE FROM {table_plan} WHERE id=%s", (plan_id,))
@@ -280,7 +289,7 @@ class PlanningMutationService:
             current_app.logger.debug(f'[SERVICE-RESCHEDULE] Moving from {stara_data_str} to {nowa_data_str}')
             
             # Only block if plan is currently being unpacked (w toku)
-            if status == 'w toku':
+            if status in ('w toku', 'zawieszone'):
                 current_app.logger.debug(f'[SERVICE-RESCHEDULE] Plan is w toku - cannot reschedule!')
                 return False, 'Nie można przesunąć planu, który jest w trakcie realizacji (status: w toku).'
             
@@ -325,7 +334,7 @@ class PlanningMutationService:
                 meta = plan_meta.get(pid)
                 if not meta:
                     continue
-                if meta['status'] == 'w toku':
+                if meta['status'] in ('w toku', 'zawieszone'):
                     return False, 'Nie można przesunąć zlecenia powiązanego ze statusem w toku.'
                 if meta['tonaz_rzeczywisty'] and meta['tonaz_rzeczywisty'] > 0:
                     return False, 'Nie można przesunąć zlecenia powiązanego z odnotowanym tonażem rzeczywistym.'

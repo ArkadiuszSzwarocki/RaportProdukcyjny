@@ -751,6 +751,10 @@ class AgroTanksRepository:
             try:
                 cursor = conn.cursor()
                 
+                from app.services.auto_label_service import AutoLabelService
+                if not AutoLabelService.schema_ready(conn, cursor, linia):
+                    return False
+
                 # Acquire database-level lock to prevent concurrency race conditions on MyISAM storage engine
                 cursor.execute("SELECT GET_LOCK('agro_pallet_register', 10)")
                 lock_res = cursor.fetchone()

@@ -481,7 +481,7 @@
 
 <!-- LP01 MACHINE DISPATCH MODAL -->
 <div class="modal-overlay" id="lp01ModalOverlay" style="display:none; z-index:9000; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); align-items:center; justify-content:center; padding:12px;">
-  <div style="width:100%; max-width:440px; background:#ffffff; border:1px solid #cbd5e1; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); padding:20px; box-sizing:border-box; color:#0f172a; font-family:'Inter', sans-serif;">
+  <div style="max-height:90vh;overflow-y:auto;width:100%; max-width:440px; background:#ffffff; border:1px solid #cbd5e1; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.35); padding:20px; box-sizing:border-box; color:#0f172a; font-family:'Inter', sans-serif;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
       <h3 style="margin:0; font-size:1.15rem; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:8px;">
         <span class="material-icons" style="color:#2563eb; font-size:24px;">precision_manufacturing</span>
@@ -512,6 +512,22 @@
       </div>
     </div>
 
+
+<div id="lp01FilmFields" hidden style="margin:12px 0;padding:12px;background:#eff6ff;border-radius:8px;">
+  <label for="lp01FilmPlan" style="display:block;font-weight:700;">Przypisz rolkę folii do zlecenia</label>
+  <select id="lp01FilmPlan" class="form-control" style="width:100%;min-width:0;margin:6px 0;"><option value="">Bez przypisania do zlecenia</option></select>
+  <label for="lp01FilmRole">Przeznaczenie rolki</label>
+  <select id="lp01FilmRole" class="form-control" style="width:100%;margin-top:6px;"><option value="active">Aktualnie używana</option><option value="prepared" selected>Przygotowana do wymiany / rozpoczęcia</option><option value="replace">Zmiana rolki — zamknij poprzednią i załóż nową</option></select>
+  <div id="lp01PreviousWrap" hidden style="margin-top:10px;">
+    <label for="lp01PreviousRemaining">Pozostało na poprzedniej rolce (szt.)</label>
+    <input id="lp01PreviousRemaining" type="number" min="0" step="1" placeholder="Wpisz również 0" style="width:100%;padding:10px;box-sizing:border-box;">
+    <small>Poprzednia rolka zostanie automatycznie rozliczona i zamknięta.</small>
+  </div>
+  <small>Wpisz ilość na pobieranej rolce. Każde pobranie zapisuje się osobno; maksymalnie dwie rolki na zlecenie.</small>
+  <div data-film-status role="status" style="margin-top:8px;color:#334155;"></div>
+  <div data-film-error style="color:#b91c1c;"></div>
+  <button type="button" data-film-retry hidden class="btn btn-outline" style="margin-top:8px;">Ponów pobieranie</button>
+</div>
     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px; border-top:1px solid #e2e8f0; padding-top:14px;">
       <button type="button" class="btn btn-outline" onclick="closeLP01Modal()" style="padding:10px 18px; border-radius:8px; font-weight:700; border:1px solid #cbd5e1; color:#475569; background:#f8fafc; cursor:pointer;">
         Anuluj
@@ -664,14 +680,15 @@
     {% set user_role = (session.get('rola') or session.get('role') or '')|lower|trim %}
     const CAN_RESTORE_PALLET = {{ 'true' if user_role in ['masteradmin', 'lider', 'admin', 'zarzad'] else 'false' }};
 </script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js', v=static_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js', v=static_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js', v=static_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js', v=static_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ static_version }}&bucket=20261014-wxx"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_suggestions.js', v=static_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v={{ static_version }}&bucket=20261003-wxx"></script>
-<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js', v=static_version) }}"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js', v=scanner_ui_version) }}"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v={{ scanner_ui_version }}&bucket=20261003-wxx"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js', v=scanner_ui_version) }}"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js', v=scanner_ui_version) }}"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js', v=scanner_ui_version) }}"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ scanner_ui_version }}&bucket=20261014-wxx"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_suggestions.js', v=scanner_ui_version) }}"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v={{ scanner_ui_version }}&bucket=20261003-wxx"></script>
+<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js', v=scanner_ui_version) }}"></script>
+<script src="{{ url_for('static', filename='js/lp01_film.js') }}?v={{ scanner_ui_version }}"></script>
 {% endblock %}
 

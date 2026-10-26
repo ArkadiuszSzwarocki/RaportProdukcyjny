@@ -98,9 +98,9 @@ class TestCleaningPalletHistory(unittest.TestCase):
         # 5: mp_id (plan Magazyn)
         # 6: skan_sscc query (mother pallet)
         mock_cur.fetchone.side_effect = [
+            (10, 'do_przyjecia', 1000, 'NEW-CHILD-777', None), # locked lifecycle before any writes
             (25,),                                         # tara
             (1000,),                                       # declared waga
-            (10, 'do_przyjecia', 1000, 'NEW-CHILD-777', None), # check_pal (plan_id, status, stored_netto, nr_palety, nr_plomby)
             ('2026-09-08', 'Czyszczenie', '2026-09-08'),    # plan_info
             None,                                          # mp_id for Magazyn
             ('SUR-MOTHER-123',),                           # skan_sscc query

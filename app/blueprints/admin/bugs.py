@@ -3,6 +3,7 @@ import os
 
 from flask import current_app, flash, redirect, render_template, request, session, url_for
 
+from app.services.bug_attachment_service import BugAttachmentService
 from app.db import get_db_connection
 from app.decorators import dynamic_role_required, login_required, masteradmin_required
 
@@ -79,6 +80,8 @@ def register_admin_bug_routes(admin_bp, *, create_notification):
                 elif not bug.get('zalaczniki'):
                     bug['zalaczniki'] = []
 
+                bug['attachment_items'] = BugAttachmentService.items(bug.get('zalaczniki'))
+
                 # Połącz odpowiedzi z nowej tabeli lub użyj legacy odpowiedz_admina
                 bug_replies = replies_by_bug.get(bug['id'], [])
                 if not bug_replies and bug.get('odpowiedz_admina'):
@@ -110,10 +113,11 @@ def register_admin_bug_routes(admin_bp, *, create_notification):
     @login_required
     def admin_view_attachment(filename):
         """Bezpieczne serwowanie załączników/zrzutów ekranu ze zgłoszeń (omija filtry adblockerów blokujące ścieżki /bugs/)."""
-        from flask import send_from_directory
-        safe_filename = os.path.basename(filename)
-        upload_dir = os.path.join(current_app.static_folder, 'uploads', 'bugs')
-        return send_from_directory(upload_dir, safe_filename)
+        from flask import send_file, abort
+        path = BugAttachmentService.resolve(filename)
+        if path is None:
+            abort(404, description='Plik załącznika nie jest dostępny na tym serwerze.')
+        return send_file(path, conditional=True)
 
     @admin_bp.route('/admin/ustawienia/bugs/respond/<int:bug_id>', methods=['POST'])
     @login_required

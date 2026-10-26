@@ -76,7 +76,7 @@ def test_picking_entry_does_not_synchronize_every_order_before_render():
     with app.test_request_context('/warehouse-v2/kompletacja?linia=AGRO'), patch('app.repositories.picking_repository.PickingRepository.get_active_orders', return_value=orders) as read, patch('app.services.picking_service.PickingService.get_active_orders', side_effect=AssertionError('No sync on page entry')), patch.object(views, 'render_template', return_value='ready') as render:
         assert views.kompletacja() == 'ready'
         read.assert_called_once_with()
-        assert render.call_args.kwargs['initial_order_ref'] == 'TEST'
+        assert render.call_args.kwargs['initial_order_ref'] == ''
         assert render.call_args.kwargs['active_orders'] == orders
 
 

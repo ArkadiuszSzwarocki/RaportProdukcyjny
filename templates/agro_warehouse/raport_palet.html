@@ -43,6 +43,8 @@
             margin-bottom: 50px;
         }
         .plan-header {
+            flex-wrap: wrap;
+            gap: 16px;
             background-color: var(--bg);
             padding: 15px 20px;
             border-left: 5px solid var(--accent);
@@ -58,6 +60,8 @@
         }
         .plan-stats {
             display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
             gap: 20px;
             font-weight: 600;
         }
@@ -185,7 +189,11 @@
             </div>
             <div class="plan-stats">
                 <div class="stat-item">
-                    <span class="stat-label">Zasyp</span>
+                    <span class="stat-label">Zasypy wg Excel</span>
+                    <span class="stat-value">{{ ('%.3f'|format(item.plan.zasyp_excel_kg|default(none))).rstrip('0').rstrip('.') ~ ' kg' if item.plan.zasyp_excel_kg|default(none) is not none else 'brak wpisu' }}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Zasyp (system)</span>
                     <span class="stat-value">{{ item.plan.z_kg|default(0) }} kg</span>
                 </div>
                 {% if item.mixes %}

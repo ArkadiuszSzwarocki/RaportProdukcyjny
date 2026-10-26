@@ -616,6 +616,14 @@ class DashboardService:
             finally:
                 cur_loc.close()
             
+            # Use per-roll counters: the prepared roll has no consumption baseline.
+            from app.services.folio_service import FolioService
+            maszyna_opakowania = FolioService.get_active_rolls(plan_id, external_conn=read_connection())
+            for roll in maszyna_opakowania:
+                roll['stan_magazynowy'] = roll['szacowane_pozostalo']
+                roll['suggested_loc'] = ''
+                roll['is_active'] = True
+
             bigbag_settlement = {}
             try:
                 from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService

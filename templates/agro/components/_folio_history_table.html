@@ -48,7 +48,7 @@
                     </td>
                     <td>{{ row.autor_login or '—' }}</td>
                     <td>
-                        {% if row.typ_zdarzenia == 'ZAMKNIECIE' %}
+                        {% if row.typ_zdarzenia == 'ZAMKNIECIE' and not row.individual_roll %}
                         <form action="{{ url_for('production.agro_folio_undo_close_roll') }}" method="POST" style="display:inline;" onsubmit="return confirm('Cofnąć zamknięcie rolki? Zostanie ona przywrócona na maszynę jako aktywna.');">
                             <input type="hidden" name="rozliczenie_id" value="{{ row.id }}">
                             <input type="hidden" name="data_planu" value="{{ data_planu }}">

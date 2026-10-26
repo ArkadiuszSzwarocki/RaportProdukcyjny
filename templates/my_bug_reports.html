@@ -39,10 +39,15 @@
 
             {% if r.zalaczniki %}
             <div class="d-flex gap-10 mt-10" style="flex-wrap:wrap; align-items:center;">
-                {% for img in r.zalaczniki %}
-                <a href="{{ url_for('static', filename='uploads/bugs/' + img) }}" target="_blank" rel="noopener" title="Kliknij, aby powiększyć zdjęcie">
-                    <img src="{{ url_for('static', filename='uploads/bugs/' + img) }}" alt="Zdjęcie {{ loop.index }}" style="max-height:120px; max-width:200px; border-radius:8px; border:1px solid #cbd5e1; object-fit:cover; box-shadow: 0 2px 5px rgba(0,0,0,0.15); cursor:pointer;">
+                {% for attachment in r.attachment_items %}
+                {% if attachment.available %}
+                <a href="{{ attachment.url }}" target="_blank" rel="noopener" title="Kliknij, aby powiększyć zdjęcie">
+                    <img src="{{ attachment.url }}" alt="Zdjęcie {{ loop.index }}" style="max-height:120px;max-width:200px;border-radius:8px;border:1px solid #cbd5e1;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';">
+                    <span style="display:none;">Nie można wczytać załącznika.</span>
                 </a>
+                {% else %}
+                <div style="padding:12px;border:1px solid #fed7aa;border-radius:8px;background:#fff7ed;color:#9a3412;">Plik niedostępny na tym serwerze.<br><small>{{ attachment.filename }}</small></div>
+                {% endif %}
                 {% endfor %}
             </div>
             {% endif %}

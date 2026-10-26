@@ -151,6 +151,10 @@ def raport_palet():
             query += ' ORDER BY w.data_planu DESC, w.id DESC'
         cursor.execute(query, tuple(params))
         plans = cursor.fetchall()
+        from app.services.zasyp_excel_service import ZasypExcelService
+        excel_totals = ZasypExcelService.for_work_orders(conn, [p['work_id'] for p in plans])
+        for report_plan in plans:
+            report_plan['zasyp_excel_kg'] = excel_totals.get(report_plan['work_id'])
         if plan_id and plans:
             data_planu = str(plans[0]['data_planu'])
         else:
@@ -309,12 +313,16 @@ def raport_palet_daily():
             (day.isoformat(), next_day.isoformat()),
         )
         rows = cursor.fetchall()
+        from app.services.zasyp_excel_service import ZasypExcelService
+        excel_totals = ZasypExcelService.for_work_orders(conn, [row['plan_id'] for row in rows])
+        for report_row in rows:
+            report_row['zasyp_excel_kg'] = excel_totals.get(report_row['plan_id'])
         if export:
             # stream CSV
             import io, csv
             output = io.StringIO()
             writer = csv.writer(output)
-            writer.writerow(['data_dodania', 'nr_palety', 'produkt', 'nr_partii', 'waga_kg', 'plan_id', 'dodal', 'potwierdzil', 'status'])
+            writer.writerow(['data_dodania', 'nr_palety', 'produkt', 'nr_partii', 'waga_kg', 'plan_id', 'dodal', 'potwierdzil', 'status', 'zasypy_excel_zlecenie_kg'])
             for r in rows:
                 writer.writerow([
                     r.get('data_dodania').strftime('%Y-%m-%d %H:%M:%S') if r.get('data_dodania') else '',
@@ -326,6 +334,7 @@ def raport_palet_daily():
                     r.get('dodal') or '',
                     r.get('potwierdzil') or '',
                     r.get('status') or '',
+                    r.get('zasyp_excel_kg') if r.get('zasyp_excel_kg') is not None else '',
                 ])
             output.seek(0)
             return Response(output.getvalue(), mimetype='text/csv', headers={

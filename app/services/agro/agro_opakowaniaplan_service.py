@@ -15,7 +15,8 @@ class AgroOpakowaniaPlanService:
 
     @staticmethod
     def link_packaging_to_plan(opakowanie_id, plan_id, ilosc_pobrana=None, user_login=None):
-        return AgroOpakowaniaPlanRepository.link_packaging_to_plan(opakowanie_id=opakowanie_id, plan_id=plan_id, ilosc_pobrana=ilosc_pobrana, user_login=user_login)
+        from app.services.folio_assignment_service import FolioAssignmentService
+        return FolioAssignmentService.assign(opakowanie_id, plan_id, ilosc_pobrana, user_login or 'System', role='auto')
 
     @staticmethod
     def undo_packaging_link(link_id):
