@@ -19,6 +19,7 @@
     <a href="{{ url_for('admin.email_center', tab='konta') }}"{% if mail_tab == 'konta' %} aria-current="page"{% endif %}>Konta SMTP i odbiorcy</a>
     {% if role_has_access('ustawienia') %}<a href="{{ url_for('admin.email_center', tab='magazyn') }}"{% if mail_tab == 'magazyn' %} aria-current="page"{% endif %}>Magazyn i OSIP</a>{% endif %}
     {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}<a href="{{ url_for('admin.email_center', tab='historia') }}"{% if mail_tab == 'historia' %} aria-current="page"{% endif %}>Historia wysyłek</a>{% endif %}
+    {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}<a href="{{ url_for('admin.email_center', tab='raporty') }}"{% if mail_tab == 'raporty' %} aria-current="page"{% endif %}>Wysyłki raportów</a>{% endif %}
   </nav>
   {% block email_content %}{% endblock %}
 </div>

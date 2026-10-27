@@ -66,3 +66,15 @@ def register_admin_email_history_routes(bp: Blueprint) -> None:
             page=page
         )
         return jsonify({'success': True, 'data': result})
+
+
+    @bp.route('/admin/ustawienia/poczta/raporty', methods=['GET'])
+    @login_required
+    @roles_required('admin', 'masteradmin', 'zarzad', 'lider', 'planista')
+    def admin_report_delivery_history():
+        from app.services.report_delivery_history import load_report_deliveries
+        line = request.args.get('linia', 'ALL').upper()
+        if line not in ('ALL','AGRO','PSD'):
+            line = 'ALL'
+        rows, available = load_report_deliveries(line)
+        return render_template('admin/report_delivery_history.html', rows=rows, available=available, selected_line=line)

@@ -138,6 +138,14 @@ def _compute_scanner_ui_version():
     return digest.hexdigest()[:20]
 
 
+def _compute_periodic_ui_version():
+    root = Path(current_app.static_folder).parent
+    digest = hashlib.sha256()
+    for name in ('static/js/periodic_reports.js','static/css/periodic_reports.css','templates/raporty_okresowe.html'):
+        digest.update((root / name).read_bytes())
+    return digest.hexdigest()[:20]
+
+
 def inject_static_version():
     """Inject cache-busting static file version based on CSS modification time (cached 30s)."""
     try:
@@ -148,7 +156,9 @@ def inject_static_version():
                          if request.endpoint == 'warehouse_v2.index' else v)
     scanner_version = (_get_cached_context('scanner_ui_version', 30.0, _compute_scanner_ui_version)
                        if request.endpoint in {'agro_scanner.scanner_ui', 'agro_warehouse.lp01_view'} or request.path.startswith('/agro/scanner') else v)
-    return dict(static_version=v, warehouse_ui_version=warehouse_version, scanner_ui_version=scanner_version)
+    periodic_version = (_get_cached_context('periodic_ui_version', 30.0, _compute_periodic_ui_version)
+                        if request.endpoint == 'zarzad.raporty_okresowe' else v)
+    return dict(static_version=v, warehouse_ui_version=warehouse_version, scanner_ui_version=scanner_version, periodic_ui_version=periodic_version)
 
 
 _PERMS_CACHE = {'mtime': 0, 'data': {}}

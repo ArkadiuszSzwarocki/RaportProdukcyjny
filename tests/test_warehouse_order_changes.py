@@ -1,3 +1,4 @@
+# cspell:words slownik
 """Order changes preserve stock and history and commit both linked orders together."""
 import json
 import sqlite3

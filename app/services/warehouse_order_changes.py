@@ -1,3 +1,4 @@
+# cspell:words slownik timespec
 """Cancel outstanding order quantities and atomically create a linked replacement."""
 import json
 import math

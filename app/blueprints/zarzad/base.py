@@ -1,3 +1,4 @@
+# cspell:words ufeff wydozowan
 # routes_zarzad.py
 from flask import Blueprint, render_template, request, jsonify
 from datetime import datetime, date, timedelta
@@ -194,173 +195,55 @@ def dzien_szczegoly():
 @zarzad_bp.route('/raporty_okresowe')
 @dynamic_role_required('wyniki')
 def raporty_okresowe():
-    import os
-    from flask import send_from_directory
-    from app.repositories.downtime_repository import DowntimeRepository
-    from app.db import get_table_name
+    from flask import abort, Response
+    from app.services.periodic_report_service import PeriodicReportService
+    import csv
+    import io
+    now = datetime.now()
+    year = request.args.get('rok', now.year, type=int)
+    month = request.args.get('miesiac', now.month, type=int)
+    if not 2000 <= year <= 2100 or not 1 <= month <= 12:
+        abort(400, description='Wybierz poprawny miesiąc i rok 2000–2100.')
+    line = _normalize_line(request.args.get('linia'))
+    section = request.args.get('sekcja', 'Zasyp')
+    if section not in ('Zasyp','Workowanie'):
+        section = 'Zasyp'
+    from app.services.warehouse_live_updates import revision, report_channel
+    from app.core.database import get_active_database_name
+    initial_revision = revision(report_channel(get_active_database_name()))
+    report = PeriodicReportService.load(year,month,line,request.args.get('produkt','').strip(),include_live=request.args.get('zakres','live') != 'closed')
+    report['revision'] = initial_revision
+    if request.args.get('format') == 'json':
+        response = jsonify(success=True, report=report)
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+    if request.args.get('format') == 'csv':
+        output = io.StringIO()
+        writer = csv.writer(output,delimiter=';')
+        writer.writerow(['Etap','Hala','Zlecenie','Data planu','Status','Produkt','Plan kg','Wykonanie miesiąca kg','Wykonanie całego zlecenia kg','Zasypy Excel kg','Czas brutto h','Tempo brutto kg/h'])
+        for row in report['sections'][section]['details']:
+            product = row['product']
+            if product.startswith(('=','+','-','@','\t','\r')):
+                product = "'" + product
+            writer.writerow([section,row['line'],row['id'],row['date'],row['status'],product,row['plan'],row['actual'],row['total_actual'],row['excel'],row['hours'],row['rate']])
+        return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={
+            'Content-Disposition':f'attachment; filename="Raport_{line}_{section}_{year}-{month:02d}.csv"'})
+    return render_template('raporty_okresowe.html',report=report,section=section)
 
-    teraz = datetime.now()
-    rok = request.args.get('rok', teraz.year, type=int)
-    mc = request.args.get('miesiac', teraz.month, type=int)
-    linia = (request.args.get('linia') or 'AGRO').strip().upper()
-    if linia not in ['AGRO', 'PSD', 'ALL']:
-        linia = 'AGRO'
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    # 1. Trend roczny
-    if linia == 'ALL':
-        t_agro = get_table_name('plan_produkcji', 'AGRO')
-        t_psd = get_table_name('plan_produkcji', 'PSD')
-        cursor.execute(f"""
-            SELECT m, SUM(tonaz) as suma FROM (
-                SELECT MONTH(data_planu) as m, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as tonaz
-                FROM {t_agro} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu)
-                UNION ALL
-                SELECT MONTH(data_planu) as m, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as tonaz
-                FROM {t_psd} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu)
-            ) as t GROUP BY m ORDER BY m
-        """, (rok, rok))
-    else:
-        table_plan = get_table_name('plan_produkcji', linia)
-        cursor.execute(f"""
-            SELECT MONTH(data_planu) as m, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as suma
-            FROM {table_plan} WHERE YEAR(data_planu)=%s AND status='zakonczone' GROUP BY MONTH(data_planu) ORDER BY MONTH(data_planu)
-        """, (rok,))
-    
-    trend_rows = cursor.fetchall() or []
-    trend_dict = {int(r['m']): float(r['suma'] or 0) for r in trend_rows}
-
-    months_pl = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru']
-    labels = months_pl
-    data = [trend_dict.get(i, 0.0) for i in range(1, 13)]
-
-    # 2. Statystyki wybranego miesiąca
-    if linia == 'ALL':
-        t_agro = get_table_name('plan_produkcji', 'AGRO')
-        t_psd = get_table_name('plan_produkcji', 'PSD')
-        cursor.execute(f"""
-            SELECT COUNT(1) as zlecenia_cnt, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as tonaz_sum
-            FROM (
-                SELECT tonaz_rzeczywisty, tonaz FROM {t_agro} WHERE YEAR(data_planu)=%s AND MONTH(data_planu)=%s AND status='zakonczone'
-                UNION ALL
-                SELECT tonaz_rzeczywisty, tonaz FROM {t_psd} WHERE YEAR(data_planu)=%s AND MONTH(data_planu)=%s AND status='zakonczone'
-            ) as m
-        """, (rok, mc, rok, mc))
-    else:
-        table_plan = get_table_name('plan_produkcji', linia)
-        cursor.execute(f"""
-            SELECT COUNT(1) as zlecenia_cnt, COALESCE(SUM(COALESCE(tonaz_rzeczywisty, tonaz)), 0) as tonaz_sum
-            FROM {table_plan} WHERE YEAR(data_planu)=%s AND MONTH(data_planu)=%s AND status='zakonczone'
-        """, (rok, mc))
-    
-    month_stat = cursor.fetchone() or {'zlecenia_cnt': 0, 'tonaz_sum': 0}
-    stats = [
-        int(month_stat.get('zlecenia_cnt') or 0),
-        int(month_stat.get('tonaz_sum') or 0),
-        0 # Czas awarii obliczany poniżej
-    ]
-
-    # 3. Awarie w danym miesiącu
-    awarie = []
-    total_downtime_min = 0
-    try:
-        dt_repo = DowntimeRepository()
-        date_start = f"{rok}-{mc:02d}-01"
-        import calendar
-        last_day = calendar.monthrange(rok, mc)[1]
-        date_end = f"{rok}-{mc:02d}-{last_day:02d}"
-
-        raw_dts = []
-        if linia in ['AGRO', 'ALL']:
-            raw_dts.extend(dt_repo.get_downtimes('AGRO', date_start, date_end))
-        if linia in ['PSD', 'ALL']:
-            raw_dts.extend(dt_repo.get_downtimes('PSD', date_start, date_end))
-
-        # Agregacja awarii
-        aggr = {}
-        for d in raw_dts:
-            kat = d.get('kategoria') or d.get('sekcja') or 'Inne'
-            dur = int(d.get('czas_trwania_min') or 0)
-            total_downtime_min += dur
-            if kat not in aggr:
-                aggr[kat] = {'count': 0, 'duration': 0}
-            aggr[kat]['count'] += 1
-            aggr[kat]['duration'] += dur
-
-        for kat, vals in aggr.items():
-            awarie.append([kat, vals['count'], vals['duration']])
-    except Exception:
-        pass
-
-    stats[2] = total_downtime_min
-
-    # 4. Historia wysłanych raportów e-mail z tabeli auto_report_history
-    email_reports_history = []
-    try:
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS auto_report_history (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                data_raportu DATE NOT NULL,
-                linia VARCHAR(20) NOT NULL,
-                typ_raportu VARCHAR(50) NOT NULL,
-                odbiorcy TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_rep (data_raportu, linia, typ_raportu)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        """)
-        conn.commit()
-
-        q_hist = "SELECT * FROM auto_report_history"
-        params_hist = []
-        if linia != 'ALL':
-            q_hist += " WHERE linia = %s"
-            params_hist.append(linia)
-        q_hist += " ORDER BY created_at DESC LIMIT 50"
-
-        cursor.execute(q_hist, tuple(params_hist))
-        raw_hist = cursor.fetchall() or []
-
-        raporty_dir = 'raporty'
-        for h in raw_hist:
-            d_str = str(h.get('data_raportu') or '')
-            lin = h.get('linia') or 'AGRO'
-            is_production_line = lin in ('AGRO', 'PSD')
-            pdf_name = f"Raport_{lin}_{d_str}.pdf" if is_production_line else None
-            xls_name = f"Raport_{lin}_{d_str}.xlsx" if is_production_line else None
-            
-            created_dt = h.get('created_at')
-            created_str = created_dt.strftime('%Y-%m-%d %H:%M:%S') if hasattr(created_dt, 'strftime') else str(created_dt)
-
-            email_reports_history.append({
-                'id': h.get('id'),
-                'data_raportu': d_str,
-                'linia': lin,
-                'typ_raportu': h.get('typ_raportu') or 'Zmianowy',
-                'odbiorcy': h.get('odbiorcy') or '-',
-                'status': h.get('status') or 'SENT',
-                'created_at': created_str,
-                'pdf_filename': pdf_name,
-                'xls_filename': xls_name
-            })
-    except Exception:
-        pass
-    finally:
-        cursor.close()
-        conn.close()
-
-    return render_template(
-        'raporty_okresowe.html',
-        rok=rok,
-        miesiac=mc,
-        linia=linia,
-        stats=stats,
-        awarie=awarie,
-        labels_rok=labels,
-        data_rok=data,
-        email_reports_history=email_reports_history
-    )
+@zarzad_bp.route('/raporty_okresowe/events')
+@dynamic_role_required('wyniki')
+def periodic_report_events():
+    from flask import Response
+    from app.core.database import get_active_database_name
+    from app.services.warehouse_live_updates import reserve_stream, reserved_stream, report_channel
+    release=reserve_stream()
+    if release is None:
+        return jsonify(success=False),503
+    response=Response(reserved_stream(report_channel(get_active_database_name()),release),mimetype='text/event-stream',
+        headers={'Cache-Control':'no-store','X-Accel-Buffering':'no'})
+    response.call_on_close(release)
+    return response
 
 
 @zarzad_bp.route('/raporty/plik/<filename>')
@@ -392,3 +275,34 @@ def pobierz_plik_raportu(filename):
 
     return send_from_directory(raporty_dir, safe_name, as_attachment=True)
 
+
+
+@zarzad_bp.route('/raporty/czasy-wydozowan')
+@dynamic_role_required('wyniki')
+def dosing_times_report():
+    from flask import abort,Response,current_app
+    from app.services.dosing_time_report_service import DosingTimeReportService
+    from pathlib import Path
+    import csv,io,hashlib
+    today=date.today()
+    try:
+        start=date.fromisoformat(request.args.get('od') or today.replace(day=1).isoformat())
+        end=date.fromisoformat(request.args.get('do') or today.isoformat())
+    except ValueError:
+        abort(400,description='Podaj poprawny zakres dat.')
+    if start.year<2000 or end.year>2100 or end<start or (end-start).days>366:abort(400,description='Zakres może obejmować maksymalnie 366 dni, w latach 2000–2100.')
+    line=_normalize_line(request.args.get('linia'))
+    report=DosingTimeReportService.load(start,end,line,request.args.get('zlecenie','').strip())
+    if request.args.get('format')=='csv':
+        output=io.StringIO();writer=csv.writer(output,delimiter=';')
+        writer.writerow(['Hala','Zlecenie','Produkt','Data planu','Szarża','Kolejność procesu','Kolejność START','Etap','Nazwa etapu','START','STOP','Brutto s','Pauzy s','Praca s','Status','Start przez','Stop przez','Powód opóźnienia','Uwagi'])
+        for order in report['orders']:
+            for batch in order['batches']:
+                for stage in batch['stages']:
+                    values=[order['line'],order['id'],order['name'],order['date'],batch['number'],stage['sequence'],stage['actual_sequence'],stage['code'],stage['name'],stage['start'],stage['stop'],stage['gross_s'],stage['pause_s'],stage['work_s'],stage['state'],stage['start_login'],stage['stop_login'],stage['reason'],stage['issue']]
+                    writer.writerow(["'"+value if isinstance(value,str) and value.startswith(('=','+','-','@','\t','\r')) else value for value in values])
+        return Response('\ufeff'+output.getvalue(),mimetype='text/csv',headers={'Content-Disposition':f'attachment; filename="Czasy_etapow_{line}_{start}_{end}.csv"'})
+    root=Path(current_app.static_folder).parent
+    assets=('static/css/periodic_reports.css','static/css/dosing_times.css','static/js/dosing_times.js','templates/production/dosing_times_report.html')
+    version=hashlib.sha256(b''.join((root/name).read_bytes() for name in assets)).hexdigest()[:20]
+    return render_template('production/dosing_times_report.html',report=report,asset_version=version)

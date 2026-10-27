@@ -1,351 +1,77 @@
+{# cspell:words endmacro wydozowań #}
 {% extends "layout.html" %}
-
-{% block title %}Raporty Okresowe & Historia E-mail — AgroMES{% endblock %}
-
+{% block title %}Raporty okresowe — AgroMES{% endblock %}
+{% macro value(amount, unit='', decimals=1) %}{% if amount is not none %}{{ ('%.*f'|format(decimals, amount)).replace('.', ',') }}{{ ' ' ~ unit if unit else '' }}{% else %}—{% endif %}{% endmacro %}
+{% macro zoom_button(id,label) %}<button type="button" class="pr-button pr-chart-expand" data-chart-expand="{{ id }}" aria-label="Powiększ wykres: {{ label }}">⛶ Powiększ</button>{% endmacro %}
 {% block content %}
-<div class="container-fluid px-3 px-md-4 py-4" style="max-width: 1400px;">
-  
-  <!-- HERO HEADER -->
-  <div class="card border-0 shadow-sm rounded-4 mb-4 overflow-hidden" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff;">
-    <div class="card-body p-4 p-lg-5">
-      <div class="row align-items-center g-3">
-        <div class="col-lg-7">
-          <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded-pill mb-3" style="background: rgba(255,255,255,0.1); backdrop-filter: blur(8px); font-size: 0.8rem; font-weight: 700; color: #38bdf8; border: 1px solid rgba(56,189,248,0.2);">
-            <span>📊 ZARZĄD & ANALITYKA</span>
-          </div>
-          <h1 class="h2 fw-black mb-2 text-white">Raporty Okresowe & Historia E-mail</h1>
-          <p class="text-white-50 mb-0" style="font-size: 0.95rem;">
-            Kompleksowe podsumowanie wielkości produkcji, przestojów oraz pełen dziennik wysłanych raportów e-mail dla Hal AGRO i PSD.
-          </p>
-        </div>
-        
-        <!-- FILTRY LINII, MIESIĄCA I ROKU -->
-        <div class="col-lg-5">
-          <div class="bg-white bg-opacity-10 p-3 p-md-4 rounded-4 border border-white border-opacity-10 backdrop-blur">
-            <form method="GET" action="{{ url_for('zarzad.raporty_okresowe') }}" class="row g-2">
-              
-              <!-- LINIA TOGGLE -->
-              <div class="col-12 mb-2">
-                <label class="form-label text-white-50 small fw-bold mb-1">Linia Produkcyjna:</label>
-                <div class="btn-group w-100" role="group">
-                  <a href="{{ url_for('zarzad.raporty_okresowe', linia='AGRO', rok=rok, miesiac=miesiac) }}" 
-                     class="btn btn-sm {% if linia == 'AGRO' %}btn-primary fw-bold text-white shadow-sm{% else %}btn-outline-light{% endif %}">
-                    🌾 AGRO
-                  </a>
-                  <a href="{{ url_for('zarzad.raporty_okresowe', linia='PSD', rok=rok, miesiac=miesiac) }}" 
-                     class="btn btn-sm {% if linia == 'PSD' %}btn-primary fw-bold text-white shadow-sm{% else %}btn-outline-light{% endif %}">
-                    🏭 PSD
-                  </a>
-                  <a href="{{ url_for('zarzad.raporty_okresowe', linia='ALL', rok=rok, miesiac=miesiac) }}" 
-                     class="btn btn-sm {% if linia == 'ALL' %}btn-primary fw-bold text-white shadow-sm{% else %}btn-outline-light{% endif %}">
-                    🌐 Wszystkie
-                  </a>
-                </div>
-              </div>
-
-              <!-- MIESIĄC I ROK -->
-              <input type="hidden" name="linia" value="{{ linia }}">
-              <div class="col-6">
-                <select name="miesiac" class="form-select form-select-sm bg-dark text-white border-secondary fw-semibold">
-                  {% set m_names = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'] %}
-                  {% for m_num in range(1, 13) %}
-                    <option value="{{ m_num }}" {% if m_num == miesiac %}selected{% endif %}>
-                      {{ m_names[m_num - 1] }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-4">
-                <select name="rok" class="form-select form-select-sm bg-dark text-white border-secondary fw-semibold">
-                  {% for r in range(2025, 2028) %}
-                    <option value="{{ r }}" {% if r == rok %}selected{% endif %}>{{ r }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-2">
-                <button type="submit" class="btn btn-sm btn-info w-100 fw-bold" title="Filtruj">🔍</button>
-              </div>
-
-            </form>
-          </div>
-        </div>
-      </div>
+<link rel="stylesheet" href="{{ url_for('static',filename='css/periodic_reports.css',v=periodic_ui_version|default(static_version)) }}">
+<main class="periodic-report" id="periodicReport">
+    <aside id="periodStageMarker" class="pr-stage-marker" data-stage="{{ section }}" aria-label="Aktualnie przeglądany etap">{{ section }}</aside>
+    <header class="pr-header">
+        <div><span class="pr-eyebrow">WYNIKI PRODUKCJI</span><h1>Raporty okresowe</h1><p>Od wyniku miesiąca do przebiegu procesu. Zasyp i Workowanie analizowane osobno.</p></div>
+        <span id="periodLiveStatus" class="pr-live" role="status">Łączenie aktualizacji…</span><a class="pr-button" href="{{ url_for('zarzad.dosing_times_report',linia=report.line) }}">Czasy wydozowań i etapów</a><button type="button" class="pr-button" id="printPeriodicReport">Drukuj raport</button>
+    </header>
+    <form class="pr-filters" method="get">
+        <label>Hala<select name="linia">{% for line,label in [('AGRO','AGRO'),('PSD','PSD'),('ALL','AGRO + PSD')] %}<option value="{{ line }}" {{ 'selected' if report.line == line else '' }}>{{ label }}</option>{% endfor %}</select></label>
+        <label>Rok<input type="number" name="rok" min="2000" max="2100" value="{{ report.year }}" required></label>
+        <label>Miesiąc<select name="miesiac">{% for name in report.months %}<option value="{{ loop.index }}" {{ 'selected' if report.month == loop.index else '' }}>{{ name }}</option>{% endfor %}</select></label>
+        <label class="pr-product-filter">Produkt<select name="produkt"><option value="">Wszystkie produkty</option>{% for name in report.products %}<option {{ 'selected' if name == report.product else '' }}>{{ name }}</option>{% endfor %}</select></label>
+        <label>Zakres danych<select name="zakres"><option value="live" {{ 'selected' if report.include_live else '' }}>Bieżące i zakończone</option><option value="closed" {{ 'selected' if not report.include_live else '' }}>Tylko zakończone</option></select></label>
+        <input type="hidden" name="sekcja" id="periodSectionInput" value="{{ section }}">
+        <button class="pr-button pr-primary" type="submit">Pokaż wyniki</button>
+    </form>
+    {% for warning in report.warnings %}<p class="pr-warning" role="status">{{ warning }}</p>{% endfor %}
+    <div class="pr-overview">
+        {% for name in ['Zasyp','Workowanie'] %}{% set data = report.sections[name] %}
+        <article class="pr-summary {{ 'pr-teal' if name == 'Zasyp' else 'pr-blue' }}"><span>{{ name }} · {{ report.month_name }} {{ report.year }}</span><strong data-summary-actual="{{ name }}">{{ value(data.actual / 1000 if data.actual is not none else none, 't') }}</strong><small data-summary-note="{{ name }}">{{ data.closed_count }} zakończonych · {{ data.live_count }} w toku / zawieszonych{% if data.change is not none %} · {{ '+' if data.change > 0 else '' }}{{ value(data.change,'%') }} miesiąc do miesiąca{% endif %}</small></article>
+        {% endfor %}
+        <article class="pr-summary pr-note"><span>Jak czytać raport</span><p>Etapów nie sumujemy — ta sama partia przechodzi przez Zasyp i Workowanie. Wykonanie rozdzielamy według dat produkcji: szarż, potwierdzonych dosypek i wiaderek na Zasypie oraz utworzenia palet na Workowaniu. Plan pozostaje przy dacie zlecenia. Bieżące wykonanie może się zmieniać do jego zakończenia.</p></article>
     </div>
-  </div>
-
-  <!-- KPI CARDS -->
-  <div class="row g-3 mb-4">
-    <div class="col-12 col-md-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-        <div class="card-body p-4 d-flex align-items-center">
-          <div class="rounded-4 p-3 bg-success bg-opacity-10 text-success me-3 fs-3">📦</div>
-          <div>
-            <div class="text-muted small fw-bold text-uppercase">Wyprodukowano w {{ miesiac }}/{{ rok }}</div>
-            <h3 class="fw-black text-dark mb-0">{{ "{:,}".format(stats[1]|int).replace(',', ' ') }} kg</h3>
-            <span class="badge bg-success-subtle text-success mt-1 fw-bold">Linia: {{ linia }}</span>
-          </div>
+    <section class="pr-card">
+        <div class="pr-card-heading"><div><h2>Rok w perspektywie</h2><p>Wykonanie w tonach. Kliknij miesiąc na wykresie lub poniżej, aby przejść do jego szczegółów.</p></div><span class="pr-period">{{ report.year }}</span></div>
+        {{ zoom_button('periodAnnualChart','Miesięczne wykonanie Zasypu i Workowania') }}<div class="pr-chart pr-chart-wide"><canvas id="periodAnnualChart" aria-label="Miesięczne wykonanie Zasypu i Workowania" role="img"></canvas></div>
+        <nav class="pr-months" aria-label="Wybierz miesiąc">
+            {% for name in report.months %}<a href="{{ url_for('zarzad.raporty_okresowe',rok=report.year,miesiac=loop.index,linia=report.line,produkt=report.product,sekcja=section,zakres=('live' if report.include_live else 'closed')) }}#period-details" data-month="{{ loop.index }}" {{ 'aria-current=page' if report.month == loop.index else '' }}><strong>{{ name[:3] }}</strong><span data-month-value="{{ loop.index }}:Zasyp">Z {{ value(report.annual.Zasyp[loop.index0] / 1000 if report.annual.Zasyp[loop.index0] is not none else none) }} t</span><span data-month-value="{{ loop.index }}:Workowanie">W {{ value(report.annual.Workowanie[loop.index0] / 1000 if report.annual.Workowanie[loop.index0] is not none else none) }} t</span></a>{% endfor %}
+        </nav>
+    </section>
+    <section id="period-details" class="pr-details">
+        <div class="pr-detail-title"><div><span class="pr-eyebrow">SZCZEGÓŁY MIESIĄCA</span><h2>{{ report.month_name }} {{ report.year }} · {{ report.line }}</h2></div>
+            <div class="pr-tabs" role="tablist" aria-label="Etap produkcji">{% for name in ['Zasyp','Workowanie'] %}<button type="button" role="tab" id="tab{{ name }}" aria-controls="panel{{ name }}" aria-selected="{{ 'true' if name == section else 'false' }}" data-section="{{ name }}">{{ name }}</button>{% endfor %}</div>
         </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-        <div class="card-body p-4 d-flex align-items-center">
-          <div class="rounded-4 p-3 bg-primary bg-opacity-10 text-primary me-3 fs-3">📋</div>
-          <div>
-            <div class="text-muted small fw-bold text-uppercase">Zrealizowane Zlecenia</div>
-            <h3 class="fw-black text-dark mb-0">{{ stats[0] }}</h3>
-            <span class="badge bg-primary-subtle text-primary mt-1 fw-bold">Zakończone</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-4">
-      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-        <div class="card-body p-4 d-flex align-items-center">
-          <div class="rounded-4 p-3 bg-warning bg-opacity-10 text-warning me-3 fs-3">⏱️</div>
-          <div>
-            <div class="text-muted small fw-bold text-uppercase">Przestoje i Awarie</div>
-            <h3 class="fw-black text-dark mb-0">{{ (stats[2] / 60)|round(1) }} h <span class="fs-6 text-muted fw-normal">({{ stats[2] }} min)</span></h3>
-            <span class="badge bg-warning-subtle text-warning mt-1 fw-bold">Łączny czas</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CHARTS & DOWNTIMES -->
-  <div class="row g-4 mb-4">
-    <!-- TREND ROCZNY -->
-    <div class="col-12 col-lg-7">
-      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-        <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
-          <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
-            <span>📈</span> Trend Produkcji Rocznej ({{ rok }})
-          </h5>
-          <span class="badge bg-light text-secondary border">{{ linia }}</span>
-        </div>
-        <div class="card-body p-4">
-          <div id="rocznyChart" style="min-height: 320px;"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- STRUKTURA PRZESTOJÓW -->
-    <div class="col-12 col-lg-5">
-      <div class="card border-0 shadow-sm rounded-4 h-100 bg-white">
-        <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
-          <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
-            <span>🛑</span> Awarie & Przestoje ({{ miesiac }}/{{ rok }})
-          </h5>
-          <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ awarie|length }} kategorii</span>
-        </div>
-        <div class="card-body p-4">
-          {% if not awarie %}
-            <div class="text-center py-5 text-muted">
-              <div class="fs-1 mb-2">🎉</div>
-              <p class="mb-0 fw-semibold">Brak zarejestrowanych przestojów w wybranym miesiącu!</p>
+        {% for name in ['Zasyp','Workowanie'] %}{% set data = report.sections[name] %}
+        <div class="pr-panel" id="panel{{ name }}" role="tabpanel" aria-labelledby="tab{{ name }}" {{ 'hidden' if name != section else '' }}>
+            <div class="pr-kpis">
+                <article><span>Zarejestrowane wykonanie</span><strong data-stat="actual">{{ value(data.actual / 1000 if data.actual is not none else none,'t') }}</strong><small data-stat="coverage">{{ data.count - data.missing_actual }} / {{ data.count }} zleceń z pomiarem</small></article>
+                <article><span>Plan według daty zlecenia</span><strong data-stat="plan">{{ value(data.plan / 1000,'t') }}</strong><small data-stat="percent">Wykonanie / plan okresu: {{ value(data.percent,'%') }}</small></article>
+                <article><span>Tempo brutto · zakończone</span><strong data-stat="rate">{{ value(data.rate,'kg/h') }}</strong><small data-stat="timed">{{ data.timed_count }} zleceń z masą i czasem</small></article>
+                <article><span>Zarejestrowane przestoje</span><strong data-stat="downtime">{{ value(data.downtime_minutes / 60 if data.downtime_minutes is not none else none,'h') }}</strong><small data-stat="excel">{% if name == 'Zasyp' %}Rozliczenie Excel: {{ value(data.excel / 1000 if data.excel is not none else none,'t') }}{% else %}Kategorie według rejestru Workowania{% endif %}</small></article>
             </div>
-          {% else %}
-            <div class="table-responsive">
-              <table class="table table-hover align-middle mb-0">
-                <thead class="table-light small text-uppercase">
-                  <tr>
-                    <th>Kategoria / Przyczyna</th>
-                    <th class="text-center">Ilość</th>
-                    <th class="text-end">Czas (min)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for a in awarie %}
-                  <tr>
-                    <td class="fw-bold text-dark">{{ a[0] }}</td>
-                    <td class="text-center"><span class="badge bg-light text-dark border">{{ a[1] }}x</span></td>
-                    <td class="text-end text-danger fw-bold">{{ a[2] }} min</td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+            <p class="pr-empty" data-empty {{ 'hidden' if data.count else '' }}>Brak zleceń z wykonaniem dla tego etapu i wybranych filtrów.</p>
+            <p class="pr-warning" data-quality {{ 'hidden' if not data.missing_actual and not data.missing_durations and not data.legacy_dates else '' }}>Kompletność danych: {{ data.missing_actual }} zleceń bez wykonania, {{ data.missing_durations }} przestojów bez czasu. Brakujących pomiarów nie zastępujemy planem.{% if data.legacy_dates %} {{ data.legacy_dates }} zleceń bez pełnej historii dat produkcji — brakujące daty zastąpiono datą planu.{% endif %}</p>
+            <div class="pr-chart-grid">
+                <article class="pr-card"><h3>Plan i wykonanie dzień po dniu</h3><p>{% if name == 'Workowanie' %}Plan według daty zlecenia · wykonanie według daty utworzenia palety{% else %}Plan według daty zlecenia · wykonanie według dat szarż, dosypek i wiaderek{% endif %} · Linia obsady (prawa skala): łączna obsada produkcyjna z dashboardu dla wybranej hali i dnia (Zasyp, sterownia i Workowanie; bez utrzymania ruchu), niezależnie od filtra produktu. Przy wszystkich halach obsada AGRO i PSD jest pokazana osobno. Przerwa w linii oznacza brak wpisanej obsady.</p>{{ zoom_button('daily' ~ name,name ~ ': Plan i wykonanie dzienne') }}<div class="pr-chart"><canvas id="daily{{ name }}" role="img" aria-label="{{ name }}: plan i wykonanie dzienne"></canvas></div></article>
+                <article class="pr-card"><h3>Przebieg miesiąca narastająco</h3><p>Plan i wykonanie w tonach · kontynuacje są liczone w dniu rzeczywistej produkcji</p>{{ zoom_button('cumulative' ~ name,name ~ ': Wynik narastający') }}<div class="pr-chart"><canvas id="cumulative{{ name }}" role="img" aria-label="{{ name }}: wynik narastający"></canvas></div></article>
+                <article class="pr-card pr-span"><div class="pr-chart-title"><h3>Krzywa tempa procesu</h3><details class="pr-chart-help"><summary aria-label="Jak czytać krzywą tempa procesu?" title="Jak czytać ten wykres?">ⓘ</summary><div class="pr-help-content"><strong>Jak czytać ten wykres?</strong><p>Każdy punkt oznacza jedno zakończone zlecenie. Na dole jest nazwa produktu i data zakończenia. Punkty są ułożone według zakończenia zleceń — to nie jest oś kolejnych dni.</p><ul><li><strong>Linia {{ 'zielona' if name == 'Zasyp' else 'niebieska' }}:</strong> tempo pojedynczego zlecenia w kg/h.</li><li><strong>Linia pomarańczowa:</strong> średnie tempo ostatnich 5 dostępnych pomiarów.</li><li><strong>Linia fioletowa:</strong> średnie tempo wszystkich wcześniejszych pomiarów wraz z tym zleceniem.</li></ul><p><strong>Przykład:</strong> 5 000 kg w ciągu 10 godzin daje 500 kg/h. Średnie liczymy z łącznej masy i czasu, a nie jako średnią z samych wskaźników.</p><p>Wyższa linia oznacza więcej kg na godzinę. Spadek może wynikać z przerw, przestojów lub innego produktu — sam w sobie nie oznacza pogorszenia pracy operatora. Czas obejmuje przerwy. Dla porównania podobnych zleceń wybierz jeden produkt.</p><p>Najedź na punkt, aby zobaczyć pełną nazwę, halę, datę planu i zakończenia.</p></div></details></div><p>Kolejne zakończone zlecenia: tempo brutto, średnia ostatnich 5 pomiarów i średnia narastająca. Czas od startu do końca obejmuje przerwy. Dla porównywalnych wyników wybierz jeden produkt.</p>{{ zoom_button('learning' ~ name,name ~ ': Krzywa tempa procesu') }}<div class="pr-chart"><canvas id="learning{{ name }}" role="img" aria-label="{{ name }}: krzywa tempa procesu"></canvas></div></article>
+                <article class="pr-card"><h3>Produkty o największym wykonaniu</h3><p>Osiem największych wyników · tony</p>{{ zoom_button('products' ~ name,name ~ ': Ranking produktów') }}<div class="pr-chart"><canvas id="products{{ name }}" role="img" aria-label="{{ name }}: ranking produktów"></canvas></div></article>
+                <article class="pr-card"><h3>Co zatrzymywało proces?</h3><p>Czas według przyczyn i ich narastający udział · Pareto</p>{{ zoom_button('downtime' ~ name,name ~ ': Przyczyny przestojów') }}<div class="pr-chart"><canvas id="downtime{{ name }}" role="img" aria-label="{{ name }}: przyczyny przestojów"></canvas></div></article>
             </div>
-          {% endif %}
+            <article class="pr-card">
+                <div class="pr-card-heading"><div><h3>Zlecenia stojące za wynikiem</h3><p data-stat="count">{{ data.count }} zleceń · {{ name }}</p></div><a class="pr-button" href="{{ url_for('zarzad.raporty_okresowe',rok=report.year,miesiac=report.month,linia=report.line,produkt=report.product,sekcja=name,format='csv',zakres=('live' if report.include_live else 'closed')) }}">Pobierz CSV · {{ name }}</a></div>
+                <label class="pr-search">Szukaj w szczegółach<input type="search" data-order-search="{{ name }}" placeholder="Produkt, numer zlecenia lub data"></label>
+                <div class="pr-table-scroll"><table class="pr-table no-mobile-cards" id="details{{ name }}"><thead><tr><th>Zlecenie</th><th>Data planu</th><th>Hala</th><th>Status</th><th>Produkt</th><th>Plan kg</th><th>Wykonanie miesiąca kg</th>{% if name == 'Zasyp' %}<th>Excel kg</th>{% endif %}<th>Realizacja zlecenia</th><th>Czas brutto h</th><th>Tempo kg/h</th></tr></thead><tbody>
+                {% for order in data.details %}<tr><td>#{{ order.id }}</td><td>{{ order.date }}</td><td>{{ order.line }}</td><td>{{ {'zakonczone':'Zakończone','w toku':'W toku','zawieszone':'Zawieszone'}.get(order.status,order.status) }}</td><td>{{ order.product }}</td><td>{{ value(order.plan,'',2) }}</td><td title="Całe zlecenie: {{ value(order.total_actual,'kg') }}">{{ value(order.actual,'',2) }}{% if order.actual != order.total_actual %}<small class="pr-order-total">Całe zlecenie: {{ value(order.total_actual,'kg',0) }}</small>{% endif %}</td>{% if name == 'Zasyp' %}<td>{{ value(order.excel,'',0) }}</td>{% endif %}<td>{{ value(order.percent,'%') }}</td><td>{{ value(order.hours) }}</td><td>{{ value(order.rate,'',0) }}</td></tr>{% else %}<tr><td colspan="11">Brak zleceń.</td></tr>{% endfor %}
+                </tbody></table></div>
+            </article>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SEKCJA: HISTORIA WYSŁANYCH RAPORTÓW E-MAIL -->
-  <div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden mb-5">
-    <div class="card-header bg-transparent border-bottom p-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
-      <div>
-        <h4 class="fw-black mb-1 text-dark d-flex align-items-center gap-2">
-          <span>📧</span> Dziennik Wysłanych Raportów E-mail
-        </h4>
-        <p class="text-muted small mb-0">
-          Kompletny rejestr wysyłek automatycznych (godz. 15:00) oraz raportów końcowych zmian z listą odbiorców i załącznikami.
-        </p>
-      </div>
-      <div class="d-flex align-items-center gap-2">
-        <a href="{{ url_for('admin.email_center', tab='konta') }}" class="btn btn-sm btn-outline-primary fw-bold rounded-pill px-3">
-          ⚙️ Ustawienia E-mail
-        </a>
-      </div>
-    </div>
-    <div class="card-body p-0">
-      {% if not email_reports_history %}
-        <div class="text-center py-5 text-muted">
-          <div class="fs-1 mb-2">📭</div>
-          <p class="fw-bold mb-1">Brak zarejestrowanych wysyłek e-mail</p>
-          <p class="small text-muted mb-0">Gdy system wyśle raport automatyczny lub zmianowy, pojawi się on w tym miejscu.</p>
-        </div>
-      {% else %}
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
-            <thead style="background: #f8fafc; color: #475569; font-size: 0.78rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em;">
-              <tr>
-                <th style="padding: 14px 18px;">Data Raportu</th>
-                <th style="padding: 14px 18px;">Linia</th>
-                <th style="padding: 14px 18px;">Typ / Zmiana</th>
-                <th style="padding: 14px 18px;">Odbiorcy Wiadomości E-mail</th>
-                <th style="padding: 14px 18px;">Czas Wysłania</th>
-                <th style="padding: 14px 18px; text-align: right;">Pliki do Pobrania</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for rep in email_reports_history %}
-              <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 14px 18px; font-weight: 800; color: #0f172a;">
-                  📅 {{ rep.data_raportu }}
-                </td>
-                <td style="padding: 14px 18px;">
-                  <span class="badge {% if rep.linia == 'AGRO' %}bg-success-subtle text-success border border-success-subtle{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %} px-2 py-1 fw-bold">
-                    {{ rep.linia }}
-                  </span>
-                </td>
-                <td style="padding: 14px 18px; font-weight: 600; color: #334155;">
-                  {% if '15:00' in rep.typ_raportu or 'Auto' in rep.typ_raportu %}
-                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1">
-                      ⏰ I Zmiana ({{ rep.typ_raportu }})
-                    </span>
-                  {% else %}
-                    <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle px-2 py-1">
-                      🏁 {{ rep.typ_raportu }}
-                    </span>
-                  {% endif %}
-                </td>
-                <td style="padding: 14px 18px; max-width: 320px;">
-                  {% if rep.status == 'FAILED' %}
-                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 me-1">❌ Nie wysłano</span>
-                  {% elif rep.status == 'SKIPPED_EMPTY' %}
-                    <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle px-2 py-1 me-1">⏭️ Pominięto</span>
-                  {% elif rep.status == 'IN_PROGRESS' %}
-                    <span class="badge bg-info-subtle text-dark border border-info-subtle px-2 py-1 me-1">⏳ W toku</span>
-                  {% endif %}
-                  <div class="text-truncate" title="{{ rep.odbiorcy }}" style="color: {% if rep.status == 'FAILED' %}#b91c1c{% else %}#0369a1{% endif %}; font-weight: 500; font-family: monospace; font-size: 0.84rem;">
-                    {% if rep.status == 'FAILED' or rep.status == 'SKIPPED_EMPTY' %}ℹ️{% else %}📬{% endif %} {{ rep.odbiorcy }}
-                  </div>
-                </td>
-                <td style="padding: 14px 18px; color: #64748b; font-size: 0.85rem; white-space: nowrap;">
-                  {{ rep.created_at }}
-                </td>
-                <td style="padding: 14px 18px; text-align: right; white-space: nowrap;">
-                  <div class="btn-group btn-group-sm">
-                    {% if rep.pdf_filename %}
-                      <a href="{{ url_for('zarzad.pobierz_plik_raportu', filename=rep.pdf_filename) }}" 
-                         class="btn btn-outline-danger fw-bold d-inline-flex align-items-center gap-1"
-                         title="Pobierz PDF: {{ rep.pdf_filename }}">
-                        📄 PDF
-                      </a>
-                    {% endif %}
-                    {% if rep.xls_filename %}
-                      <a href="{{ url_for('zarzad.pobierz_plik_raportu', filename=rep.xls_filename) }}" 
-                         class="btn btn-outline-success fw-bold d-inline-flex align-items-center gap-1"
-                         title="Pobierz Excel: {{ rep.xls_filename }}">
-                        📊 XLS
-                      </a>
-                    {% endif %}
-                    {% if not rep.pdf_filename and not rep.xls_filename %}
-                      <span class="text-muted small fst-italic">Zapisano w skrzynce</span>
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% endif %}
-    </div>
-  </div>
-
-</div>
-
-<!-- WYKRES APEXCHARTS -->
-<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const labelsRok = JSON.parse('{{ labels_rok | tojson | safe }}');
-    const dataRok = JSON.parse('{{ data_rok | tojson | safe }}');
-
-    if (labelsRok && labelsRok.length > 0) {
-      const options = {
-        series: [{
-          name: 'Produkcja (kg)',
-          data: dataRok
-        }],
-        chart: {
-          type: 'bar',
-          height: 320,
-          toolbar: { show: false },
-          fontFamily: 'inherit'
-        },
-        colors: ['#0284c7'],
-        plotOptions: {
-          bar: {
-            borderRadius: 6,
-            columnWidth: '50%',
-            dataLabels: { position: 'top' }
-          }
-        },
-        dataLabels: {
-          enabled: true,
-          formatter: function (val) {
-            return val > 0 ? (val >= 1000 ? (val / 1000).toFixed(1) + 't' : val + 'kg') : '';
-          },
-          offsetY: -20,
-          style: {
-            fontSize: '11px',
-            fontWeight: 800,
-            colors: ["#334155"]
-          }
-        },
-        xaxis: {
-          categories: labelsRok,
-          labels: {
-            style: {
-              fontWeight: 600,
-              colors: '#64748b'
-            }
-          }
-        },
-        yaxis: {
-          labels: {
-            formatter: function (val) {
-              return (val / 1000).toFixed(0) + ' t';
-            },
-            style: {
-              fontWeight: 600,
-              colors: '#64748b'
-            }
-          }
-        },
-        grid: {
-          borderColor: '#f1f5f9',
-          strokeDashArray: 4
-        }
-      };
-
-      const chart = new ApexCharts(document.querySelector("#rocznyChart"), options);
-      chart.render();
-    }
-  });
-</script>
+        {% endfor %}
+    </section>
+    <footer class="pr-method"><strong>Metodyka</strong><p>Wykonanie pochodzi z zapisanej masy rzeczywistej zleceń w toku, zawieszonych i zakończonych; zakres można ograniczyć do zakończonych. Krzywa tempa obejmuje wyłącznie zakończone zlecenia. Rozliczenie zasypów według Excel pokazujemy oddzielnie. Zasyp jest liczony według dat szarż, potwierdzonych nieanulowanych dosypek i wrzuconych wiaderek. Workowanie jest liczone z palet według daty ich utworzenia. Brakujące historyczne daty zastępujemy datą planu i oznaczamy to w kompletności danych. Plan Workowania uwzględnia masę powiązanego Zasypu tak jak panel operatora. Tempo brutto całego zlecenia = jego masa / czas od startu do końca; średnie ważymy czasem. Krzywa pokazuje przebieg procesu, a nie ocenę pracownika. Przestojów bez podanego czasu nie zaliczamy do sumy godzin.</p><small id="periodGeneratedAt">Wygenerowano: {{ report.generated_at.replace('T',' ') }}</small></footer>
+<dialog id="periodChartDialog" class="pr-chart-dialog" aria-labelledby="periodChartTitle">
+    <header><h2 id="periodChartTitle">Wykres</h2><button type="button" class="pr-button" id="closePeriodChart">Zamknij · Esc</button></header>
+    <div id="periodChartContent" class="pr-chart-dialog-content"></div>
+</dialog>
+</main>
+<script type="application/json" id="periodicReportData">{{ report|tojson }}</script>
+<script src="{{ url_for('static',filename='vendor/chart.min.js',v=static_version) }}"></script>
+<script src="{{ url_for('static',filename='js/periodic_reports.js',v=periodic_ui_version|default(static_version)) }}"></script>
 {% endblock %}

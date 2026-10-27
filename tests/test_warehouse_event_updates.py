@@ -137,3 +137,35 @@ def test_live_endpoints_require_session_and_keep_snapshot_errors(monkeypatch):
             assert response.mimetype == 'text/event-stream'
             response.close()
         assert live._STREAM_COUNT == 0
+
+
+def test_production_commits_notify_only_the_report_channel():
+    conn=live.observe_connection(Connection(),'test-db')
+    with patch.object(live,'publish') as publish:
+        conn.cursor().execute('UPDATE plan_produkcji_agro SET tonaz_rzeczywisty=5000 WHERE id=1')
+        publish.assert_not_called()
+        conn.commit()
+        publish.assert_called_once_with(live.report_channel('test-db'))
+
+
+def test_rolled_back_production_write_does_not_notify_reports():
+    conn=live.observe_connection(Connection(),'test-db')
+    with patch.object(live,'publish') as publish:
+        conn.cursor().execute('UPDATE przestoje_zasyp SET czas_trwania_min=20 WHERE id=1')
+        conn.rollback();conn.commit()
+        publish.assert_not_called()
+
+
+def test_local_report_streams_leave_waitress_threads_for_navigation(monkeypatch):
+    monkeypatch.setenv('APP_INSTANCE_MODE','local')
+    monkeypatch.delenv('GUNICORN_THREADS',raising=False)
+    monkeypatch.delenv('WAREHOUSE_SSE_MAX_CLIENTS',raising=False)
+    releases=[]
+    try:
+        for _ in range(4):
+            release=live.reserve_stream()
+            assert release is not None
+            releases.append(release)
+        assert live.reserve_stream() is None
+    finally:
+        for release in releases:release()

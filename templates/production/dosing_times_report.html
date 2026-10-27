@@ -1,0 +1,42 @@
+{# cspell:words wydozowań zegarowo endmacro #}
+{% extends 'layout.html' %}
+{% block title %}Czasy wydozowań i etapów{% endblock %}
+{% macro chart_controls(id) %}<div class="dosing-chart-tools" data-chart-tools="{{ id }}"><button type="button" class="pr-button" data-zoom-action="out" aria-label="Zmniejsz wykres">−</button><output aria-live="polite">100%</output><button type="button" class="pr-button" data-zoom-action="in" aria-label="Powiększ wykres">+</button><button type="button" class="pr-button" data-zoom-action="reset">Reset</button><button type="button" class="pr-button" data-zoom-action="fullscreen">⛶ Pełny ekran</button></div>{% endmacro %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static',filename='css/periodic_reports.css',v=asset_version) }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='css/dosing_times.css',v=asset_version) }}">
+<main class="periodic-report dosing-report">
+    <header class="pr-header"><div><span class="pr-eyebrow">RAPORTY · ZASYP</span><h1>Czasy wydozowań i etapów</h1><p>Zlecenie → szarża → kolejność etapów. Rzeczywiste zapisy START, STOP i pauz.</p></div><button type="button" class="pr-button" id="printDosingReport">Drukuj raport</button></header>
+    <form class="pr-filters" method="get">
+        <label>Od<input type="date" name="od" value="{{ report.start }}" required></label><label>Do<input type="date" name="do" value="{{ report.end }}" required></label>
+        <label>Hala<select name="linia">{% for line in ['AGRO','PSD','ALL'] %}<option {{ 'selected' if line==report.line else '' }}>{{ line }}</option>{% endfor %}</select></label>
+        <label class="pr-product-filter">Zlecenie<select name="zlecenie"><option value="">Wszystkie zlecenia z zakresu</option>{% for item in report.options %}<option value="{{ item.key }}" {{ 'selected' if item.key==report.selected else '' }}>{{ item.name }} · {{ item.date }} · {{ item.line }} #{{ item.key.split(':')[1] }}</option>{% endfor %}</select></label>
+        <button class="pr-button pr-primary">Pokaż raport</button>
+        <a class="pr-button" href="{{ url_for('zarzad.dosing_times_report',od=report.start,do=report.end,linia=report.line,zlecenie=report.selected,format='csv') }}">Pobierz CSV</a>
+    </form>
+    <p class="dosing-method">Zakres dat filtruje według daty planu zlecenia, włącznie z dniami „Od” i „Do”. Dla wybranego zlecenia pokazujemy <strong>cały przebieg</strong>, także etapy poza zakresem. Czas pracy to brutto minus zapisane pauzy. Czasy etapów mogą się nakładać — ich suma nie jest czasem zegarowym zlecenia.</p>
+    <div class="pr-kpis"><article><span>Zlecenia / szarże</span><strong>{{ report.kpis.orders }} / {{ report.kpis.batches }}</strong></article><article><span>Zakończone etapy</span><strong>{{ report.kpis.closed }}</strong></article><article><span>Etapy w toku / w pauzie</span><strong>{{ report.kpis.live }}</strong></article><article><span>Zarejestrowana praca etapów</span><strong>{{ report.kpis.work }}</strong><small>Godziny:minuty:sekundy</small></article></div>
+    {% if report.kpis.missing %}<p class="pr-warning">{{ report.kpis.missing }} etapów bez poprawnego pomiaru czasu pracy. Braków nie zastępujemy zerowym czasem.</p>{% endif %}
+    <div class="pr-chart-grid">
+        <article class="pr-card"><h3>Na których etapach upływa czas?</h3><p>Suma pracy i pauz w minutach · nazwy etapów zgodne z halą</p><div class="dosing-figure" data-figure="dosingStageChart">{{ chart_controls('dosingStageChart') }}<div class="dosing-chart-viewport"><div class="pr-chart"><canvas id="dosingStageChart" role="img" aria-label="Czas pracy i pauz według etapów"></canvas></div></div></div></article>
+        <article class="pr-card"><h3>Praca kolejnych szarż</h3><p>Suma czasów pracy etapów każdej szarży · kolejność według pierwszego START. Czerwona linia: cel 12 min dla szarży 1 t (5 t/h).</p><div class="dosing-figure" data-figure="dosingBatchChart">{{ chart_controls('dosingBatchChart') }}<div class="dosing-chart-viewport"><div class="pr-chart"><canvas id="dosingBatchChart" role="img" aria-label="Czas pracy etapów kolejnych szarż"></canvas></div></div></div></article>
+    </div>
+    <section class="dosing-orders">
+        {% for order in report.orders %}
+        <article class="pr-card dosing-order"><div class="pr-card-heading"><div><h2>{{ order.name }}</h2><p>{{ order.date }} · {{ order.line }} · zlecenie #{{ order.id }} · {{ order.status }}</p></div><div class="dosing-totals"><span>{{ order.batches|length }} szarż</span><strong>Praca {{ order.work }}</strong><small>Brutto {{ order.gross }} · pauzy {{ order.pause }}</small></div></div>
+        {% for batch in order.batches %}
+        <details class="dosing-batch" {{ 'open' if report.selected else '' }}><summary><strong>Szarża {{ batch.number }}</strong><span>Praca {{ batch.work }} · pauzy {{ batch.pause }} · zegarowo {{ batch.elapsed }}</span>{% if batch.live %}<em>W toku / w pauzie — stan na moment raportu</em>{% endif %}{% if batch.missing %}<em>{{ batch.missing }} brakujących pomiarów</em>{% endif %}</summary>
+            <div class="dosing-flow" aria-label="Kolejność procesu">{% for stage in batch.stages %}<span><b>{{ stage.sequence }}.</b> {{ stage.name }} <small>{{ stage.work }}</small></span>{% if not loop.last %}<span aria-hidden="true" class="dosing-arrow">→</span>{% endif %}{% endfor %}</div>
+            <div class="pr-table-scroll"><table class="pr-table no-mobile-cards"><thead><tr><th>Kolejność procesu</th><th>Kolejność START</th><th>Etap</th><th>START</th><th>STOP</th><th>Brutto</th><th>Pauzy</th><th>Praca</th><th>Status</th><th>Obsługa</th><th>Uwagi</th></tr></thead><tbody>
+            {% for stage in batch.stages %}<tr><td>{{ stage.sequence }}</td><td>{{ stage.actual_sequence if stage.actual_sequence is not none else '—' }}</td><td><strong>{{ stage.code }} · {{ stage.name }}</strong></td><td>{{ stage.start or '—' }}</td><td>{{ stage.stop or '—' }}</td><td>{{ stage.gross }}</td><td>{{ stage.pause }}</td><td><strong>{{ stage.work }}</strong></td><td>{{ stage.state }}{{ '*' if stage.live else '' }}</td><td>START: {{ stage.start_login }}<br>STOP: {{ stage.stop_login }}</td><td>{{ stage.reason }}{% if stage.issue %}<strong class="dosing-issue">{{ stage.issue }}</strong>{% endif %}</td></tr>{% endfor %}
+            </tbody></table></div>
+        </details>{% else %}<p class="pr-empty">Brak zapisanych etapów dla tego zlecenia.</p>{% endfor %}</article>
+        {% else %}<p class="pr-empty">Brak zleceń dla wybranych filtrów.</p>{% endfor %}
+    </section>
+    <footer class="pr-method"><strong>Jak czytać kolejność?</strong><p>„Kolejność procesu” zachowuje sekwencję etapów szarży, również powtarzane dosypki i mieszania. „Kolejność START” pokazuje rzeczywistą kolejność rozpoczęć. Są to zapisy etapów obsługi Zasypu, a nie pomiar otwarcia zaworu każdego surowca. Etap bez START lub z błędnymi datami nie ma wyliczanego czasu. Gwiazdka oznacza etap niezakończony; jego czas jest liczony do momentu wygenerowania raportu.</p><small>Stan na: {{ report.generated_at }}</small></footer>
+<dialog id="dosingChartDialog" class="pr-chart-dialog dosing-chart-dialog" aria-labelledby="dosingChartTitle"><header><h2 id="dosingChartTitle">Wykres</h2><button type="button" class="pr-button" id="closeDosingChart">Zamknij · Esc</button></header><div id="dosingChartContent" class="pr-chart-dialog-content"></div></dialog>
+</main>
+<script type="application/json" id="dosingReportData">{{ report|tojson }}</script>
+<script src="{{ url_for('static',filename='vendor/chart.min.js',v=asset_version) }}"></script>
+<script src="{{ url_for('static',filename='js/dosing_times.js',v=asset_version) }}"></script>
+{% endblock %}

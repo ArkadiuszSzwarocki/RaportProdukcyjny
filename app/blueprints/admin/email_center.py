@@ -6,6 +6,7 @@ EMAIL_TABS = {
     'konta': ('Konta SMTP i odbiorcy', 'admin.admin_ustawienia_email'),
     'magazyn': ('Magazyn i OSIP', 'admin.admin_ustawienia_email_magazyn'),
     'historia': ('Historia wysyłek', 'admin.admin_email_history_page'),
+    'raporty': ('Wysyłki raportów', 'admin.admin_report_delivery_history'),
 }
 LEGACY_EMAIL_PAGES = {endpoint: tab for tab, (_, endpoint) in EMAIL_TABS.items()}
 LEGACY_EMAIL_PAGES['osip.email_settings_view'] = 'magazyn'

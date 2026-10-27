@@ -31,32 +31,22 @@
 
     // Restore state from localStorage
     function restoreSidebarState() {
+        let states = {};
         try {
-            const saved = localStorage.getItem(SIDEBAR_STATE_KEY);
-            if (!saved) return;
-            const states = JSON.parse(saved);
-            console.log('[sidebar] restoring state', states);
-            
-            Object.keys(states).forEach(id => {
-                const sub = document.getElementById(id);
-                if (sub) {
-                    const shouldBeOpen = !!states[id];
-                    if (shouldBeOpen) {
-                        sub.classList.add('open');
-                    } else {
-                        // Only remove if it's not the current active path (to avoid overriding server logic if no state was saved)
-                        // But usually we want to respect the user's manual closure.
-                        sub.classList.remove('open');
-                    }
-                    const trigger = sub.previousElementSibling;
-                    if (trigger && trigger.classList.contains('nav-item')) {
-                        trigger.setAttribute('aria-expanded', shouldBeOpen ? 'true' : 'false');
-                    }
-                }
-            });
+            const saved = JSON.parse(localStorage.getItem(SIDEBAR_STATE_KEY) || '{}');
+            if (saved && typeof saved === 'object' && !Array.isArray(saved)) states = saved;
         } catch (e) {
             console.warn('[sidebar] failed to restore state', e);
         }
+        document.querySelectorAll('.nav-sub').forEach(sub => {
+            const saved = Object.prototype.hasOwnProperty.call(states, sub.id);
+            const open = saved ? states[sub.id] === true : sub.classList.contains('open');
+            sub.classList.toggle('open', open);
+            const trigger = sub.previousElementSibling;
+            if (trigger && trigger.classList.contains('nav-item')) {
+                trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+        });
     }
 
     // Save scroll position

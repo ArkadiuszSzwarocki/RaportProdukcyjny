@@ -6,7 +6,7 @@
 {% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}
 
 <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
-<aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false">
+<aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false" data-login-session="{{ session.get('session_tracking_id', '') }}">
     <style>
         /* Sidebar navigation is text-only; icons remain available in page content. */
         .sidebar .material-icons { display: none !important; }
@@ -70,25 +70,31 @@
             if (window.innerWidth > 1200 && localStorage.getItem('sidebar_collapsed_desktop') === '1') {
                 document.body.classList.add('sidebar-collapsed');
             }
-            var saved = localStorage.getItem('sidebar_submenus_state');
-            if (saved) {
-                var states = JSON.parse(saved);
-                Object.keys(states).forEach(function(id) {
-                    var sub = document.getElementById(id);
-                    if (sub) {
-                        var shouldOpen = !!states[id];
-                        if (shouldOpen) {
-                            sub.classList.add('open');
-                        } else {
-                            sub.classList.remove('open');
-                        }
-                        var btn = sub.previousElementSibling;
-                        if (btn && btn.classList.contains('nav-item')) {
-                            btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
-                        }
-                    }
+            var loginToken = document.getElementById('appSidebar').getAttribute('data-login-session');
+            if (loginToken && localStorage.getItem('sidebar_login_session') !== loginToken) {
+                var closed = {};
+                document.querySelectorAll('.nav-sub').forEach(function(sub) {
+                    sub.classList.remove('open');
+                    if (sub.id) closed[sub.id] = false;
                 });
+                document.querySelectorAll('#appSidebar details').forEach(function(group) { group.open = false; });
+                localStorage.setItem('sidebar_submenus_state', JSON.stringify(closed));
+                localStorage.setItem('sidebar_login_session', loginToken);
             }
+            var states = {};
+            try {
+                var saved = JSON.parse(localStorage.getItem('sidebar_submenus_state') || '{}');
+                if (saved && typeof saved === 'object' && !Array.isArray(saved)) states = saved;
+            } catch (_) {}
+            document.querySelectorAll('.nav-sub').forEach(function(sub) {
+                var hasSaved = Object.prototype.hasOwnProperty.call(states, sub.id);
+                var shouldOpen = hasSaved ? states[sub.id] === true : sub.classList.contains('open');
+                sub.classList.toggle('open', shouldOpen);
+                var btn = sub.previousElementSibling;
+                if (btn && btn.classList.contains('nav-item')) {
+                    btn.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+                }
+            });
 
             // Restore sidebar scroll position
             var sidebar = document.getElementById('appSidebar');
