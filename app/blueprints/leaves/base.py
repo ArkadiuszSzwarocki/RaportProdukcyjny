@@ -185,7 +185,8 @@ def panel_obecnosci():
 
 
 @leaves_bp.route('/usun_obecnosc/<int:id>', methods=['POST'])
-@masteradmin_required
+@login_required
+@roles_required('lider','zarzad','masteradmin')
 def usun_obecnosc(id):
     """Delete absence record - delegated to AttendanceService."""
     success = AttendanceService.delete_absence_record(id)

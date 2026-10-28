@@ -50,6 +50,21 @@ def period_mass(row,year,month):
     return round(sum(known),3) if known else (0 if not values else None)
 
 
+
+def scheduled_work_seconds(begin,end):
+    """07:00-15:00 weekdays; explicit START/STOP retain recorded overtime."""
+    if not begin or not end or end<=begin:return None
+    current=begin.date();total=0
+    while current<=end.date():
+        if current.weekday()<5 or (begin.date()==end.date()==current):
+            shift_start=datetime.combine(current,datetime.min.time()).replace(hour=7)
+            shift_end=shift_start.replace(hour=15)
+            if current==begin.date() and begin<shift_start:shift_start=begin
+            if current==end.date() and end>shift_end:shift_end=end
+            total+=max(0,(min(end,shift_end)-max(begin,shift_start)).total_seconds())
+        current+=timedelta(days=1)
+    return total or None
+
 class PeriodicReportService:
     @staticmethod
     def load(year, month, line='AGRO', product='', include_live=True):
@@ -67,6 +82,8 @@ class PeriodicReportService:
                 table = get_table_name('plan_produkcji', current_line)
                 cursor.execute(f'SHOW COLUMNS FROM {table}')
                 columns = {row['Field'] for row in cursor.fetchall()}
+                work_time = 'p.czas_pracy_sekundy' if 'czas_pracy_sekundy' in columns else 'NULL AS czas_pracy_sekundy'
+                resumed_time = 'p.ostatnie_wznowienie' if 'ostatnie_wznowienie' in columns else 'NULL AS ostatnie_wznowienie'
                 excel = 'p.zasyp_excel_kg' if 'zasyp_excel_kg' in columns else 'NULL AS zasyp_excel_kg'
                 deleted = ' AND COALESCE(p.is_deleted,0)=0' if 'is_deleted' in columns else ''
                 quality = " AND COALESCE(p.typ_zlecenia,'') != 'jakosc'" if 'typ_zlecenia' in columns else ''
@@ -75,7 +92,7 @@ class PeriodicReportService:
                 dose_table=get_table_name('dosypki',current_line)
                 related = f"LEFT JOIN {table} z ON p.zasyp_id=z.id AND z.sekcja='Zasyp'" if 'zasyp_id' in columns else ''
                 linked = 'z.tonaz_rzeczywisty AS linked_zasyp_kg' if related else 'NULL AS linked_zasyp_kg'
-                cursor.execute(f"SELECT p.id,p.data_planu,p.sekcja,p.produkt,p.tonaz,p.tonaz_rzeczywisty,p.status,p.real_start,p.real_stop,{excel},{linked} FROM {table} p {related} WHERE ((p.data_planu >= %s AND p.data_planu < %s) OR p.id IN (SELECT plan_id FROM {pallets} WHERE data_dodania >= %s AND data_dodania < %s UNION SELECT plan_id FROM {batch_table} WHERE data_dodania >= %s AND data_dodania < %s UNION SELECT plan_id FROM {dose_table} WHERE data_potwierdzenia >= %s AND data_potwierdzenia < %s UNION SELECT plan_id FROM wiaderka_maluchy WHERE data_zasypania >= %s AND data_zasypania < %s AND UPPER(linia)=%s)) AND p.sekcja IN ('Zasyp','Workowanie'){deleted}{quality} ORDER BY p.data_planu,p.id",(start,end,start,end,start,end,start,end,start,end,current_line))
+                cursor.execute(f"SELECT p.id,p.data_planu,p.sekcja,p.produkt,p.tonaz,p.tonaz_rzeczywisty,p.status,p.real_start,p.real_stop,{work_time},{resumed_time},{excel},{linked},EXISTS(SELECT 1 FROM {batch_table} recorded_batch WHERE recorded_batch.plan_id=p.id) AS has_recorded_batches FROM {table} p {related} WHERE ((p.data_planu >= %s AND p.data_planu < %s) OR p.id IN (SELECT plan_id FROM {pallets} WHERE data_dodania >= %s AND data_dodania < %s UNION SELECT plan_id FROM {batch_table} WHERE data_dodania >= %s AND data_dodania < %s UNION SELECT plan_id FROM {dose_table} WHERE data_potwierdzenia >= %s AND data_potwierdzenia < %s UNION SELECT plan_id FROM wiaderka_maluchy WHERE data_zasypania >= %s AND data_zasypania < %s AND UPPER(linia)=%s)) AND p.sekcja IN ('Zasyp','Workowanie'){deleted}{quality} ORDER BY p.data_planu,p.id",(start,end,start,end,start,end,start,end,start,end,current_line))
                 line_orders=[dict(row,linia=current_line) for row in cursor.fetchall()]
                 cursor.execute(f'SELECT plan_id,DATE(data_dodania) AS production_date,SUM(waga) AS kg FROM {pallets} WHERE data_dodania >= %s AND data_dodania < %s GROUP BY plan_id,DATE(data_dodania)',(start,end))
                 pallet_events=defaultdict(list)
@@ -126,6 +143,7 @@ class PeriodicReportService:
 
     @staticmethod
     def build(orders,downtimes,year,month,line='AGRO',product='',warnings=None,include_live=True,staffing=None):
+        orders=[row for row in orders if row.get('sekcja')!='Zasyp' or row.get('has_recorded_batches',True)]
         products = sorted({str(row.get('produkt') or '') for row in orders if day(row['data_planu']).year == year or any(event_day.year==year for event_day,_ in output_events(row))})
         if product:
             orders = [row for row in orders if str(row.get('produkt') or '') == product]
@@ -186,7 +204,21 @@ class PeriodicReportService:
                     item['excel']=(item['excel'] or 0)+excel
                 begin,end = timestamp(row.get('real_start')),timestamp(row.get('real_stop'))
                 closed = str(row.get('status') or '').strip().lower() == 'zakonczone'
-                hours = (end-begin).total_seconds()/3600 if closed and begin and end and end>begin else None
+                elapsed_seconds=(end-begin).total_seconds() if closed and begin and end and end>begin else None
+                recorded_seconds=number(row.get('czas_pracy_sekundy'))
+                hours=None
+                time_basis='Brak potwierdzonego czasu pracy'
+                resumed=timestamp(row.get('ostatnie_wznowienie'))
+                last_segment=(end-resumed).total_seconds() if end and resumed and end>=resumed else None
+                complete=last_segment is None or (recorded_seconds is not None and recorded_seconds>=last_segment)
+                if not complete:time_basis='Niepełny licznik czasu pracy — krótszy niż ostatni odcinek START–STOP'
+                if closed and recorded_seconds and elapsed_seconds and recorded_seconds<=elapsed_seconds and complete:
+                    hours=recorded_seconds/3600
+                    time_basis='Zapisany czas pracy (bez pauz)'
+                schedule_seconds=scheduled_work_seconds(begin,end) if closed else None
+                if schedule_seconds and (hours is None or hours*3600>schedule_seconds):
+                    hours=schedule_seconds/3600
+                    time_basis='Wyliczony czas zmiany 07:00–15:00; zapisany STOP po 15:00 uwzględniony'
                 rate = total_actual/hours if total_actual is not None and hours else None
                 if rate is not None:
                     hours_total += hours
@@ -194,7 +226,7 @@ class PeriodicReportService:
                     valid_times.append((total_actual,hours))
                 recent = valid_times[-5:]
                 if closed:
-                    learning.append(dict(order=index,id=row['id'],product=row.get('produkt') or 'Bez nazwy',line=row['linia'],date=(end.date() if end else plan_day).isoformat(),plan_date=plan_day.isoformat(),finished_at=end.isoformat(timespec='minutes') if end else None,label=(row.get('produkt') or 'Bez nazwy')+' · '+(end.date() if end else plan_day).strftime('%d.%m.%Y')+' · '+row['linia'],rate=round(rate,2) if rate is not None else None,
+                    learning.append(dict(time_basis=time_basis,hours=round(hours,4) if hours else None,order=index,id=row['id'],product=row.get('produkt') or 'Bez nazwy',line=row['linia'],date=(end.date() if end else plan_day).isoformat(),plan_date=plan_day.isoformat(),finished_at=end.isoformat(timespec='minutes') if end else None,started_at=begin.isoformat(timespec='minutes') if begin else None,label=(row.get('produkt') or 'Bez nazwy')+' · '+(end.date() if end else plan_day).strftime('%d.%m.%Y')+' · '+row['linia'],rate=round(rate,2) if rate is not None else None,
                     cumulative=round(kg_total/hours_total,2) if rate is not None else None,
                     rolling=round(sum(pair[0] for pair in recent)/sum(pair[1] for pair in recent),2) if rate is not None else None))
                 details.append(dict(id=row['id'],line=row['linia'],date=day(row['data_planu']).isoformat(),product=row.get('produkt') or '',

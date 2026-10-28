@@ -146,7 +146,7 @@
         <div style="margin: 6px 0; border-top: 1px solid #f1f5f9;"></div>
         <!-- Zakończ Zmianę & Wyślij Raport E-mail -->
         <div style="margin: 0; padding: 0;">
-            <a href="{{ url_for('main.raport_zakoncz_zmiane_page', linia=linia) }}"
+            <a href="{{ url_for('main.raport_zakoncz_zmiane_page', linia=linia, data=dzisiaj) }}"
                style="display: block; width: 100%; text-align: left; text-decoration: none; border-radius: 10px; font-size: 0.9rem; padding: 10px 14px; color: #16a34a; font-weight: 800; box-sizing: border-box;"
                onmouseover="this.style.background='#f0fdf4'" onmouseout="this.style.background='transparent'">
                 🏁 Zakończ zmianę & Wyślij e-mail

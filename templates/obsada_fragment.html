@@ -117,6 +117,12 @@
         {% endif %}
         {% set section_icons = {'Zasyp': '🌾', 'Workowanie': '📦', 'Magazyn': '🏭', 'Hala Agro': '🌱', 'Laboratorium': '🔬', 'Handel': '🛒', 'Operator sterowni': '🎛️', 'Operator workowania': '📦', 'Operator zasypów 1': '🌾', 'Operator zasypów 2': '🌾', 'Operator zasypów 3': '🌾', 'Operator zasypów 4': '🌾', 'Technik utrzymania Ruchu': '🔧'} %}
 
+        {% set assigned_staff = namespace(ids=[]) %}
+        {% if linia|upper == 'AGRO' and obsady_map is defined %}
+            {% for entries in obsady_map.values() %}{% for person in entries %}
+                {% set assigned_staff.ids = assigned_staff.ids + [person[2]|int] %}
+            {% endfor %}{% endfor %}
+        {% endif %}
         <div class="obsada-table-card" style="background: #ffffff; border: 1.5px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-top: 15px;">
             <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: #ffffff; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;">
                 <h4 style="margin: 0; font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
@@ -132,7 +138,7 @@
                             <th style="padding: 12px 16px; width: 230px;">Stanowisko / Sekcja</th>
                             <th style="padding: 12px 16px;">Przydzieleni Pracownicy</th>
                             {% if rola in ['lider', 'admin', 'masteradmin', 'pracownik', 'magazynier'] %}
-                            <th style="padding: 12px 16px; width: 300px;">Dodaj Pracownika</th>
+                            <th style="padding: 12px 16px; width: 300px;">{{ 'Zmień przypisanie' if linia|upper == 'AGRO' else 'Dodaj pracownika' }}</th>
                             {% endif %}
                         </tr>
                     </thead>
@@ -191,13 +197,14 @@
                                 <div class="d-flex gap-5 align-center obsada-worker-selector" style="display: flex; gap: 6px; align-items: center;">
                                     <input type="hidden" id="obsada-sekcja-{{ loop.index0 }}" value="{{ s }}">
                                     <select id="obsada-select-{{ loop.index0 }}" title="{{ _('wybierz_pracownika') }}"
+                                        {% if linia|upper == 'AGRO' %}onchange="window.assignAgroStaffImmediately(this, '{{ s }}')"{% endif %}
                                         aria-label="Wybierz pracownika" class="input-sm obsada-select" style="flex: 1; padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.85rem; min-width: 150px;">
-                                        <option value="" disabled selected>+ Wybierz pracownika</option>
-                                        {% for p in pracownicy %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endfor %}
+                                        <option value="" disabled selected>Wybierz osobę</option>
+                                        {% for p in pracownicy %}{% if linia|upper != 'AGRO' or p[0]|int not in assigned_staff.ids %}<option value="{{ p[0] }}">{{ p[1] }}</option>{% endif %}{% endfor %}
                                     </select>
-                                    <button type="button" id="btnAddObsada-{{ loop.index0 }}" class="btn btn-start"
+                                    {% if linia|upper != 'AGRO' %}<button type="button" id="btnAddObsada-{{ loop.index0 }}" class="btn btn-start"
                                         style="background: #10b981; color: #ffffff; border: none; padding: 6px 14px; border-radius: 8px; font-weight: 700; font-size: 0.85rem; cursor: pointer; white-space: nowrap;"
-                                        onclick="window.dodajPracownikaDoObsady(this, '{{ s }}', {{ loop.index0 }})">Dodaj</button>
+                                        onclick="window.dodajPracownikaDoObsady(this, '{{ s }}', {{ loop.index0 }})">Dodaj</button>{% endif %}
                                 </div>
                             </td>
                             {% endif %}
@@ -209,7 +216,24 @@
         </div>
 
         <script>
-            window.dodajPracownikaDoObsady = async function(btn, sekcja, index) {
+            if({{ (linia|upper == 'AGRO')|tojson }}) {
+                const assigned=new Set([...document.querySelectorAll('.obsada-section [data-pracownik-id]')].map(node=>node.dataset.pracownikId));
+                document.querySelectorAll('.obsada-select option').forEach(option=>{if(assigned.has(option.value))option.remove();});
+            }
+            window.assignAgroStaffImmediately = async function(select,section) {
+                const dateValue=document.getElementById('obsada-date')?.value;
+                if(!dateValue || !select.value)return;
+                const selectors=document.querySelectorAll('.obsada-select');
+                selectors.forEach(node=>node.disabled=true);
+                try {
+                    const response=await fetch('/api/obsada/agro_staff_visibility',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:dateValue,assignments:{[section]:[Number(select.value)]}})});
+                    const result=await response.json();
+                    if(!response.ok || !result.success)throw new Error(result.message || 'Nie zapisano obsady');
+                    if(typeof window.zmienDateObsady==='function')await window.zmienDateObsady(dateValue,'AGRO');
+                }catch(error){alert(error.message);select.value='';}
+                finally{selectors.forEach(node=>node.disabled=false);}
+            };
+                        window.dodajPracownikaDoObsady = async function(btn, sekcja, index) {
                 const sectionEl = btn.closest('.obsada-section');
                 if (!sectionEl) return;
                 const select = sectionEl.querySelector('.obsada-select');

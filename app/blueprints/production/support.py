@@ -217,17 +217,34 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
     def update_agro_staff_visibility():
         """Update widoczny_agro status and shift assignments for AGRO employees."""
         data = request.get_json() or {}
-        visible_ids = data.get('visible_ids', [])
+        visible_ids = data.get('visible_ids')
         assignments = data.get('assignments', None)
         qdate = data.get('date') or date.today().strftime('%Y-%m-%d')
 
-        if not isinstance(visible_ids, list):
+        if visible_ids is not None and not isinstance(visible_ids, list):
             return jsonify({'success': False, 'message': 'Nieprawidłowy format danych'}), 400
 
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("UPDATE pracownicy SET widoczny_agro = 0")
+            if isinstance(assignments, dict):
+                # Lock the employee rows so concurrent forms cannot assign one person twice.
+                cursor.execute('SELECT id FROM pracownicy ORDER BY id FOR UPDATE')
+                cursor.fetchall()
+                cursor.execute("SELECT sekcja,pracownik_id FROM obsada_zmiany WHERE data_wpisu=%s AND UPPER(linia)='AGRO' FOR UPDATE",(qdate,))
+                existing=cursor.fetchall()
+                merged={}
+                for section,pid in existing:
+                    merged.setdefault(normalize_agro_section(section),[]).append(int(pid))
+                for section,ids in assignments.items():
+                    if not isinstance(ids,list) or len(ids)>1:
+                        conn.rollback();return jsonify(success=False,message='Na stanowisku może być tylko jedna osoba.'),400
+                    merged[normalize_agro_section(section)]=[int(pid) for pid in ids]
+                all_ids=[pid for ids in merged.values() for pid in ids]
+                if len(all_ids)!=len(set(all_ids)):
+                    conn.rollback();return jsonify(success=False,message='Pracownik jest już przypisany do innego stanowiska.'),409
+            if visible_ids is not None:
+                cursor.execute("UPDATE pracownicy SET widoczny_agro = 0")
             if visible_ids:
                 format_strings = ','.join(['%s'] * len(visible_ids))
                 cursor.execute(f"UPDATE pracownicy SET widoczny_agro = 1 WHERE id IN ({format_strings})", tuple(visible_ids))
@@ -255,6 +272,11 @@ def register_production_support_routes(production_bp, bezpieczny_powrot):
                                 )
 
             conn.commit()
+            try:
+                from app.core.audit import audit_log
+                audit_log('Zapis obsady AGRO', f'data={qdate}; assignments={assignments}; login={session.get("login")}')
+            except Exception:
+                current_app.logger.exception('Nie zapisano audytu obsady AGRO dla %s', qdate)
             return jsonify({'success': True, 'message': 'Zapisano obsadę stanowisk oraz ustawienia pracowników AGRO.'})
         except Exception as e:
             conn.rollback()

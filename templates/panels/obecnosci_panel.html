@@ -336,7 +336,7 @@
             <td>{{ r.godziny }}</td>
             <td>{{ r.komentarz }}</td>
             <td>
-              <form method="post" action="{{ url_for('leaves.usun_obecnosc', id=r.id) }}" class="form-inline"
+              <form method="post" action="{{ url_for('leaves.usun_obecnosc', id=r.id) }}" class="form-inline" data-attendance-delete="true"
                 data-confirm="Czy na pewno chcesz usunąć ten wpis?" data-stay-open="true"
                 data-refresh-target=".panel-obecnosci"
                 data-refresh-url="{{ url_for('panels.panel_obecnosci_page') }}?fragment=true">

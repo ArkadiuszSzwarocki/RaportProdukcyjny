@@ -101,6 +101,16 @@ def register_main_reporting_routes(main_bp):
         # 6. Odczytaj proponowaną treść notatek
         initial_notes_text = uwagi.strip() if uwagi else ""
 
+        from app.services.order_report_time import load_order_times
+        timing_connection=get_db_connection()
+        try:
+            order_times=load_order_times(timing_connection,get_table_name('plan_produkcji',linia),date_str)
+            from app.services.report_buffer_opening import load_opening_buffer
+            opening_buffer=load_opening_buffer(timing_connection,date_str,linia)
+            from app.services.report_daily_progress import load_daily_progress
+            daily_progress=load_daily_progress(timing_connection,date_str,linia)
+        finally:timing_connection.close()
+
         # 7. Zbuduj podgląd HTML
         att_filenames = [a['filename'] for a in attachments_info]
         email_preview_html = EmailReportBuilder.build_shift_report_html(
@@ -113,7 +123,10 @@ def register_main_reporting_routes(main_bp):
             total_downtime_min=total_downtime_min,
             notes_text=initial_notes_text,
             attachments_names=att_filenames,
-            palety_count=palety_count
+            palety_count=palety_count,
+            order_times=order_times,
+            opening_buffer=opening_buffer,
+            daily_progress=daily_progress
         )
 
         # 8. Konfiguracja konta SMTP nadawcy i odbiorców
@@ -516,7 +529,7 @@ def register_main_reporting_routes(main_bp):
             f"<div style='max-width:480px;margin:40px auto;background:#1e293b;border:1px solid #334155;border-radius:16px;padding:32px 24px;box-shadow:0 10px 30px rgba(0,0,0,0.4);'>"
             f"<div style='font-size:42px;margin-bottom:12px;'>⚠️</div>"
             f"<h3 style='margin:0 0 8px 0;font-size:18px;'>Generowanie raportu dobowego</h3>"
-            f"<p style='color:#94a3b8;font-size:14px;margin:0 0 20px 0;'>Raport dla linii <strong>{linia}</strong> ({date_str}) jest przetwarzany lub nie zawiera jeszcze wpisów.</p>"
+            f"<p style='color:#94a3b8;font-size:14px;margin:0 0 20px 0;'>Raport dla linii <strong>{linia}</strong> ({date_str}) nie został wygenerowany z powodu błędu. Szczegóły zapisano w logach systemowych.</p>"
             f"<a href='?linia={linia}&data={date_str}&force=1' style='display:inline-block;padding:10px 24px;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:14px;text-decoration:none;'>Ponów próbę generowania</a>"
             f"</div></body></html>",
             status=200,

@@ -407,7 +407,6 @@ def _register_production_5xx_mask(app) -> None:
 
 def register_runtime_security_hardening(app) -> None:
     """Tighten legacy endpoints whose original checks/transports are too broad."""
-    _wrap_once(app, 'api.mqtt_simulate', _admin_only, '_audit_admin_only')
 
     if 'admin.admin_ustawienia_drukarki' in app.view_functions:
         app.view_functions['admin.admin_ustawienia_drukarki'] = secure_admin_printer_settings

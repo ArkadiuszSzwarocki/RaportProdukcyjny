@@ -291,19 +291,9 @@ def test_pallet_creation_print_threads_use_bounded_executor(app):
     assert pallet_creation_service.threading.Thread is _ExecutorBackedThread
 
 
-def test_mqtt_simulator_is_admin_only(app):
-    from flask import session
-
-    view = app.view_functions['api.mqtt_simulate']
-    with app.test_request_context('/api/mqtt_simulate', method='POST', json={}):
-        session['zalogowany'] = True
-        session['user_id'] = 44
-        session['login'] = 'ordinary-user'
-        session['rola'] = 'pracownik'
-        response, status = view()
-
-    assert status == 403
-    assert response.get_json()['success'] is False
+def test_removed_folio_simulator_has_no_registered_endpoint(app):
+    assert 'api.mqtt_simulate' not in app.view_functions
+    assert not any(rule.rule == '/api/mqtt_simulate' for rule in app.url_map.iter_rules())
 
 
 def test_auth_module_contains_no_legacy_bridge_or_username_privilege_bypass():

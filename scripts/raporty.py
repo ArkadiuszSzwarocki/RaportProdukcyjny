@@ -20,7 +20,7 @@ def generuj_excel(dzisiaj, prod_rows, awarie_rows, hr_rows):
 def generuj_pdf(
     dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
     folder, linia='PSD', obsada_rows=None, nieobecni_rows=None,
-    bufor_rows=None, nadgodziny_rows=None, palety_rows=None, measurements=None
+    bufor_rows=None, nadgodziny_rows=None, palety_rows=None, measurements=None, order_times=None, opening_buffer=None, daily_progress=None
 ):
     """Generates PDF report and returns file name."""
     return PdfReportGenerator.generuj_pdf(
@@ -37,5 +37,8 @@ def generuj_pdf(
         bufor_rows=bufor_rows,
         nadgodziny_rows=nadgodziny_rows,
         palety_rows=palety_rows,
+        order_times=order_times,
+        opening_buffer=opening_buffer,
+        daily_progress=daily_progress,
         measurements=measurements
     )

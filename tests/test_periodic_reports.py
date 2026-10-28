@@ -9,6 +9,7 @@ from app.services.periodic_report_service import PeriodicReportService
 
 
 def order(id=1,section='Zasyp',mass=1000,plan=1200,day='2026-10-03',status='zakonczone',line='AGRO',**extra):
+    extra.setdefault('czas_pracy_sekundy',7200)
     return dict(id=id,sekcja=section,tonaz=plan,tonaz_rzeczywisty=mass,data_planu=day,status=status,linia=line,produkt='Test product',real_start=datetime(2026,10,3,8),real_stop=datetime(2026,10,3,10),**extra)
 
 
@@ -33,6 +34,7 @@ def test_missing_execution_is_not_replaced_by_plan_and_zero_is_a_real_value():
 def test_learning_curve_uses_weighted_hours_not_mean_of_rates():
     rows=[order(mass=1000),order(id=2,mass=4000)]
     rows[1]['real_stop']=datetime(2026,10,3,12)
+    rows[1]['czas_pracy_sekundy']=14400
     result=PeriodicReportService.build(rows,[],2026,10)['sections']['Zasyp']
     assert result['learning'][-1]['cumulative']==833.33
     assert result['rate']==833.3
@@ -349,3 +351,49 @@ def test_all_halls_staffing_retains_separate_daily_counts():
     for section in ['Zasyp','Workowanie']:
         assert report['sections'][section]['daily'][0]['staff_by_hall']=={'AGRO':3,'PSD':6}
         assert report['sections'][section]['daily'][1]['staff_by_hall']=={'AGRO':None,'PSD':None}
+
+
+@pytest.mark.parametrize('seconds',[None,0,-1,99999999])
+def test_no_calendar_fallback_when_confirmed_work_time_is_missing_or_invalid(seconds):
+    row=order(czas_pracy_sekundy=seconds)
+    row['real_stop']=datetime(2026,10,6,10)
+    section=PeriodicReportService.build([row],[],2026,10)['sections']['Zasyp']
+    assert section['rate'] is not None
+    assert 'Wyliczony' in section['learning'][0]['time_basis']
+
+
+def test_confirmed_work_time_excludes_weekend_from_rate():
+    row=order(mass=16206,czas_pracy_sekundy=23206)
+    row['real_start']=datetime(2026,10,23,11,55,54)
+    row['real_stop']=datetime(2026,10,26,10,30,29)
+    section=PeriodicReportService.build([row],[],2026,10)['sections']['Zasyp']
+    assert section['learning'][0]['rate']==2514.07
+
+
+def test_partial_counter_shorter_than_final_work_segment_does_not_inflate_rate():
+    row=order(mass=12400,czas_pracy_sekundy=15,ostatnie_wznowienie=datetime(2026,10,6,8,54,35))
+    row['real_start']=datetime(2026,10,6,7,40,34)
+    row['real_stop']=datetime(2026,10,6,13,0,36)
+    section=PeriodicReportService.build([row],[],2026,10)['sections']['Zasyp']
+    point=section['learning'][0]
+    assert point['rate']<3000
+    assert 'Wyliczony' in point['time_basis']
+
+
+def test_packing_ready_big_bags_does_not_count_as_batch_production():
+    rows=[order(id=1,has_recorded_batches=False),order(id=2,has_recorded_batches=True),order(id=3,section='Workowanie',has_recorded_batches=False)]
+    report=PeriodicReportService.build(rows,[],2026,10)
+    zasyp=report['sections']['Zasyp']
+    assert [row['id'] for row in zasyp['details']]==[2]
+    assert [row['id'] for row in zasyp['learning']]==[2]
+    assert zasyp['actual']==1000 and zasyp['plan']==1200
+    assert report['annual']['Zasyp'][9]==1000
+    assert [row['id'] for row in report['sections']['Workowanie']['details']]==[3]
+
+
+def test_shift_time_excludes_nights_and_weekends_but_preserves_overtime_stop():
+    from app.services.periodic_report_service import scheduled_work_seconds
+    assert scheduled_work_seconds(datetime(2026,10,23,12),datetime(2026,10,26,10))==6*3600
+    assert scheduled_work_seconds(datetime(2026,10,27,12),datetime(2026,10,28,16,30))==12.5*3600
+    assert scheduled_work_seconds(datetime(2026,10,28,7),datetime(2026,10,28,16))==9*3600
+    assert scheduled_work_seconds(None,datetime(2026,10,28,16)) is None

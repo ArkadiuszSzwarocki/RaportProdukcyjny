@@ -104,7 +104,7 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
     table_dosypki = 'dosypki_agro' if linia == 'AGRO' else 'dosypki'
     table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
 
-    has_pal_confirm = (str(linia).strip().upper() == 'AGRO')
+    has_pal_confirm = False
     if has_pal_confirm:
         pal_date_expr = "(DATE(pal.data_dodania) = %s OR DATE(pal.data_potwierdzenia) = %s)"
         pal_params_single = (data_raportu, data_raportu)
@@ -151,7 +151,7 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
            OR p.id IN (
                SELECT pal.plan_id FROM {table_palety} pal WHERE {pal_date_expr}
            )
-        ORDER BY p.kolejnosc, p.id
+        ORDER BY p.real_start IS NULL,p.real_start,p.real_stop IS NULL,p.real_stop,p.id
     """
     plan_params = (
         data_raportu,
@@ -167,6 +167,18 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
         params=plan_params,
         columns=['id', 'sekcja', 'produkt', 'tonaz', 'tonaz_rzeczywisty', 'real_start', 'real_stop', 'nazwa_zlecenia']
     )
+    settlement_map={}
+    if str(linia).upper() == 'AGRO' and not df_plan.empty:
+        ids=[int(value) for value in df_plan['id'].tolist()]
+        placeholders=','.join(['%s']*len(ids))
+        settlement_cursor=conn.cursor(dictionary=True)
+        try:
+            settlement_cursor.execute(f"SELECT w.id,z.id AS source_id,z.tonaz_rzeczywisty AS source_kg,(SELECT COALESCE(SUM(p.waga),0) FROM palety_agro p WHERE p.plan_id=w.id) AS packed_kg FROM plan_produkcji_agro w LEFT JOIN plan_produkcji_agro z ON z.id=w.zasyp_id AND z.sekcja='Zasyp' WHERE w.id IN ({placeholders}) AND w.sekcja IN ('Workowanie','Czyszczenie')",tuple(ids))
+            settlement_map={row['id']:row for row in settlement_cursor.fetchall()}
+        finally:settlement_cursor.close()
+        for index,row in df_plan.iterrows():
+            linked=settlement_map.get(row['id'])
+            if linked and linked['source_kg'] is not None:df_plan.at[index,'tonaz']=linked['source_kg']
     if str(linia).upper() == 'AGRO' and not df_plan.empty:
         from app.services.zasyp_excel_service import ZasypExcelService
         excel_totals = ZasypExcelService.for_work_orders(conn, df_plan['id'].tolist())
@@ -360,7 +372,7 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
         """, conn, params=(data_raportu,), columns=['pracownik', 'ilosc_nadgodzin', 'powod', 'status'])
     logger.info(f"[GENERATOR] Nadgodziny data: {len(df_nadgodziny)} rows")
 
-    folder = 'raporty_temp'
+    folder = str(Path(__file__).resolve().parent.parent / 'raporty_temp')
     if not os.path.exists(folder): os.makedirs(folder)
     logger.info(f"[GENERATOR] Output folder: {os.path.abspath(folder)}")
 
@@ -379,24 +391,29 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
     xls_path = os.path.join(folder, f"Raport_{linia}_{data_raportu}.xlsx")
     logger.info(f"[GENERATOR] Creating Excel file: {xls_path}")
     print(f"[GENERATOR] Creating Excel: {os.path.abspath(xls_path)}")
-    with pd.ExcelWriter(xls_path, engine='openpyxl') as writer:
-        if measurements:
-            from scripts.reports.measurement_sections import write_excel
-            write_excel(writer, measurements)
-        df_plan.to_excel(writer, sheet_name='Produkcja', index=False)
-        df_awarie.to_excel(writer, sheet_name='Awarie', index=False)
-        df_hr.to_excel(writer, sheet_name='HR - Obecnosc', index=False)
-        if not df_obsada.empty:
-            df_obsada.to_excel(writer, sheet_name='Obsada - Sekcje', index=False)
-        if not df_nieobecni.empty:
-            df_nieobecni.to_excel(writer, sheet_name='Nieobecni - Urlopy', index=False)
-        if not df_bufor.empty:
-            df_bufor.to_excel(writer, sheet_name='Bufor', index=False)
-        if not df_nadgodziny.empty:
-            df_nadgodziny.to_excel(writer, sheet_name='Nadgodziny', index=False)
-    xls_exists = os.path.exists(xls_path)
-    logger.info(f"[GENERATOR] Excel file created: {xls_exists}")
-    print(f"[GENERATOR] OK Excel created: {xls_exists} | Path: {os.path.abspath(xls_path)}")
+    try:
+        with pd.ExcelWriter(xls_path, engine='openpyxl') as writer:
+            if measurements:
+                from scripts.reports.measurement_sections import write_excel
+                write_excel(writer, measurements)
+            df_plan.to_excel(writer, sheet_name='Produkcja', index=False)
+            df_awarie.to_excel(writer, sheet_name='Awarie', index=False)
+            df_hr.to_excel(writer, sheet_name='HR - Obecnosc', index=False)
+            if not df_obsada.empty:
+                df_obsada.to_excel(writer, sheet_name='Obsada - Sekcje', index=False)
+            if not df_nieobecni.empty:
+                df_nieobecni.to_excel(writer, sheet_name='Nieobecni - Urlopy', index=False)
+            if not df_bufor.empty:
+                df_bufor.to_excel(writer, sheet_name='Bufor', index=False)
+            if not df_nadgodziny.empty:
+                df_nadgodziny.to_excel(writer, sheet_name='Nadgodziny', index=False)
+        xls_exists = os.path.exists(xls_path)
+        logger.info(f"[GENERATOR] Excel file created: {xls_exists}")
+        print(f"[GENERATOR] OK Excel created: {xls_exists} | Path: {os.path.abspath(xls_path)}")
+
+    except OSError:
+        logger.exception('[GENERATOR] Excel write failed; continuing with PDF generation')
+        xls_path = None
 
     txt_path = None
 
@@ -423,20 +440,12 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
                 row.get('real_stop', None),
                 row.get('nazwa_zlecenia', ''),
                 row.get('id', ''),
-                row.get('zasyp_excel_kg', None)
+                row.get('zasyp_excel_kg', None),
+                settlement_map.get(row.get('id'))
             ))
 
-        # Sortuj: najpierw według kolejności produktu w planie (`kolejnosc`/id),
-        # potem po nazwie produktu, a wewnątrz produktu uporządkuj sekcje: Zasyp -> Workowanie -> Magazyn
-        order_map = {'Zasyp': 0, 'Workowanie': 1, 'Czyszczenie': 1, 'Magazyn': 2}
-        try:
-            prod_rows.sort(key=lambda r: (
-                product_order.get(r[1], 9999),
-                (str(r[1]).lower() if r[1] is not None else ''),
-                order_map.get(r[0], 99)
-            ))
-        except Exception:
-            pass
+        from app.services.order_report_time import chronological_key
+        prod_rows.sort(key=lambda row:chronological_key(row[4],row[5],row[7]))
 
         awarie_rows = []
         for _, row in df_awarie.iterrows():
@@ -486,11 +495,17 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
         sys.stdout.flush()
         sys.stderr.flush()
         
+        from app.services.order_report_time import load_order_times
+        order_times=load_order_times(conn,table_plan,data_raportu,df_plan['id'].tolist())
+        from app.services.report_buffer_opening import load_opening_buffer
+        opening_buffer=load_opening_buffer(conn,data_raportu,linia)
+        from app.services.report_daily_progress import load_daily_progress
+        daily_progress=load_daily_progress(conn,data_raportu,linia,df_plan['id'].tolist())
         pdf_name = generuj_pdf(data_raportu, uwagi_lidera, lider_name, prod_rows, awarie_rows, hr_rows,
                                folder, linia,
                                obsada_rows=obsada_rows, nieobecni_rows=nieobecni_rows,
                                bufor_rows=bufor_rows, nadgodziny_rows=nadgodziny_rows,
-                               palety_rows=palety_rows, measurements=measurements)
+                               palety_rows=palety_rows, measurements=measurements, order_times=order_times, opening_buffer=opening_buffer, daily_progress=daily_progress)
         
         print(f"[GENERATOR] generuj_pdf returned: {pdf_name}")
         sys.stdout.flush()

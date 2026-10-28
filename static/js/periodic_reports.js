@@ -79,7 +79,7 @@
                 tooltip:{callbacks:{title:contexts=>{
                     const context=contexts[0],order=context?.dataset.orderInfo?.[context.dataIndex];
                     if(!order) return context?.label || '';
-                    return [order.product+' · '+order.line,'Data planu: '+order.plan_date,'Zakończono: '+(order.finished_at || 'brak czasu zakończenia')];
+                    return ['#'+order.id+' · '+order.product+' · '+order.line,'Data planu: '+order.plan_date,'Rozpoczęto: '+(order.started_at || 'brak czasu rozpoczęcia'),'Zakończono: '+(order.finished_at || 'brak czasu zakończenia'),(order.time_basis || 'Czas START–STOP')+(order.hours?' · '+formatter.format(order.hours)+' h':'')];
                 },label: context => context.dataset.label + ': ' + (context.raw===null?'brak danych':formatter.format(context.raw)),afterLabel: context => {const value=context.dataset.continuation?.[context.dataIndex];return value?'W tym kontynuacje: '+formatter.format(value)+' t':'';}}}},
             scales:{x:{grid:{display:false},ticks:{color:'#64748b',maxRotation:0,autoSkip:true}},
                 y:{beginAtZero:true,grid:{color:'#edf1f6'},ticks:{color:'#64748b'}}},...extra};
@@ -142,7 +142,7 @@
         });
         chart('cumulative'+name,'line',labels,[series('Plan · t',cumulativePlan,gray,{borderDash:[5,4],pointRadius:0}),
             series('Wykonanie · t',cumulativeActual,color,{pointRadius:0,fill:true,backgroundColor:color+'12'})],{weekendDates:data.daily.map(row=>row.date)});
-        chart('learning'+name,'line',data.learning.map(row=>[(row.product || row.label).length>28?(row.product || row.label).slice(0,26)+'…':(row.product || row.label),(row.date || '').split('-').reverse().join('.')+' · '+(row.line || '')]),[
+        chart('learning'+name,'line',data.learning.map(row=>[(row.product || row.label).length>28?(row.product || row.label).slice(0,26)+'…':(row.product || row.label),'#'+row.id+' · plan '+(row.plan_date || '').split('-').reverse().join('.')+' · '+(row.line || '')]),[
             series('Zlecenie · kg/h',data.learning.map(row=>row.rate),color,{borderWidth:1,pointRadius:3,orderInfo:data.learning}),
             series('Ostatnie 5 pomiarów · kg/h',data.learning.map(row=>row.rolling),'#e59b25',{pointRadius:0,borderWidth:2,orderInfo:data.learning}),
             series('Średnia narastająca · kg/h',data.learning.map(row=>row.cumulative),'#635bcb',{pointRadius:0,borderWidth:3,orderInfo:data.learning})],{scales:{x:{grid:{display:false},ticks:{autoSkip:true,maxTicksLimit:8,maxRotation:0,font:{size:10}}},y:{beginAtZero:true,grid:{color:'#edf1f6'}}}});

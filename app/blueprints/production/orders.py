@@ -1,3 +1,4 @@
+# cspell:words TIMESTAMPDIFF
 import glob
 import logging
 import os
@@ -509,7 +510,10 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 except Exception:
                     pass
 
-            sql = f"UPDATE {table_plan} SET status='zakonczone', real_stop=NOW()"
+            timing_update = ''
+            if str(linia).upper() == 'AGRO':
+                timing_update = "czas_pracy_sekundy=COALESCE(czas_pracy_sekundy,0)+CASE WHEN status='w toku' AND ostatnie_wznowienie IS NOT NULL THEN GREATEST(0,TIMESTAMPDIFF(SECOND,ostatnie_wznowienie,NOW())) ELSE 0 END, ostatnie_wznowienie=NULL, "
+            sql = f"UPDATE {table_plan} SET {timing_update}status='zakonczone', real_stop=NOW()"
             params = []
             if rzeczywista_waga > 0:
                 sql += ', tonaz_rzeczywisty=%s'

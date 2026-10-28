@@ -82,3 +82,23 @@ def test_agro_staff_visibility_update_with_assignments(client):
             ('2026-08-21', 'Operator sterowni', 1)
         )
 
+
+
+def test_assignment_rejects_multiple_people_on_one_position(client):
+    with client.session_transaction() as state:state.update(zalogowany=True,rola='admin')
+    with patch('app.blueprints.production.support.get_db_connection') as database:
+        cursor=database.return_value.cursor.return_value
+        cursor.fetchall.return_value=[]
+        response=client.post('/api/obsada/agro_staff_visibility',json={'date':'2026-10-28','assignments':{'Operator sterowni':[1,2]}})
+    assert response.status_code==400
+    database.return_value.commit.assert_not_called()
+
+
+def test_assignment_rejects_person_already_on_other_position(client):
+    with client.session_transaction() as state:state.update(zalogowany=True,rola='admin')
+    with patch('app.blueprints.production.support.get_db_connection') as database:
+        cursor=database.return_value.cursor.return_value
+        cursor.fetchall.side_effect=[[(1,)], [('Operator sterowni',1)]]
+        response=client.post('/api/obsada/agro_staff_visibility',json={'date':'2026-10-28','assignments':{'Operator workowania':[1]}})
+    assert response.status_code==409
+    database.return_value.commit.assert_not_called()

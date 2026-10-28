@@ -22,7 +22,7 @@ class PdfReportGenerator:
     def generuj_pdf(
         dzisiaj, uwagi, lider, prod_rows, awarie_rows, hr_rows,
         folder, linia='PSD', obsada_rows=None, nieobecni_rows=None,
-        bufor_rows=None, nadgodziny_rows=None, palety_rows=None, measurements=None
+        bufor_rows=None, nadgodziny_rows=None, palety_rows=None, measurements=None, order_times=None, opening_buffer=None, daily_progress=None
     ) -> str | None:
         linia_prefix = f"_{linia}" if linia else ""
         nazwa_pdf = f"Raport{linia_prefix}_{dzisiaj}.pdf"
@@ -46,11 +46,11 @@ class PdfReportGenerator:
         lider_clean = str(lider or '').lstrip('|').strip()
         pdf.set_text_color(30, 41, 59)
         pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 6, txt=polskie_znaki_pdf(f"Data zmiany: {dzisiaj} | Hala: {linia}"), ln=1)
         pdf.cell(0, 6, txt=polskie_znaki_pdf(f"Lider Zmiany: {lider_clean}"), ln=1)
         pdf.ln(1)
 
         # Notes
-        PdfStaffSections.render_notes(pdf, uwagi)
 
         # Map products
         products = []
@@ -74,11 +74,70 @@ class PdfReportGenerator:
             prod_map[key][sec] = (plan, wyk, r_start, r_stop, zlec)
             if str(linia).upper() == 'AGRO' and sec in ('Workowanie', 'Czyszczenie'):
                 prod_map[key]['_zasyp_excel_kg'] = r[8] if len(r) > 8 else None
+                prod_map[key]['_settlement'] = r[9] if len(r)>9 else None
 
         # Production, Pallets, Downtime
-        PdfProductionSections.render_production(pdf, products, prod_map, dzisiaj, awarie_rows)
+        from scripts.reports.pdf_table_renderer import rysuj_wiersz_multicell,format_kg
+        for section in ('Zasyp','Workowanie'):
+            if section=='Workowanie':
+                pdf.add_page()
+                pdf.set_font('Arial','B',14)
+                pdf.cell(0,10,polskie_znaki_pdf(f'WORKOWANIE - {dzisiaj} | {linia}'),ln=1)
+            PdfProductionSections.render_production(pdf,products,prod_map,dzisiaj,awarie_rows,section=section)
+            rows=[item for item in daily_progress or [] if item['section']==section]
+            if rows:
+                dates=sorted({day for item in rows for day in item['daily']})
+                for offset in range(0,max(1,len(dates)),4):
+                    selected=dates[offset:offset+4]
+                    # Reserve the complete table before drawing its heading and rows.
+                    estimated_height=24+len(rows)*16
+                    if pdf.get_y()+estimated_height>270:pdf.add_page()
+                    pdf.set_font('Arial','B',10)
+                    pdf.cell(0,8,polskie_znaki_pdf(section+' - WYKONANIE DZIEN PO DNIU (kg)'),ln=1)
+                    widths=[62,25]+[78/max(1,len(selected))]*len(selected)+[25]
+                    header=['Zlecenie / produkt','Plan']+['Wyk. '+day[8:10]+'.'+day[5:7]+'.'+day[:4] for day in selected]+['Suma do '+str(dzisiaj)]
+                    pdf.set_font('Arial',size=8)
+                    rysuj_wiersz_multicell(pdf,widths,header,fill=True,font_style='B')
+                    for item in rows:
+                        values=[f"#{item['id']} {item['product']}",format_kg(item['plan']) if item['plan'] is not None else 'brak zasypu']+[format_kg(item['daily'][day]) if day in item['daily'] else '-' for day in selected]+[format_kg(item['total'])]
+                        rysuj_wiersz_multicell(pdf,widths,values)
+                    pdf.ln(4)
+            times=[item for item in order_times or [] if item['section']==section]
+            if times:
+                pdf.set_text_color(30,41,59)
+                pdf.set_font('Arial','B',10)
+                pdf.cell(0,8,polskie_znaki_pdf('CZASY ZLECEN - '+section),ln=1)
+                pdf.set_font('Arial',size=8)
+                for item in times:
+                    if pdf.get_y()+32>pdf.h-pdf.b_margin:pdf.add_page()
+                    pdf.ln(2)
+                    pdf.set_draw_color(203,213,225)
+                    pdf.line(pdf.l_margin,pdf.get_y(),pdf.w-pdf.r_margin,pdf.get_y())
+                    pdf.ln(2)
+                    pdf.multi_cell(0,4,polskie_znaki_pdf(f"#{item['id']} {item['product']}\nStart: {item['start']} | Stop: {item['stop']}\nZapisany czas pracy: {item['saved']}\nCzas kalendarzowy START-STOP (z pauzami): {item.get('elapsed','brak danych')}\nOstatnie wznowienie: {item['resumed']}"))
+        pdf.add_page()
+        pdf.set_text_color(15,23,42)
+        pdf.set_font('Arial','B',14)
+        pdf.cell(0,10,polskie_znaki_pdf(f'NOTATKI, USTERKI I POSTOJE - {dzisiaj} | {linia}'),ln=1)
+        if uwagi and str(uwagi).strip():
+            PdfStaffSections.render_notes(pdf,uwagi)
+        else:
+            pdf.set_font('Arial',size=10)
+            pdf.multi_cell(0,7,polskie_znaki_pdf('Brak zapisanych notatek zmianowych dla tego dnia.'))
+        if awarie_rows:
+            PdfProductionSections.render_downtime(pdf,awarie_rows)
+        else:
+            pdf.set_font('Arial',size=10)
+            pdf.multi_cell(0,7,polskie_znaki_pdf('Brak zarejestrowanych usterek i postojow produkcyjnych dla tego dnia i hali.'))
+        pdf.add_page()
+        if opening_buffer:
+            pdf.set_font('Arial','B',10)
+            pdf.cell(0,8,polskie_znaki_pdf('BUFOR WEJSCIOWY - NIESPAKOWANE Z POPRZEDNICH DNI'),ln=1)
+            pdf.set_font('Arial',size=9)
+            for item in opening_buffer:
+                pdf.multi_cell(0,6,polskie_znaki_pdf(f"#{item['id']} {item['product']}: {item['remaining']:.3f} kg"))
+            pdf.multi_cell(0,5,polskie_znaki_pdf(f"Razem: {sum(item['remaining'] for item in opening_buffer):.3f} kg. Stan przed {dzisiaj} 00:00, dla zlecen raportu: zarejestrowany zasyp minus palety wczesniej wyprodukowane. Bilans ewidencyjny, bez szacowania brakujacych zapisow."))
         PdfProductionSections.render_pallets(pdf, palety_rows)
-        PdfProductionSections.render_downtime(pdf, awarie_rows)
         if str(linia).upper() == 'AGRO':
             from scripts.reports.measurement_sections import render_pdf
             render_pdf(pdf, measurements)

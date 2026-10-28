@@ -191,6 +191,28 @@ class EmailReportBuilder:
         # Bezpieczne sformatowanie notatek
         formatted_notes = (notes_text or "Brak dodatkowych uwag lidera.").replace("\n", "<br>")
 
+        timing_rows=''
+        for item in kwargs.get('order_times',[]):
+            timing_rows += '<div style="border-top:1px solid #cbd5e1;margin-top:14px;padding-top:14px;line-height:1.7"><strong>'+escape(str(item['product']))+' · '+escape(str(item['section']))+' #'+str(item['id'])+'</strong><br>Start: '+escape(item['start'])+' · Stop: '+escape(item['stop'])+'<br>Zapisany czas pracy: '+escape(item['saved'])+'<br>Czas kalendarzowy START–STOP (z pauzami): '+escape(item.get('elapsed','brak danych'))+'<br>Ostatnie wznowienie: '+escape(item['resumed'])+'</div>'
+        timing_html=('<tr><td style="padding:20px;color:#0f172a;background:#fff"><h3>Potwierdzone czasy zleceń — łącznie</h3>'+timing_rows+'<p>Czas zapisany w systemie, bez szacowania braków. Brak pełnej historii odcinków pracy i pauz; otwartego odcinka nie doliczamy.</p></td></tr>') if timing_rows else ''
+
+        opening_rows=kwargs.get('opening_buffer',[])
+        opening_html='<tr><td style="padding:20px;color:#0f172a"><h3>Bufor wejściowy — niespakowane z poprzednich dni</h3>'
+        opening_html+=''.join('<p>#'+str(item['id'])+' '+escape(item['product'])+': <strong>'+str(item['remaining'])+' kg</strong></p>' for item in opening_rows)
+        opening_html+='<p>Razem: '+str(round(sum(item['remaining'] for item in opening_rows),3))+' kg. Stan przed '+date_str+' 00:00 dla zleceń raportu, według zapisanych zasypów i wcześniejszych palet. Bilans ewidencyjny, bez szacowania braków.</p></td></tr>'
+
+        daily_html=''
+        for section in ('Zasyp','Workowanie'):
+            rows=[item for item in kwargs.get('daily_progress',[]) if item['section']==section]
+            if not rows:continue
+            dates=sorted({day for item in rows for day in item['daily']})
+            daily_html+='<tr><td style="padding:20px;color:#0f172a;background:#fff"><h3>'+section+' — wykonanie dzień po dniu (kg)</h3><div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead><tr><th>Zlecenie</th><th>Plan</th>'
+            daily_html+=''.join('<th>Wykonane '+escape(day[8:10]+'.'+day[5:7]+'.'+day[:4])+'</th>' for day in dates)+'<th>Suma do dnia raportu</th></tr></thead><tbody>'
+            for item in rows:
+                values=['#'+str(item['id'])+' '+item['product'],str(item['plan']) if item['plan'] is not None else 'brak powiązanego zasypu']+[str(item['daily'][day]) if day in item['daily'] else '—' for day in dates]+[str(item['total'])]
+                daily_html+='<tr>'+''.join('<td style="padding:8px;border-bottom:1px solid #dce5ef">'+escape(value)+'</td>' for value in values)+'</tr>'
+            daily_html+='</tbody></table></div><p>Według dat zapisanej produkcji. Plan Workowania pochodzi z wykonania powiązanego Zasypu. Kreska oznacza brak wpisu produkcji w danym dniu.</p></td></tr>'
+
         # Kompletny szablon HTML e-maila
         return f"""
         <!DOCTYPE html>
@@ -203,9 +225,17 @@ class EmailReportBuilder:
             
             <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 680px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08); border: 1px solid #e2e8f0;">
                 
+                <tr><td style="background-color: #f1f5f9; color: #0f172a; padding: 14px 20px; font-size: 14px; border-bottom: 1px solid #cbd5e1;">
+                    Data zmiany: <strong style="color: #0f172a;">{date_str}</strong><br>
+                    Lider zmiany: <strong style="color: #0f172a;">{lider_name}</strong><br>
+                    Hala: <strong style="color: #0f172a;">{linia}</strong>
+                </td></tr>
+                {daily_html}
+                {opening_html}
+                {timing_html}
                 <!-- HEADER -->
                 <tr>
-                    <td style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 28px 30px; color: #ffffff;">
+                    <td bgcolor="#1e293b" style="background-color: #1e293b; background-image: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 28px 30px; color: #ffffff;">
                         <table width="100%" border="0" cellspacing="0" cellpadding="0">
                             <tr>
                                 <td>

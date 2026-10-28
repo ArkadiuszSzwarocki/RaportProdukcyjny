@@ -1,3 +1,4 @@
+# cspell:words CALEGO
 """PDF sections rendering: Production tables, pallet summary and downtime."""
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ class PdfProductionSections:
     """Renders production batches, productivity and downtime tables."""
 
     @staticmethod
-    def render_production(pdf, products, prod_map, dzisiaj, awarie_rows):
+    def render_production(pdf, products, prod_map, dzisiaj, awarie_rows, section=None):
         def _rysuj_tabele_sekcji(tytul, sekcje_klucze):
             has_data = False
             for prod in products:
@@ -39,7 +40,11 @@ class PdfProductionSections:
 
             pdf.set_font("Arial", size=9)
             fill = False
-            for prod in products:
+            from app.services.order_report_time import chronological_key
+            def section_order(product):
+                values=next((prod_map[product][section] for section in sekcje_klucze if section in prod_map.get(product,{})),None)
+                return chronological_key(values[2],values[3]) if values else chronological_key(None,None)
+            for prod in sorted(products,key=section_order):
                 p_data = None
                 for s_klucz in sekcje_klucze:
                     if s_klucz in prod_map.get(prod, {}):
@@ -61,30 +66,11 @@ class PdfProductionSections:
                 except Exception:
                     wval = 0.0
 
-                if tytul == 'WORKOWANIE':
-                    try:
-                        z_wyk_raw = prod_map.get(prod, {}).get('Zasyp', (None, None))[1]
-                        if z_wyk_raw is not None:
-                            z_val = float(z_wyk_raw)
-                            if not math.isnan(z_val) and z_val > 0:
-                                pval = z_val
-                    except Exception:
-                        pass
-
                 plan_str = format_kg(pval) if pval else "-"
                 wyk_str = format_kg(wval) if (wval or wval == 0) else "-"
 
-                s_str, e_str = "-", "-"
-                if r_start and str(r_start) not in ('NaT', 'None', 'nan', ''):
-                    try:
-                        s_str = r_start.strftime('%H:%M')
-                    except Exception:
-                        s_str = str(r_start)[:5] if str(r_start) != 'NaT' else "-"
-                if r_stop and str(r_stop) not in ('NaT', 'None', 'nan', ''):
-                    try:
-                        e_str = r_stop.strftime('%H:%M')
-                    except Exception:
-                        e_str = str(r_stop)[:5] if str(r_stop) != 'NaT' else "-"
+                from app.services.order_report_time import format_datetime
+                s_str,e_str=format_datetime(r_start),format_datetime(r_stop)
 
                 row_color = (250, 250, 250) if fill else (255, 255, 255)
                 rysuj_wiersz_multicell(
@@ -102,15 +88,11 @@ class PdfProductionSections:
                     pdf.set_font('Arial', size=9)
                 fill = not fill
 
-                if tytul == 'WORKOWANIE':
-                    try:
-                        z_wyk_raw = prod_map.get(prod, {}).get('Zasyp', (None, None))[1]
-                        z_plan = float(z_wyk_raw) if z_wyk_raw is not None else 0.0
-                        if math.isnan(z_plan):
-                            z_plan = 0.0
-                    except Exception:
-                        z_plan = 0.0
-                    diff = wval - z_plan
+                settlement=prod_map.get(prod,{}).get('_settlement')
+                if tytul == 'WORKOWANIE' and settlement and settlement.get('source_kg') is not None:
+                    z_plan=float(settlement['source_kg'])
+                    packed_total=float(settlement['packed_kg'] or 0)
+                    diff = packed_total - z_plan
                     diff_sign = '+' if diff >= 0 else '-'
                     diff_abs = abs(diff)
                     if math.isclose(diff_abs, round(diff_abs), abs_tol=1e-9):
@@ -123,7 +105,7 @@ class PdfProductionSections:
                         pdf.set_text_color(34, 139, 34)
                     else:
                         pdf.set_text_color(192, 57, 43)
-                    pdf.cell(190, 5, polskie_znaki_pdf(f"Rozliczenie względem zasypu: {diff_str}"), 1, 1, 'R', True)
+                    pdf.cell(190, 5, polskie_znaki_pdf(f"{prod_name}: rozliczenie CALEGO zlecenia: {format_kg(packed_total)} - {format_kg(z_plan)} = {diff_str}"), 1, 1, 'R', True)
                     pdf.set_text_color(0, 0, 0)
                     pdf.set_font("Arial", size=9)
 
@@ -187,9 +169,9 @@ class PdfProductionSections:
             pdf.set_text_color(0, 0, 0)
             pdf.ln(4)
         else:
-            if has_zasyp:
+            if has_zasyp and section in (None,'Zasyp'):
                 _rysuj_tabele_sekcji('ZASYP', ['Zasyp'])
-            if has_work:
+            if has_work and section in (None,'Workowanie'):
                 _rysuj_tabele_sekcji('WORKOWANIE', ['Workowanie', 'Czyszczenie'])
 
     @staticmethod
