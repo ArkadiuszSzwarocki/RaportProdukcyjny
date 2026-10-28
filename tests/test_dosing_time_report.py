@@ -1,4 +1,4 @@
-# cspell:words Naważanie SPECJAL wydozowan
+# cspell:words Naważanie SPECJAL wydozowan executescript
 """Batch timing reports preserve process sequence and distinguish pauses from work."""
 from datetime import date,datetime
 from unittest.mock import MagicMock,patch
