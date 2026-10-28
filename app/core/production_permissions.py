@@ -29,19 +29,9 @@ def _deny(message='Brak uprawnień do tej sekcji.', status=403):
 
 def _page_allowed(line, section, write=True):
     from app.core.contexts import inject_role_permissions
-    if section == 'magazyn':
-        from app.core.shared_inventory_permissions import shared_material_access
-        return shared_material_access()
     role = _normalize_role(session.get('rola'))
     if role == 'masteradmin':
         return True
-    group = str(session.get('grupa') or 'ALL').upper()
-    # Keep the established hall policy; a page grant does not override a hall restriction.
-    if group != 'ALL' and (group == 'OSIP' or role not in
-            {'admin', 'zarzad', 'planista', 'lider', 'laborant', 'masteradmin'}):
-        if group != line:
-            return False
-    helpers = inject_role_permissions()
     page = line.lower() + '.' + section
     if session.get('user_id'):
         from app.repositories.user_permission_override_repository import user_permission_override_repository
@@ -52,6 +42,18 @@ def _page_allowed(line, section, write=True):
             return False
         if page in overrides:
             return overrides[page]['access'] and not (write and overrides[page]['readonly'])
+        if section == 'magazyn' and 'magazyn.view' in overrides:
+            return overrides['magazyn.view']['access'] and not (write and overrides['magazyn.view']['readonly'])
+    if section == 'magazyn':
+        from app.core.shared_inventory_permissions import shared_material_access
+        return shared_material_access()
+    group = str(session.get('grupa') or 'ALL').upper()
+    # Keep the established hall policy; a page grant does not override a hall restriction.
+    if group != 'ALL' and (group == 'OSIP' or role not in
+            {'admin', 'zarzad', 'planista', 'lider', 'laborant', 'masteradmin'}):
+        if group != line:
+            return False
+    helpers = inject_role_permissions()
     return helpers['role_has_access'](page) and not (write and helpers['role_is_readonly'](page))
 
 

@@ -223,8 +223,6 @@ def inject_role_permissions():
 
     def role_has_access(page):
         from app.core.shared_inventory_permissions import WAREHOUSE_PAGES, shared_material_access
-        if page in WAREHOUSE_PAGES:
-            return shared_material_access()
         try:
             r = _normalize_role_name(session.get('rola'))
             # 0. MasterAdmin Bypasses EVERYTHING - has access to every single page/API
@@ -239,19 +237,25 @@ def inject_role_permissions():
                     linia = 'PSD'
                 page = f"{linia.lower()}.bufor"
 
-            # 1. Check User-Level ACL Override (if explicit override is set for this user)
+            # Fast cached config load
+            perms = _get_role_permissions(cfg_path)
+            page_key = _resolve_page_key(page, perms) if perms else page
+
+            # 1. Check User-Level ACL Override (explicit override for this user always wins, including warehouse pages)
             user_id = session.get('user_id')
             if user_id:
                 try:
                     from app.repositories.user_permission_override_repository import user_permission_override_repository
                     user_override = user_permission_override_repository.get_user_override(int(user_id), page)
+                    if user_override is None and page_key != page:
+                        user_override = user_permission_override_repository.get_user_override(int(user_id), page_key)
                     if user_override is not None:
                         return bool(user_override.get('access', False))
                 except Exception:
                     pass
 
-            # Fast cached config load
-            perms = _get_role_permissions(cfg_path)
+            if page in WAREHOUSE_PAGES:
+                return shared_material_access()
             
             # Normalize common role name variants/synonyms (support numeric roles from DB)
             if r.isdigit():
@@ -337,26 +341,30 @@ def inject_role_permissions():
 
     def role_is_readonly(page):
         from app.core.shared_inventory_permissions import WAREHOUSE_PAGES
-        if page in WAREHOUSE_PAGES:
-            return False
         try:
             r = _normalize_role_name(session.get('rola'))
             if r == 'masteradmin':
                 return False
 
-            # Check user override first
+            # Fast cached config load
+            perms = _get_role_permissions(cfg_path)
+            page_key = _resolve_page_key(page, perms) if perms else page
+
+            # Check user override first (explicit user override wins even on warehouse pages)
             user_id = session.get('user_id')
             if user_id:
                 try:
                     from app.repositories.user_permission_override_repository import user_permission_override_repository
                     user_override = user_permission_override_repository.get_user_override(int(user_id), page)
+                    if user_override is None and page_key != page:
+                        user_override = user_permission_override_repository.get_user_override(int(user_id), page_key)
                     if user_override is not None:
                         return bool(user_override.get('readonly', False))
                 except Exception:
                     pass
 
-            # Fast cached config load
-            perms = _get_role_permissions(cfg_path)
+            if page in WAREHOUSE_PAGES:
+                return False
             
             # Normalize common role name variants/synonyms
             if r.isdigit():

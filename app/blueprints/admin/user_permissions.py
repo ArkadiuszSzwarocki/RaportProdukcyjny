@@ -127,10 +127,18 @@ def register_user_permissions_routes(admin_bp):
         updated_count = 0
         deleted_count = 0
 
+        from app.blueprints.admin.roles import ROLES_PAGE_ALIASES
+        alias_pairs = {}
+        for new_key, legacy_key in ROLES_PAGE_ALIASES.items():
+            alias_pairs[new_key] = legacy_key
+            alias_pairs[legacy_key] = new_key
+
         for page_key, cfg in overrides.items():
             if cfg is None or cfg.get('mode') == 'inherit':
                 if user_permission_override_repository.delete_user_override(user_id, page_key):
                     deleted_count += 1
+                    if page_key in alias_pairs and alias_pairs[page_key] not in overrides:
+                        user_permission_override_repository.delete_user_override(user_id, alias_pairs[page_key])
                 else:
                     return jsonify(success=False, message='Nie udało się przywrócić domyślnych uprawnień.'), 500
             else:
@@ -139,6 +147,8 @@ def register_user_permissions_routes(admin_bp):
                 readonly = bool(cfg.get('readonly', False))
                 if user_permission_override_repository.set_user_override(user_id, page_key, access, readonly):
                     updated_count += 1
+                    if page_key in alias_pairs and alias_pairs[page_key] not in overrides:
+                        user_permission_override_repository.delete_user_override(user_id, alias_pairs[page_key])
                 else:
                     return jsonify(success=False, message='Nie udało się zapisać uprawnień.'), 500
 

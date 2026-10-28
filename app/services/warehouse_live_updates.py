@@ -13,7 +13,7 @@ _SQL_COMMENTS = re.compile(r'^\s*(?:(?:/\*.*?\*/)|(?:--[^\n]*(?:\n|$))|(?:#[^\n]
 _WRITE = re.compile(r"^\s*(?:INSERT(?:\s+IGNORE)?\s+INTO|REPLACE(?:\s+INTO)?|UPDATE(?:\s+IGNORE)?|DELETE\s+FROM)\s+`?(?:[a-zA-Z0-9_]+`?\.)?`?([a-zA-Z0-9_]+)", re.I)
 _TABLE = re.compile(r"^(?:magazyn_|palety_|dostawy|dostawa_|agro_workowanie_bigbagi|agro_plan_opakowania|zlecenia_magazynowe)", re.I)
 
-_REPORT_TABLE = re.compile(r'^(?:plan_produkcji(?:_agro)?|plan_agro|przestoje_zasyp|przestoje_produkcyjne|szarze(?:_agro)?|dosypki(?:_agro)?|wiaderka_maluchy|palety_agro|palety_workowanie|obsada_zmiany)$', re.I)
+_REPORT_TABLE = re.compile(r'^(?:plan_produkcji(?:_agro)?|plan_agro|przestoje_zasyp|przestoje_produkcyjne|szarze(?:_agro)?|dosypki(?:_agro)?|wiaderka_maluchy|palety_agro|palety_workowanie|obsada_zmiany|zasyp_etapy(?:_parametry)?)$', re.I)
 
 def report_channel(database):
     return str(database) + ':periodic-reports'

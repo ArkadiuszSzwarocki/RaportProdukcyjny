@@ -1,13 +1,16 @@
+import contextlib
+import io
 import tempfile
 from typing import Optional, Dict, Any
 
 HAS_WEASYPRINT = False
-try:
-    from weasyprint import HTML
-    HAS_WEASYPRINT = True
-except (ImportError, OSError):
-    HTML = None
-    HAS_WEASYPRINT = False
+with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    try:
+        from weasyprint import HTML
+        HAS_WEASYPRINT = True
+    except (ImportError, OSError):
+        HTML = None
+        HAS_WEASYPRINT = False
 
 
 class PdfRendererService:

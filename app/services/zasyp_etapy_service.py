@@ -761,7 +761,14 @@ class ZasypEtapyService:
                     cursor.execute(
                         """
                         UPDATE zasyp_etapy
-                        SET czas_stop = NOW(), stop_login = %s
+                        SET czas_stop = NOW(),
+                            stop_login = %s,
+                            pauza_sekundy = COALESCE(pauza_sekundy, 0) + CASE
+                                WHEN is_paused = 1 AND pauza_start IS NOT NULL THEN TIMESTAMPDIFF(SECOND, pauza_start, NOW())
+                                ELSE 0
+                            END,
+                            pauza_start = NULL,
+                            is_paused = 0
                         WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s AND czas_start IS NOT NULL AND czas_stop IS NULL
                         """,
                         ((user_login or '')[:100], linia_u, int(plan_id), curr_szarza_nr, int(running)),
@@ -788,7 +795,8 @@ class ZasypEtapyService:
                         cursor.execute(
                             """
                             UPDATE zasyp_etapy
-                            SET czas_start = NOW(), czas_stop = NULL, start_login = %s, stop_login = NULL
+                            SET czas_start = NOW(), czas_stop = NULL, start_login = %s, stop_login = NULL,
+                                is_paused = 0, pauza_start = NULL, pauza_sekundy = 0
                             WHERE linia = %s AND plan_id = %s AND szarza_nr = %s AND etap = %s
                             """,
                             ((user_login or '')[:100], linia_u, int(plan_id), curr_szarza_nr, etap_nr),
@@ -1364,6 +1372,7 @@ class ZasypEtapyService:
         """Permanently delete etap row (specifically for sub-stages)."""
         # Logic is the same as reset, but with a different message
         linia_u = _norm_linia(linia)
+        conn = None
         try:
             etap_nr = int(etap)
             conn = get_db_connection()
@@ -1396,15 +1405,20 @@ class ZasypEtapyService:
                 
             conn.commit()
             cursor.close()
-            conn.close()
             return True, f'Usunięto etap {etap_nr}'
         except Exception:
+            if conn:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
             return False, 'Błąd usuwania etapu'
-            try:
-                if conn:
+        finally:
+            if conn:
+                try:
                     conn.close()
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
     @staticmethod
     def get_plan_stats(plan_id: int, linia: str) -> Dict[str, Any]:

@@ -66,12 +66,17 @@ def _load_role_permissions():
         return {}, cfg_path
 
 
-def _normalize_permissions_pages(perms):
+def _normalize_permissions_pages(perms, updated_keys=None):
     if not isinstance(perms, dict):
         return {}
     normalized = dict(perms)
+    updated = set(updated_keys or ())
     for new_key, legacy_key in ROLES_PAGE_ALIASES.items():
-        if new_key not in normalized and legacy_key in normalized:
+        if new_key in updated and new_key in normalized:
+            normalized[legacy_key] = dict(normalized[new_key])
+        elif legacy_key in updated and legacy_key in normalized:
+            normalized[new_key] = dict(normalized[legacy_key])
+        elif new_key not in normalized and legacy_key in normalized:
             normalized[new_key] = normalized.get(legacy_key, {})
         elif legacy_key not in normalized and new_key in normalized:
             normalized[legacy_key] = normalized.get(new_key, {})
@@ -156,11 +161,17 @@ def register_admin_roles_routes(admin_bp):
         cursor.execute("SELECT id, login, COALESCE(rola, '') FROM uzytkownicy ORDER BY login")
         users_raw = cursor.fetchall()
         perms, _cfg_path = _load_role_permissions()
+        from app.decorators import _normalize_role
+        from app.repositories.user_permission_override_repository import user_permission_override_repository
 
         users = []
         for user in users_raw:
-            user_id, login, role = user[0], user[1], (user[2] or '').strip()
-            row = {'id': user_id, 'login': login, 'role': role, 'perms': {}}
+            user_id, login, raw_role = user[0], user[1], (user[2] or '').strip()
+            role = _normalize_role(raw_role)
+            if role in ('operator', 'stepnpio'):
+                role = 'pracownik'
+            overrides = user_permission_override_repository.get_user_overrides(user_id)
+            row = {'id': user_id, 'login': login, 'role': raw_role or role, 'perms': {}}
             for page in ROLES_USERS_PAGES:
                 page_perms = perms.get(page, {}) if perms else {}
                 if role in page_perms:
@@ -170,9 +181,13 @@ def register_admin_roles_routes(admin_bp):
                     role_perms = page_perms.get(mapped, {}) if mapped else {}
                 access = bool(role_perms.get('access')) if isinstance(role_perms, dict) else False
                 readonly = bool(role_perms.get('readonly')) if isinstance(role_perms, dict) else False
-                if role.lower().replace(' ', '').replace('_', '').replace('-', '') == 'masteradmin':
-                    access, readonly = True, False
-                row['perms'][page] = {'access': access, 'readonly': readonly}
+                has_override = page in overrides
+                if has_override:
+                    access = bool(overrides[page].get('access'))
+                    readonly = bool(overrides[page].get('readonly'))
+                if role == 'masteradmin':
+                    access, readonly, has_override = True, False, False
+                row['perms'][page] = {'access': access, 'readonly': readonly, 'override': has_override}
             users.append(row)
 
         conn.close()
@@ -235,7 +250,7 @@ def register_admin_roles_routes(admin_bp):
             if isinstance(roles, dict):
                 merged_config[page] = {**merged_config.get(page, {}), **roles}
 
-        merged_config = _normalize_permissions_pages(merged_config)
+        merged_config = _normalize_permissions_pages(merged_config, updated_keys=data.keys())
 
         ordered_merged = {}
         for page in ROLES_PAGES:

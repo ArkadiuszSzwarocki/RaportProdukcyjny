@@ -171,7 +171,7 @@ class PeriodicReportService:
             for assignment in staffing or []:
                 role=str(assignment.get('sekcja') or '').strip().lower()
                 assigned_section='Workowanie' if role in ('workowanie','operator workowania') else 'Zasyp' if role in ('zasyp','sterownia','operator sterowni') or role.startswith(('operator zasyp','zasyp ')) else None
-                if assigned_section is None or assignment.get('linia') not in (('AGRO','PSD') if line=='ALL' else (line,)):continue
+                if assigned_section != section or assignment.get('linia') not in (('AGRO','PSD') if line=='ALL' else (line,)):continue
                 assignment_day=day(assignment['date'])
                 if assignment_day.year==year and assignment_day.month==month and assignment.get('pracownik_id') is not None:
                     people[assignment_day.isoformat()].add(assignment['pracownik_id'])

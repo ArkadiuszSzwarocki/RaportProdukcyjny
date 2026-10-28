@@ -473,6 +473,7 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         cursor = conn.cursor()
         cursor.execute("SELECT login, rola FROM uzytkownicy WHERE id=%s", (id,))
         row = cursor.fetchone()
+        cursor.execute("DELETE FROM uzytkownicy_uprawnienia WHERE user_id=%s", (id,))
         cursor.execute("DELETE FROM uzytkownicy WHERE id=%s", (id,))
         conn.commit()
         conn.close()

@@ -1,40 +1,201 @@
 {% extends 'admin/users_center_layout.html' %}
 {% block users_content %}
-<div class="section-box" style="overflow-x:auto">
-  <h2>Przegląd przypisanych ról</h2>
-  <p>Zestawienie dostępu wynikającego z przypisanych ról. Indywidualne wyjątki użytkowników sprawdzisz w zakładce „Role i uprawnienia”.</p>
-  <table class="table table-sm table-striped table-bordered">
-    <thead>
-      <tr>
-        <th>Login</th>
-        <th>Rola</th>
-        {% for p in pages %}
-        <th>{{ page_labels.get(p, p) }}</th>
-        {% endfor %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for u in users %}
-      <tr>
-        <td>{{ u.login }}</td>
-        <td>{{ u.role or '(brak)' }}</td>
-        {% for p in pages %}
-        {% set rp = u.perms[p] %}
-        <td class="text-center">
-          {% if rp.access %}
-            <span title="Dostęp">✓</span>
-            {% if rp.readonly %}
-              <small class="text-muted">(r)</small>
+          {% set is_masteradmin = session.get('rola', '')|lower|replace(' ', '')|replace('_', '')|replace('-', '') ==
+          'masteradmin' %}
+          <style>
+            .roles-matrix-card {
+              width: 100%;
+              max-width: 100%;
+              box-sizing: border-box;
+              background: #fff;
+              border: 1px solid #e2e8f0;
+              border-radius: 16px;
+              padding: 20px
+            }
+
+            .roles-matrix-head {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              gap: 16px;
+              flex-wrap: wrap;
+              margin-bottom: 16px
+            }
+
+            .roles-matrix-head h2 {
+              margin: 0 0 6px;
+              font-size: 22px;
+              color: #0f172a
+            }
+
+            .roles-matrix-head p {
+              margin: 0;
+              color: #64748b;
+              font-size: 14px
+            }
+
+            .roles-matrix-notice {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+              flex-wrap: wrap;
+              padding: 12px 16px;
+              margin-bottom: 16px;
+              background: #fffbeb;
+              border: 1px solid #fde68a;
+              border-radius: 12px;
+              color: #92400e;
+              font-size: 13px
+            }
+
+            .roles-matrix-scroll {
+              width: 100%;
+              overflow-x: auto;
+              border: 1px solid #e2e8f0;
+              border-radius: 12px
+            }
+
+            .roles-matrix-table {
+              width: 100%;
+              min-width: 1280px;
+              border-collapse: separate;
+              border-spacing: 0;
+              margin: 0;
+              font-size: 13px
+            }
+
+            .roles-matrix-table th,
+            .roles-matrix-table td {
+              padding: 8px 10px;
+              border-bottom: 1px solid #e2e8f0;
+              border-right: 1px solid #f1f5f9;
+              vertical-align: middle
+            }
+
+            .roles-matrix-table thead th {
+              background: #f8fafc;
+              color: #334155;
+              font-weight: 700;
+              font-size: 12px;
+              line-height: 1.25;
+              text-align: center;
+              position: sticky;
+              top: 0;
+              z-index: 2
+            }
+
+            .roles-matrix-table th.col-sticky-login,
+            .roles-matrix-table td.col-sticky-login {
+              position: sticky;
+              left: 0;
+              background: #fff;
+              z-index: 3;
+              text-align: left;
+              font-weight: 700;
+              min-width: 130px;
+              border-right: 2px solid #e2e8f0
+            }
+
+            .roles-matrix-table thead th.col-sticky-login {
+              background: #f8fafc;
+              z-index: 4
+            }
+
+            .roles-matrix-table tbody tr:nth-child(even) td {
+              background: #f8fafc
+            }
+
+            .roles-matrix-table tbody tr:hover td {
+              background: #eff6ff
+            }
+
+            .roles-matrix-edit-link {
+              display: inline-block;
+              padding: 4px 9px;
+              border-radius: 6px;
+              background: #eff6ff;
+              color: #1d4ed8;
+              font-weight: 700;
+              font-size: 12px;
+              text-decoration: none;
+              white-space: nowrap
+            }
+
+            .roles-matrix-edit-link:hover {
+              background: #dbeafe
+            }
+          </style>
+          <div class="roles-matrix-card">
+            <div class="roles-matrix-head">
+              <div>
+                <h2>Przegląd przypisanych ról</h2>
+                <p>Zestawienie dostępu wynikającego z przypisanych ról oraz indywidualnych wyjątków (oznaczonych
+                  gwiazdką <strong>*</strong>, <strong>(r)</strong> = tylko odczyt).</p>
+              </div>
+              {% if is_masteradmin %}
+              <a class="btn btn-primary" href="{{ url_for('admin.users_center', tab='uprawnienia') }}">Otwórz edytor ról
+                i uprawnień</a>
+              {% endif %}
+            </div>
+
+            {% if not is_masteradmin %}
+            <div class="roles-matrix-notice">
+              <span><strong>Tryb tylko do odczytu:</strong> Edycja ról oraz indywidualnych uprawnień użytkowników wymaga
+                aktywnej roli <strong>MasterAdmin</strong>.</span>
+              {% if temporary_admin and temporary_admin.eligible %}
+              <button type="button" class="btn btn-sm btn-warning"
+                onclick="var b=document.getElementById('temporaryAdminButton');if(b)b.click();">
+                Włącz MasterAdmin na 10 minut
+              </button>
+              {% endif %}
+            </div>
             {% endif %}
-          {% else %}
-            &mdash;
-          {% endif %}
+
+            <div class="roles-matrix-scroll">
+              <table class="roles-matrix-table">
+                <thead>
+                  <tr>
+                    <th class="col-sticky-login">Login</th>
+                    <th style="text-align:left;min-width:95px">Rola</th>
+                    {% if is_masteradmin %}
+                    <th style="min-width:85px">Edycja</th>
+                    {% endif %}
+                    {% for p in pages %}
+                    <th style="min-width:72px">{{ page_labels.get(p, p) }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for u in users %}
+                  <tr>
+                    <td class="col-sticky-login">{{ u.login }}</td>
+                    <td>{{ u.role or '(brak)' }}</td>
+                    {% if is_masteradmin %}
+                    <td class="text-center">
+                      <a class="roles-matrix-edit-link"
+                        href="{{ url_for('admin.users_center', tab='uprawnienia', user_id=u.id) }}">Edytuj</a>
+                    </td>
+                    {% endif %}
+                    {% for p in pages %}
+                    {% set rp = u.perms[p] %}
+                    <td class="text-center">
+                      {% if rp.access %}
+                      <span title="{{ 'Wyjątek indywidualny' if rp.override else 'Dostęp z roli' }}">✓{{ '*' if
+                        rp.override else '' }}</span>
+                      {% if rp.readonly %}
+                      <small class="text-muted">(r)</small>
+                      {% endif %}
+                      {% else %}
+                      <span title="{{ 'Zablokowano indywidualnie' if rp.override else 'Brak dostępu' }}">&mdash;{{ '*'
+                        if rp.override else '' }}</span>
+                      {% endif %}
         </td>
         {% endfor %}
       </tr>
       {% endfor %}
-    </tbody>
+  </tbody>
   </table>
-
+</div>
 </div>
 {% endblock %}
