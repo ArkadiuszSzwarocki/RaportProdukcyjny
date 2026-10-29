@@ -630,6 +630,9 @@ def _fetch_delivery_counters():
         external_counts['ALL'] = total_external_orders
         external_pallet_counts['ALL'] = total_external_pallets
 
+        for counter in (counts,pallet_counts,transfer_counts,open_transfer_counts,transfer_pallet_counts,external_counts,external_pallet_counts):
+            counter['CENTRALA']=max(0,counter.get('ALL',0)-counter.get('OSIP',0))
+
         return dict(
             pending_deliveries=counts,
             pending_pallets=pallet_counts,

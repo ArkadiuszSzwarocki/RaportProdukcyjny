@@ -10,11 +10,13 @@ from app.utils.location_validator import validate_warehouse_location, is_product
 class DeliveryQueries:
 
     @staticmethod
-    def get_dostawy(linia='PSD'):
+    def get_dostawy(linia='PSD', warehouse_scope=None):
             conn = get_db_connection()
             try:
                 cursor = conn.cursor(dictionary=True)
-                if str(linia).upper() == 'ALL':
+                if warehouse_scope=='centrala':
+                    cursor.execute("SELECT * FROM magazyn_dostawy WHERE UPPER(COALESCE(linia,'')) != 'OSIP' ORDER BY created_at DESC")
+                elif str(linia).upper() == 'ALL':
                     cursor.execute("SELECT * FROM magazyn_dostawy ORDER BY created_at DESC")
                 else:
                     cursor.execute(

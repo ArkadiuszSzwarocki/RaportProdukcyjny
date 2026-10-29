@@ -528,9 +528,6 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
                         pdf_path = str(pdf_abs)
                 else:
                     pdf_path = str(new_pdf_abs)
-            elif new_pdf_abs.exists():
-                # File already exists under target destination path
-                pdf_path = str(new_pdf_abs)
             else:
                 # Fallback: check _new.pdf if temporary lock was present during save
                 fallback = _raporty_abs / pdf_name.replace('.pdf', '_new.pdf')

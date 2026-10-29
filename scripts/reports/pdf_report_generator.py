@@ -31,6 +31,8 @@ class PdfReportGenerator:
 
         from fpdf import FPDF
         pdf = FPDF()
+        from app.services.report_pdf_version import REPORT_LAYOUT_ID
+        pdf.set_subject(REPORT_LAYOUT_ID)
         pdf.add_page()
         pdf.set_draw_color(80, 80, 80)
         pdf.set_line_width(0.35)
