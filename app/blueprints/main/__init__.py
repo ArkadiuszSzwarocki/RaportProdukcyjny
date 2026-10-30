@@ -283,6 +283,13 @@ def index():
                 app.logger.error(f"Error fetching agro packaging context: {str(e)}\n{traceback.format_exc()}")
         context['agro_focus_mode'] = agro_focus_mode
         context['workowanie_rozliczenie_ctx'] = workowanie_rozliczenie_ctx
+        context['ko_premix_pallets'] = []
+        if clean_sekcja == 'zasyp' and aktywna_linia == 'AGRO' and str(role or '').strip().lower() in ('laborant', 'laboratorium'):
+            try:
+                from app.services.production_service import ProductionService
+                context['ko_premix_pallets'] = ProductionService.get_active_ko_premixes(linia='AGRO')
+            except Exception:
+                context['ko_premix_pallets'] = []
 
         if clean_sekcja == 'dashboard':
             return render_template('dashboard_global.html', **context)

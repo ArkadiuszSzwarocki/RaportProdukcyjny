@@ -1,14 +1,92 @@
 <div class="p-10" data-popup-title="{{ _('usun_palete_emoji') }}">
     <p>Czy na pewno chcesz usunąć paletę o id <strong>{{ paleta_id }}</strong>?</p>
-    <form action="{{ url_for('warehouse.usun_palete', paleta_id=paleta_id) }}" method="POST">
+    <form id="deletePalletConfirmForm" action="{{ url_for('warehouse.usun_palete', paleta_id=paleta_id) }}" method="POST">
       <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
       <input type="hidden" name="sekcja" value="{{ sekcja or 'Workowanie' }}">
       {% if source %}
       <input type="hidden" name="widok_powrotu" value="{{ source }}">
       {% endif %}
         <div class="popup-button-group">
-            <button type="submit" class="btn-action btn-danger">{{ _('usun_btn') }}</button>
+            <button type="submit" id="deletePalletSubmitBtn" class="btn-action btn-danger">{{ _('usun_btn') }}</button>
             <button type="button" class="btn-action btn-outline" data-action="close-popup">ANULUJ</button>
         </div>
     </form>
+    <script>
+    (function() {
+        var form = document.getElementById('deletePalletConfirmForm');
+        if (!form || form.dataset.ajaxBound === '1') return;
+        form.dataset.ajaxBound = '1';
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (form.dataset.submitting === '1') return;
+            form.dataset.submitting = '1';
+
+            var submitBtn = document.getElementById('deletePalletSubmitBtn') || form.querySelector('button[type="submit"]');
+            var origText = submitBtn ? submitBtn.textContent : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Usuwanie...';
+            }
+
+            var fd = new FormData(form);
+            var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+            var headers = { 'X-Requested-With': 'XMLHttpRequest' };
+            if (csrfMeta && csrfMeta.content) {
+                headers['X-CSRFToken'] = csrfMeta.content;
+            }
+
+            fetch(form.action, {
+                method: 'POST',
+                headers: headers,
+                body: fd,
+                credentials: 'same-origin'
+            })
+            .then(function(res) {
+                return res.json().catch(function() {
+                    return { success: res.ok, message: res.ok ? 'Paleta usunięta' : ('Błąd HTTP ' + res.status) };
+                }).then(function(data) {
+                    return { ok: res.ok, status: res.status, data: data };
+                });
+            })
+            .then(function(result) {
+                var ok = result.ok && (!result.data || result.data.success !== false);
+                var msg = (result.data && result.data.message) ? result.data.message : (ok ? 'Paleta usunięta' : 'Błąd usuwania palety');
+                if (typeof showToast === 'function') {
+                    showToast(msg, ok ? 'success' : 'error');
+                }
+                if (ok || result.status === 404) {
+                    if (typeof closeQuickPopup === 'function') {
+                        closeQuickPopup();
+                    } else {
+                        var modal = document.getElementById('quickPopup');
+                        if (modal) modal.style.display = 'none';
+                    }
+                    if (typeof performPartialReload === 'function') {
+                        performPartialReload({ force: true, preserveScroll: true });
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    form.dataset.submitting = '0';
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = origText;
+                    }
+                }
+            })
+            .catch(function(err) {
+                console.error('Błąd usuwania palety:', err);
+                if (typeof showToast === 'function') {
+                    showToast('Błąd połączenia podczas usuwania palety', 'error');
+                }
+                form.dataset.submitting = '0';
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = origText;
+                }
+            });
+        });
+    })();
+    </script>
 </div>

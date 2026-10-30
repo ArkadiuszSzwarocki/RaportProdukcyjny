@@ -103,7 +103,14 @@ class ScannerMovementService:
                 pallet['nr_palety'] = pallet_sscc
 
             stan = float(pallet['stan_magazynowy'] or 0)
-            if ilosc > stan:
+            is_prod_reassignment = False
+            if stan <= 0.001 and pallet_type == 'Surowiec':
+                from app.services.scanner.scanner_lookup_service import ScannerLookupService
+                prod_qty, _prod_tank = ScannerLookupService.get_active_production_qty(cur, surowiec_id, linia)
+                if prod_qty > 0:
+                    stan = prod_qty
+                    is_prod_reassignment = True
+            if ilosc > stan + 0.001:
                 return False, f"Za duża ilość — dostępne: {stan:.1f} kg", None
 
             now = datetime.now()
@@ -116,6 +123,12 @@ class ScannerMovementService:
             
             zbiornik_val = norm_tank
             lokalizacja_val = zbiornik_val
+            try:
+                from app.repositories.agro_tanks_repository import PRODUCTION_TANK_CODES
+                if zbiornik_val in PRODUCTION_TANK_CODES and pallet_type in ('Surowiec', 'Dodatek') and table_ruch == 'magazyn_ruch':
+                    table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+            except Exception:
+                pass
 
             is_valid_mat, err_mat = TankValidationService.validate_tank_material(
                 kod_zbiornika=zbiornik_val,
@@ -125,22 +138,32 @@ class ScannerMovementService:
             if not is_valid_mat:
                 return False, err_mat, None
 
-            is_partial = ilosc < stan
+            if is_prod_reassignment:
+                for _tbl in ('magazyn_agro_ruch', 'magazyn_ruch'):
+                    try:
+                        cur.execute(
+                            f"UPDATE {_tbl} SET status = 'PRZENIESIONE' WHERE surowiec_id = %s AND typ_ruchu = 'PRODUKCJA' AND status = 'POTWIERDZONE'",
+                            (surowiec_id,),
+                        )
+                    except Exception:
+                        pass
+
+            is_partial = (stan - ilosc) > 0.001
             lokalizacja_zrodlowa = (pallet.get('lokalizacja') or '').strip()
 
             if is_partial:
                 cur.execute(
-                    f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s WHERE id = %s",
+                    f"UPDATE {table_surowce} SET stan_magazynowy = ROUND(GREATEST(0, stan_magazynowy - %s), 3) WHERE id = %s",
                     (ilosc, surowiec_id)
                 )
             else:
                 cur.execute(
-                    f"UPDATE {table_surowce} SET stan_magazynowy = stan_magazynowy - %s, lokalizacja = %s WHERE id = %s",
-                    (ilosc, lokalizacja_val, surowiec_id)
+                    f"UPDATE {table_surowce} SET stan_magazynowy = 0, lokalizacja = %s WHERE id = %s",
+                    (lokalizacja_val, surowiec_id)
                 )
 
             cur.execute(f"SELECT stan_magazynowy FROM {table_surowce} WHERE id = %s", (surowiec_id,))
-            stan_po = float(cur.fetchone()['stan_magazynowy'] or 0)
+            stan_po = round(float(cur.fetchone()['stan_magazynowy'] or 0), 3)
 
             cur.execute(
                 f"INSERT INTO {table_ruch} "

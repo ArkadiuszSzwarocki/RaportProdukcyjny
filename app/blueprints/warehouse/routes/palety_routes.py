@@ -238,13 +238,23 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         from app.blueprints.warehouse.management import get_db_connection
         linia = resolve_request_linia()
         user_login = session.get('login', 'System')
-        is_ajax = False
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conn = get_db_connection()
+        try:
+            result, status_code, redirect_url = WarehousePalletService.usun_palete(
+                paleta_id, linia, user_login, is_ajax, safe_return(), conn=conn
+            )
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         
-        result, status_code, redirect_url = WarehousePalletService.usun_palete(
-            paleta_id, linia, user_login, is_ajax, safe_return(), conn=conn
-        )
-        
+        if is_ajax:
+            if isinstance(result, dict):
+                return jsonify(result), status_code
+            return jsonify({'success': status_code < 400, 'message': result}), status_code
         if status_code != 302:
             flash(result, 'error' if status_code >= 400 else 'success')
         return redirect(redirect_url or safe_return())
@@ -310,11 +320,19 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         user_login = session.get('login', 'System')
         is_ajax = True
         conn = get_db_connection()
+        try:
+            result, status_code, redirect_url = WarehousePalletService.usun_palete(
+                paleta_id, linia, user_login, is_ajax, safe_return(), conn=conn
+            )
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         
-        result, status_code, redirect_url = WarehousePalletService.usun_palete(
-            paleta_id, linia, user_login, is_ajax, safe_return(), conn=conn
-        )
-        
+        if isinstance(result, dict):
+            return jsonify(result), status_code
         return jsonify({'success': status_code < 400, 'message': result}), status_code
 
     @warehouse_bp.route('/cofnij_palete/<int:plan_id>', methods=['POST'])
@@ -330,7 +348,10 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         try:
             cursor.execute(f"SELECT id FROM {get_table_name('plan_produkcji', linia)} WHERE id=%s", (plan_id,))
             if cursor.fetchone():
-                cursor.execute(f"SELECT id FROM {table_pal} WHERE plan_id=%s ORDER BY id DESC LIMIT 1", (plan_id,))
+                cursor.execute(
+                    f"SELECT id FROM {table_pal} WHERE plan_id=%s AND (status IS NULL OR status != 'rezerwacja') ORDER BY id DESC LIMIT 1",
+                    (plan_id,),
+                )
                 row = cursor.fetchone()
                 if row:
                     paleta_id = row[0]
@@ -355,6 +376,8 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         )
         
         if is_ajax:
+            if isinstance(result, dict):
+                return jsonify(result), status_code
             return jsonify({'success': status_code < 400, 'message': result}), status_code
         if status_code != 302:
             flash(result, 'error' if status_code >= 400 else 'success')

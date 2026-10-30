@@ -20,7 +20,7 @@ class PalletManagementService:
                 own_conn = True
             cursor = conn.cursor()
 
-            cursor.execute(f"SELECT plan_id FROM {table_pal} WHERE id=%s", (id,))
+            cursor.execute(f"SELECT plan_id FROM {table_pal} WHERE id=%s FOR UPDATE", (id,))
             res = cursor.fetchone()
 
             if not res:
@@ -47,6 +47,24 @@ class PalletManagementService:
             order_loc_del = f"Zlecenie #{plan_id}: {plan_prod_name}" if plan_prod_name else f"Zlecenie #{plan_id}"
 
             cursor.execute(f"DELETE FROM {table_pal} WHERE id=%s", (id,))
+            if getattr(cursor, 'rowcount', 1) == 0:
+                conn.rollback()
+                msg = f'Paleta ID={id} została już usunięta'
+                current_app.logger.warning('[WAREHOUSE-DELETE] %s', msg)
+                if is_ajax:
+                    return ({'success': False, 'message': msg}, 404, None)
+                return ('OK', 302, safe_return_url)
+
+            # Cancel any pending auto-label print job for this pallet
+            try:
+                job_key = f"auto-label:{linia}:{id}"
+                cursor.execute(
+                    "UPDATE print_jobs SET status='CANCELLED', error_message=%s, updated_at=NOW() "
+                    "WHERE job_key=%s AND status='PENDING'",
+                    ('Anulowano: paleta usunięta z workowania', job_key),
+                )
+            except Exception as pj_err:
+                current_app.logger.debug('Could not cancel pending print_jobs for paleta %s: %s', id, pj_err)
 
             # Log to palety_historia
             try:
@@ -58,18 +76,42 @@ class PalletManagementService:
                 current_app.logger.warning('Failed to log history for deleted paleta %s: %s', id, hist_err)
 
             cursor.execute(
-                f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s) WHERE id = %s",
+                f"UPDATE {table_plan} SET tonaz_rzeczywisty = (SELECT COALESCE(SUM(waga), 0) FROM {table_pal} WHERE plan_id = %s AND (status IS NULL OR status != 'rezerwacja')) WHERE id = %s",
                 (plan_id, plan_id),
             )
 
-            # Jeśli usunięto automatyczną paletę AGRO dodaną przez paletyzator/System,
-            # zwiększamy start_pallet_counter, aby demon nie zinterpretował tego jako nowej palety do dodania
-            if linia == 'AGRO' and (not dodal_login_val or dodal_login_val == 'System'):
+            # W linii AGRO po usunięciu palety (niebędącej rezerwacją) korygujemy start_pallet_counter,
+            # aby demon paletyzatora nie potraktował zmniejszonej liczby palet w bazie jako brakującej palety do natychmiastowego dodania i wydruku.
+            if linia == 'AGRO' and status_val != 'rezerwacja':
                 try:
+                    palletizer_cnt = 0
+                    try:
+                        from app.services.mqtt_service import get_latest_data
+                        m_data = get_latest_data() or {}
+                        palletizer_cnt = int(m_data.get('pallet_counter') or 0)
+                    except Exception:
+                        palletizer_cnt = 0
+
                     cursor.execute(
-                        "UPDATE plan_produkcji_agro SET start_pallet_counter = start_pallet_counter + 1 WHERE id = %s AND start_pallet_counter > 0",
-                        (plan_id,)
+                        f"SELECT COUNT(*) FROM {table_pal} WHERE plan_id = %s AND (status IS NULL OR status != 'rezerwacja')",
+                        (plan_id,),
                     )
+                    rem_row = cursor.fetchone()
+                    remaining_pallets = int(rem_row[0] or 0) if rem_row else 0
+
+                    if palletizer_cnt > 0:
+                        min_aligned_start = max(0, palletizer_cnt - remaining_pallets)
+                        cursor.execute(
+                            "UPDATE plan_produkcji_agro "
+                            "SET start_pallet_counter = GREATEST(start_pallet_counter + 1, %s) "
+                            "WHERE id = %s AND start_pallet_counter > 0",
+                            (min_aligned_start, plan_id),
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE plan_produkcji_agro SET start_pallet_counter = start_pallet_counter + 1 WHERE id = %s AND start_pallet_counter > 0",
+                            (plan_id,),
+                        )
                 except Exception as spc_err:
                     current_app.logger.warning('Failed to increment start_pallet_counter on pallet deletion: %s', spc_err)
 
@@ -85,7 +127,7 @@ class PalletManagementService:
         except Exception as error:
             current_app.logger.error('[WAREHOUSE-DELETE] Error deleting paleta %s: %s', id, error, exc_info=True)
             if is_ajax:
-                return ({'success': False, 'message': f'Błąd: {str(error)}'}), 500
+                return ({'success': False, 'message': f'Błąd: {str(error)}'}, 500, None)
         finally:
             if own_conn and conn:
                 try:

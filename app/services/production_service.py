@@ -428,6 +428,7 @@ class ProductionService:
                 wiaderka_rows = cursor.fetchall() or []
                 bucket_ids = [int(w[1]) for w in wiaderka_rows if w[1] is not None]
                 items_by_bucket: Dict[int, List[Dict[str, Any]]] = {}
+                ko_pallet_map = ProductionService.get_ko_station_pallet_map(cursor=cursor, linia=linia)
                 if bucket_ids:
                     fmt_b_ids = ','.join(['%s'] * len(bucket_ids))
                     cursor.execute(
@@ -441,10 +442,17 @@ class ProductionService:
                     )
                     for item_row in cursor.fetchall() or []:
                         b_id = int(item_row[0])
+                        stacja_kod = str(item_row[1] or '').strip().upper()
+                        surowiec_nazwa = str(item_row[2] or '').strip()
+                        ko_info = ko_pallet_map.get(stacja_kod) or {}
+                        is_premix = ProductionService.is_ko_premix(stacja_kod, surowiec_nazwa or ko_info.get('surowiec', ''))
                         items_by_bucket.setdefault(b_id, []).append({
-                            'stacja': item_row[1],
-                            'surowiec': item_row[2],
+                            'stacja': stacja_kod,
+                            'surowiec': surowiec_nazwa,
                             'waga': float(item_row[3] or 0),
+                            'is_premix': is_premix,
+                            'nr_palety': ko_info.get('nr_palety') or '',
+                            'nr_partii': ko_info.get('nr_partii') or '',
                         })
 
                 wiaderka_by_szarza: Dict[int, List[Dict[str, Any]]] = {}
@@ -455,13 +463,15 @@ class ProductionService:
                     w_waga = float(w_row[3] or 0)
                     w_godz = str(w_row[4] or '')
                     w_mieszalnik = str(w_row[5] or 'MI01')
+                    b_pozycje = items_by_bucket.get(b_id, [])
                     wiaderko_obj = {
                         'id': b_id,
                         'kod': w_kod,
                         'waga': w_waga,
                         'godzina': w_godz,
                         'mieszalnik': w_mieszalnik,
-                        'pozycje': items_by_bucket.get(b_id, []),
+                        'pozycje': b_pozycje,
+                        'premix_pozycje': [poz for poz in b_pozycje if poz.get('is_premix')],
                     }
                     wiaderka_by_szarza.setdefault(sz_id, []).append(wiaderko_obj)
 
@@ -558,3 +568,199 @@ class ProductionService:
     @staticmethod
     def get_pending_quality_count(linia='PSD', cursor=None) -> int:
         return QueryHelper.get_pending_quality_count(linia=linia, cursor=cursor)
+
+    @staticmethod
+    def is_ko_premix(stacja_kod: str, surowiec_nazwa: str) -> bool:
+        """Sprawdza, czy pozycja na stacji KO jest premiksem (np. C, C/Cu, C+chelaty, Witamina C, Witamina Chelaty)."""
+        station = str(stacja_kod or '').strip().upper()
+        if not station.startswith('KO'):
+            return False
+        name = str(surowiec_nazwa or '').strip().lower()
+        if not name:
+            return station in ('KO21', 'KO22', 'KO23')
+        premix_tokens = (
+            'premix',
+            'premiks',
+            'chelat',
+            'c/cu',
+            'c / cu',
+            'c+chelat',
+            'c + chelat',
+            'witamina c',
+            'wit c',
+            'wit. c',
+            'vit c',
+            'vit. c',
+        )
+        if any(tok in name for tok in premix_tokens):
+            return True
+        if name in ('c', 'cu', 'c/cu'):
+            return True
+        if station in ('KO21', 'KO22', 'KO23'):
+            return True
+        return False
+
+    @staticmethod
+    def get_ko_station_pallet_map(cursor=None, linia='AGRO') -> Dict[str, Dict[str, Any]]:
+        """Zwraca mapę stacji KO -> {stacja, surowiec, nr_palety, nr_partii, is_premix} dla wsypanych palet."""
+        conn = None
+        result: Dict[str, Dict[str, Any]] = {}
+        try:
+            if cursor is None:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+
+            # 1. Konfiguracja zbiorników KO
+            try:
+                cursor.execute(
+                    "SELECT UPPER(TRIM(kod_zbiornika)), TRIM(COALESCE(nazwa_surowca, '')) "
+                    "FROM konfiguracja_zbiornikow WHERE is_active = 1 AND UPPER(TRIM(kod_zbiornika)) LIKE 'KO%'"
+                )
+                for row in cursor.fetchall() or []:
+                    st = str(row[0] or '').strip().upper()
+                    nazwa = str(row[1] or '').strip()
+                    if st:
+                        result[st] = {
+                            'stacja': st,
+                            'surowiec': nazwa,
+                            'nr_palety': '',
+                            'nr_partii': '',
+                            'is_premix': ProductionService.is_ko_premix(st, nazwa),
+                        }
+            except Exception:
+                pass
+
+            # 2. Ruchy produkcyjne z magazyn_agro_ruch i magazyn_ruch na stacje KO
+            for ruch_tbl in ('magazyn_agro_ruch', 'magazyn_ruch'):
+                try:
+                    cursor.execute(
+                        f"""
+                        SELECT UPPER(TRIM(r.zbiornik)) AS stacja,
+                               COALESCE(NULLIF(TRIM(s.nazwa), ''), TRIM(COALESCE(r.surowiec_nazwa, ''))) AS nazwa,
+                               COALESCE(TRIM(s.nr_palety), '') AS nr_palety,
+                               COALESCE(TRIM(s.nr_partii), '') AS nr_partii
+                        FROM {ruch_tbl} r
+                        LEFT JOIN magazyn_surowce s ON r.surowiec_id = s.id
+                        WHERE r.status = 'POTWIERDZONE'
+                          AND r.typ_ruchu IN ('PRODUKCJA', 'INWENTARYZACJA_PROD')
+                          AND UPPER(TRIM(COALESCE(r.zbiornik, ''))) LIKE 'KO%'
+                        ORDER BY r.autor_data DESC, r.id DESC
+                        """
+                    )
+                    for row in cursor.fetchall() or []:
+                        st = str(row[0] or '').strip().upper()
+                        nazwa = str(row[1] or '').strip()
+                        nr_pal = str(row[2] or '').strip()
+                        nr_par = str(row[3] or '').strip()
+                        if not st:
+                            continue
+                        entry = result.setdefault(st, {
+                            'stacja': st,
+                            'surowiec': nazwa,
+                            'nr_palety': '',
+                            'nr_partii': '',
+                            'is_premix': ProductionService.is_ko_premix(st, nazwa),
+                        })
+                        if nazwa and not entry.get('surowiec'):
+                            entry['surowiec'] = nazwa
+                        if nr_pal and not entry.get('nr_palety'):
+                            entry['nr_palety'] = nr_pal
+                            entry['nr_partii'] = nr_par
+                        entry['is_premix'] = ProductionService.is_ko_premix(st, entry.get('surowiec') or nazwa)
+                except Exception:
+                    pass
+
+            # 3. Fallback z magazyn_surowce po lokalizacji KOxx
+            try:
+                cursor.execute(
+                    """
+                    SELECT UPPER(TRIM(lokalizacja)) AS stacja,
+                           TRIM(COALESCE(nazwa, '')) AS nazwa,
+                           TRIM(COALESCE(nr_palety, '')) AS nr_palety,
+                           TRIM(COALESCE(nr_partii, '')) AS nr_partii
+                    FROM magazyn_surowce
+                    WHERE UPPER(TRIM(COALESCE(lokalizacja, ''))) LIKE 'KO%'
+                    ORDER BY updated_at DESC, id DESC
+                    """
+                )
+                for row in cursor.fetchall() or []:
+                    st = str(row[0] or '').strip().upper()
+                    nazwa = str(row[1] or '').strip()
+                    nr_pal = str(row[2] or '').strip()
+                    nr_par = str(row[3] or '').strip()
+                    if not st:
+                        continue
+                    entry = result.setdefault(st, {
+                        'stacja': st,
+                        'surowiec': nazwa,
+                        'nr_palety': '',
+                        'nr_partii': '',
+                        'is_premix': ProductionService.is_ko_premix(st, nazwa),
+                    })
+                    if nazwa and not entry.get('surowiec'):
+                        entry['surowiec'] = nazwa
+                    if nr_pal and not entry.get('nr_palety'):
+                        entry['nr_palety'] = nr_pal
+                        entry['nr_partii'] = nr_par
+                    elif nr_par and not entry.get('nr_partii') and entry.get('nr_palety') == nr_pal:
+                        entry['nr_partii'] = nr_par
+                    entry['is_premix'] = ProductionService.is_ko_premix(st, entry.get('surowiec') or nazwa)
+            except Exception:
+                pass
+
+        except Exception as exc:
+            _logger.warning("get_ko_station_pallet_map error: %s", exc)
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        return result
+
+    @staticmethod
+    def get_active_ko_premixes(cursor=None, linia='AGRO') -> List[Dict[str, Any]]:
+        """Zwraca listę aktywnych premiksów wsypanych na stacje KO (wraz z nr palety, partią i stanem kg)."""
+        try:
+            from app.repositories.agro_tanks_repository import AgroTanksRepository
+            snapshot = AgroTanksRepository.get_production_inventory_snapshot(linia=linia, show_empty=False)
+        except Exception:
+            snapshot = []
+
+        ko_map = ProductionService.get_ko_station_pallet_map(cursor=cursor, linia=linia)
+        active_by_station: Dict[str, Dict[str, Any]] = {}
+
+        for item in snapshot:
+            st = str(item.get('zbiornik') or '').strip().upper()
+            if not st.startswith('KO'):
+                continue
+            stan_kg = float(item.get('stan_systemowy') or 0.0)
+            if stan_kg <= 0:
+                continue
+            info = ko_map.get(st) or {}
+            nazwa = str(item.get('surowiec_nazwa') or item.get('nazwa') or info.get('surowiec') or '').strip()
+            if not ProductionService.is_ko_premix(st, nazwa):
+                continue
+            nr_pal = str(item.get('nr_palety') or info.get('nr_palety') or '').strip()
+            nr_par = str(item.get('nr_partii') or info.get('nr_partii') or '').strip()
+            active_by_station[st] = {
+                'stacja': st,
+                'surowiec': nazwa,
+                'nr_palety': nr_pal,
+                'nr_partii': nr_par,
+                'stan_kg': stan_kg,
+            }
+
+        for st, info in ko_map.items():
+            if st in active_by_station:
+                continue
+            if info.get('is_premix') and info.get('nr_palety'):
+                active_by_station[st] = {
+                    'stacja': st,
+                    'surowiec': info.get('surowiec') or '',
+                    'nr_palety': info.get('nr_palety') or '',
+                    'nr_partii': info.get('nr_partii') or '',
+                    'stan_kg': 0.0,
+                }
+
+        return sorted(active_by_station.values(), key=lambda x: x.get('stacja') or '')

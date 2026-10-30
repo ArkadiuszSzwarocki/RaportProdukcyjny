@@ -13,6 +13,8 @@ _reminded_palety = set()
 # Global logger for palety-specific events
 palety_logger = None
 _last_unconfirmed_db_error_log_at = 0.0
+_daemon_threads_started = False
+_daemon_threads_lock = threading.Lock()
 
 _INSTANCE_HOSTNAME = socket.gethostname() or 'unknown-host'
 _INSTANCE_PID = os.getpid()
@@ -645,7 +647,12 @@ def start_daemon_threads(app, cleanup_enabled=False):
         _safe_log_warning("Daemon background threads completely disabled on host %s (Technik blocked)", _INSTANCE_HOSTNAME)
         return
 
-    global palety_logger
+    global palety_logger, _daemon_threads_started
+    with _daemon_threads_lock:
+        if _daemon_threads_started:
+            _safe_log_info('Daemon background threads already started in this process (%s); skipping duplicate start.', _INSTANCE_ID)
+            return
+        _daemon_threads_started = True
     
     # Configure palety logger
     try:
@@ -915,22 +922,23 @@ def start_daemon_threads(app, cleanup_enabled=False):
                         if last_reg_pal_key not in plan_counters:
                             plan_counters[last_reg_pal_key] = max(
                                 int(start_pallet_cnt or 0) + db_pallets_count,
-                                palletizer_cnt if completed_pallets <= db_pallets_count else int(start_pallet_cnt or 0) + db_pallets_count
+                                palletizer_cnt
                             )
 
                         last_reg_pal = plan_counters[last_reg_pal_key]
 
-                        # Auto-resync: jeśli paletyzator wykonał fizyczny zjazd z windy (palletizer_cnt > last_reg_pal),
-                        # ale licznik ukończonych palet nie wyprzedza bazy (np. przez ręcznie dodaną paletę lub rozjazd offsetu),
-                        # automatycznie resynchronizujemy start_pallet_cnt, aby automat nie zablokował się na stałe.
+                        # Jeśli licznik PLC paletyzatora został zresetowany poniżej start_pallet_counter
+                        # (lub start_pallet_counter przekroczył bieżący licznik PLC), wyrównujemy bazę odniesienia,
+                        # ale NIGDY nie obniżamy start_pallet_counter poniżej (palletizer_cnt - db_pallets_count),
+                        # aby ręcznie dodane lub usunięte palety nie powodowały fałszywego dodawania palet!
                         if (
-                            palletizer_cnt > 0 
-                            and palletizer_cnt > last_reg_pal 
-                            and completed_pallets <= db_pallets_count
+                            palletizer_cnt > 0
+                            and int(start_pallet_cnt or 0) > 0
+                            and palletizer_cnt < int(start_pallet_cnt)
                             and not is_in_emptying_mode
                         ):
-                            new_start_cnt = palletizer_cnt - db_pallets_count - 1
-                            if new_start_cnt >= 0:
+                            new_start_cnt = max(0, palletizer_cnt - db_pallets_count)
+                            if new_start_cnt > 0:
                                 try:
                                     from app.core.database import get_db_connection
                                     conn_sync = get_db_connection()
@@ -943,13 +951,15 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                     conn_sync.close()
                                     start_pallet_cnt = new_start_cnt
                                     active_plan['start_pallet_counter'] = new_start_cnt
-                                    completed_pallets = db_pallets_count + 1
+                                    completed_pallets = max(0, palletizer_cnt - new_start_cnt)
+                                    plan_counters[last_reg_pal_key] = palletizer_cnt
+                                    last_reg_pal = palletizer_cnt
                                     _safe_log_info(
-                                        "Auto-resync start_pallet_counter do %s dla planu ID=%s (palletizer=%s, db_pallets=%s)",
+                                        "Wyrównano start_pallet_counter po resecie PLC do %s dla planu ID=%s (palletizer=%s, db_pallets=%s)",
                                         new_start_cnt, plan_id, palletizer_cnt, db_pallets_count
                                     )
                                 except Exception as sync_err:
-                                    _safe_log_warning("Błąd auto-resync start_pallet_counter: %s", sync_err)
+                                    _safe_log_warning("Błąd wyrównania start_pallet_counter: %s", sync_err)
 
                         if (
                             palletizer_cnt > 0 
@@ -985,8 +995,8 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                     linia='AGRO',
                                     source_instance=_INSTANCE_ID,
                                 )
+                                plan_counters[last_reg_pal_key] = palletizer_cnt
                                 if success:
-                                    plan_counters[last_reg_pal_key] = palletizer_cnt
                                     _safe_log_info(
                                         'Pomyślnie zarejestrowano paletę #%s na podstawie zjazdu z windy paletyzatora (instance=%s)',
                                         db_pallets_count + 1,
@@ -998,6 +1008,8 @@ def start_daemon_threads(app, cleanup_enabled=False):
                                         _INSTANCE_ID,
                                     )
                         else:
+                            if palletizer_cnt > last_reg_pal and completed_pallets <= db_pallets_count:
+                                plan_counters[last_reg_pal_key] = palletizer_cnt
                             # Stan pracy paletyzatora / pakowaczki – rejestr diagnostyczny do pułapki sygnałów
                             try:
                                 last_tracked_cnt = plan_counters.get(plan_id, 0)

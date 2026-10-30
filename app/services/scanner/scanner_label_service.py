@@ -213,7 +213,8 @@ class ScannerLabelService:
         qty = float(row.get('stan_magazynowy') or 0)
         
         # Jeśli surowiec jest na stacji produkcyjnej, sprawdź aktualny stan ze stacji
-        if not is_fg and qty <= 0:
+        from app.utils.location_validator import is_production_tank_code
+        if not is_fg and (qty <= 0.001 or is_production_tank_code(row.get('lokalizacja'))):
             from app.services.scanner.scanner_lookup_service import ScannerLookupService
             prod_qty, prod_tank = ScannerLookupService.get_active_production_qty(cur, row['id'], linia)
             if prod_qty > 0:

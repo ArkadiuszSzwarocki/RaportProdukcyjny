@@ -188,11 +188,13 @@ def on_message(client, userdata, msg):
             if "agroPakowaczka" in topic:
                 _latest_machine_data["bpm"] = _first_or_default(payload_data.get("wydajnoscAktualna"), 0)
                 
-                real_counter = _first_or_default(payload_data.get("licznikGlobalny"), 0)
-                _latest_machine_data["counter"] = real_counter + _simulated_offsets["counter"]
+                real_counter = _first_or_default(payload_data.get("licznikGlobalny"), None)
+                if real_counter is not None:
+                    _latest_machine_data["counter"] = int(real_counter) + _simulated_offsets["counter"]
 
-                local_counter = _first_or_default(payload_data.get("licznikLokalny"), 0)
-                _latest_machine_data["local_counter"] = local_counter
+                local_counter = _first_or_default(payload_data.get("licznikLokalny"), None)
+                if local_counter is not None:
+                    _latest_machine_data["local_counter"] = int(local_counter)
 
                 status_val = _first_or_default(payload_data.get("status"), 0)
                 _latest_machine_data["status"] = "PRACA" if status_val == 4 else ("STOP" if status_val == 0 else str(status_val))
@@ -277,8 +279,9 @@ def on_message(client, userdata, msg):
                     _latest_machine_data["wrapper_phase"] = str(phase_val)
 
             elif "agroPaletyzator" in topic:
-                real_pallets = _first_or_default(payload_data.get("licznikPalet_global"), 0)
-                _latest_machine_data["pallet_counter"] = real_pallets + _simulated_offsets["pallet_counter"]
+                real_pallets = _first_or_default(payload_data.get("licznikPalet_global"), None)
+                if real_pallets is not None:
+                    _latest_machine_data["pallet_counter"] = int(real_pallets) + _simulated_offsets["pallet_counter"]
                 
                 current_layer = _first_or_default(payload_data.get("nrWarstwy"), 0)
                 current_bag = _first_or_default(payload_data.get("nrWorka"), 0)

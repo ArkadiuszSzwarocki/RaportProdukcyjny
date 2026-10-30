@@ -139,7 +139,7 @@ class ScannerLocationQueryService:
                         f"SELECT id, {qty_col} AS ilosc, nazwa, COALESCE(lokalizacja, '') AS lokalizacja, "
                         f"COALESCE(nr_palety, '') AS nr_palety, COALESCE(nr_partii, '') AS nr_partii, "
                         f"data_produkcji, data_przydatnosci "
-                        f"FROM {table_name} WHERE UPPER(COALESCE(lokalizacja, '')) = %s AND COALESCE({qty_col}, 0) > 0"
+                        f"FROM {table_name} WHERE UPPER(COALESCE(lokalizacja, '')) = %s AND ROUND(COALESCE({qty_col}, 0), 3) > 0"
                     )
                     cur.execute(sql, (location_code,))
                     rows = cur.fetchall()
@@ -157,7 +157,7 @@ class ScannerLocationQueryService:
                 try:
                     from app.repositories.agro_tanks_repository import AgroTanksRepository, _normalize_tank_code
                     norm_code = _normalize_tank_code(location_code)
-                    prod_inventory = AgroTanksRepository.get_production_inventory(limit=1000, linia=linia)
+                    prod_inventory = AgroTanksRepository.get_production_inventory_snapshot(limit=1000, linia=linia)
                     existing_ids = {it['id'] for it in items}
                     for p_item in prod_inventory:
                         p_zbiornik = _normalize_tank_code(p_item.get('zbiornik'))

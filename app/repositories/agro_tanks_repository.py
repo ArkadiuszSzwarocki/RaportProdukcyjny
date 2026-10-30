@@ -407,22 +407,40 @@ class AgroTanksRepository:
                     plan_join = ""
                     plan_select = ", NULL as plan_name"
 
-                q = (
-                    f"SELECT r.id as ruch_id, r.surowiec_id, COALESCE(s.nazwa, r.surowiec_nazwa) as nazwa, "
-                    f"s.lokalizacja, ABS(r.ilosc) as ilosc_pobrana, pal.nr_palety, "
-                    f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as ilosc_zwrocona, "
-                    f"COALESCE((SELECT SUM(k.ilosc) FROM {table_ruch} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as ilosc_korekta, "
-                    f"r.plan_id, r.autor_login, r.autor_data, r.zbiornik{plan_select} "
-                    f"FROM {table_ruch} r "
-                    f"LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id "
-                    f"LEFT JOIN {table_palety} pal ON r.surowiec_id = pal.id "
-                    f"{plan_join} "
-                    "WHERE r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
-                    "AND COALESCE(NULLIF(TRIM(r.zbiornik), ''), '') <> '' "
-                    "ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
-                )
-                cursor.execute(q, (limit,))
-                rows = cursor.fetchall()
+                def _fetch_from_ruch_table(ruch_tbl):
+                    q = (
+                        f"SELECT r.id as ruch_id, r.surowiec_id, COALESCE(s.nazwa, r.surowiec_nazwa) as nazwa, "
+                        f"s.lokalizacja, ABS(r.ilosc) as ilosc_pobrana, pal.nr_palety, pal.nr_partii, "
+                        f"COALESCE((SELECT SUM(z.ilosc) FROM {ruch_tbl} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as ilosc_zwrocona, "
+                        f"COALESCE((SELECT SUM(k.ilosc) FROM {ruch_tbl} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as ilosc_korekta, "
+                        f"r.plan_id, r.autor_login, r.autor_data, r.zbiornik{plan_select} "
+                        f"FROM {ruch_tbl} r "
+                        f"LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id "
+                        f"LEFT JOIN {table_palety} pal ON r.surowiec_id = pal.id "
+                        f"{plan_join} "
+                        "WHERE r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
+                        "AND COALESCE(NULLIF(TRIM(r.zbiornik), ''), '') <> '' "
+                        "ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
+                    )
+                    cursor.execute(q, (limit,))
+                    return cursor.fetchall() or []
+
+                rows = list(_fetch_from_ruch_table(table_ruch))
+                if table_ruch == 'magazyn_agro_ruch':
+                    try:
+                        psd_rows = _fetch_from_ruch_table('magazyn_ruch')
+                        for pr in psd_rows:
+                            if _normalize_tank_code(pr.get('zbiornik')) in PRODUCTION_TANK_CODES:
+                                rows.append(pr)
+                        rows.sort(
+                            key=lambda x: (
+                                x.get('autor_data') or datetime.datetime.min,
+                                int(x.get('ruch_id') or 0),
+                            ),
+                            reverse=True,
+                        )
+                    except Exception:
+                        pass
 
                 result = []
                 for r in rows:
@@ -441,6 +459,7 @@ class AgroTanksRepository:
                         'ruch_id': r['ruch_id'],
                         'surowiec_id': r.get('surowiec_id'),
                         'nr_palety': r.get('nr_palety') or '',
+                        'nr_partii': r.get('nr_partii') or '',
                         'nazwa': r.get('nazwa') or '',
                         'lokalizacja': r.get('lokalizacja') or '',
                         'zbiornik': zbiornik or '',
@@ -492,6 +511,7 @@ class AgroTanksRepository:
                         'ruch_id': None,
                         'surowiec_id': None,
                         'nr_palety': '',
+                        'nr_partii': '',
                         'nazwa': '',
                         'surowiec_nazwa': '',
                         'lokalizacja': '',
@@ -741,7 +761,6 @@ class AgroTanksRepository:
     def auto_register_pallet(plan_id, linia='AGRO', source_instance=None):
             """Automatically registers a 1000kg pallet for a given plan."""
             from app.utils.pallet_id import generate_pallet_id
-            # removed PlanningService
             from app.core.audit import audit_log
             
             table_plan = get_table_name('plan_produkcji', linia)
@@ -755,7 +774,7 @@ class AgroTanksRepository:
                 if not AutoLabelService.schema_ready(conn, cursor, linia):
                     return False
 
-                # Acquire database-level lock to prevent concurrency race conditions on MyISAM storage engine
+                # Acquire database-level lock to prevent concurrency race conditions
                 cursor.execute("SELECT GET_LOCK('agro_pallet_register', 10)")
                 lock_res = cursor.fetchone()
                 if not lock_res or lock_res[0] != 1:
@@ -804,12 +823,11 @@ class AgroTanksRepository:
                     logger.warning("[OPRÓŻNIANIE BLOKADA] Błąd sprawdzania statusu opróżniania: %s", empty_chk_err)
 
                 waga_input = 1000
-                now_ts = datetime.datetime.now()
                 user_login = 'System'
                 source_instance = str(source_instance or 'unknown')[:120]
                 cooldown_seconds = max(60.0, _get_auto_pallet_cooldown_seconds())
                 
-                # Check DB-level time difference using MySQL server time to eliminate clock skew between instances
+                # 1. Check DB-level time difference on active pallets in palety_agro using MySQL server time
                 cursor.execute(
                     f"SELECT id, data_dodania, nr_palety, nr_palety_lp FROM {table_pal} "
                     f"WHERE plan_id = %s AND (status IS NULL OR status != 'rezerwacja') "
@@ -847,6 +865,48 @@ class AgroTanksRepository:
                             except Exception:
                                 pass
                             return False
+
+                # 2. Check palety_historia for recent USUNIECIE or UTWORZENIE on this plan
+                #    so deleting the latest pallet from palety_agro does not erase the cooldown anchor!
+                try:
+                    cursor.execute(
+                        "SELECT id, akcja, nr_palety, ABS(TIMESTAMPDIFF(SECOND, data_operacji, NOW())) "
+                        "FROM palety_historia "
+                        "WHERE linia = %s AND akcja IN ('USUNIECIE', 'UTWORZENIE') "
+                        "AND (lokalizacja_zrodlowa LIKE %s OR lokalizacja_docelowa LIKE %s) "
+                        "ORDER BY id DESC LIMIT 1",
+                        (str(linia).upper(), f"Zlecenie #{plan_id}%", f"Zlecenie #{plan_id}%"),
+                    )
+                    hist_row = cursor.fetchone()
+                    if hist_row and hist_row[3] is not None:
+                        hist_id, hist_akcja, hist_nr_pal, hist_diff = hist_row[0], hist_row[1], hist_row[2], float(hist_row[3])
+                        if hist_diff < cooldown_seconds:
+                            logger.warning(
+                                "[COOLDOWN / HISTORIA] Skipped auto-registering pallet for plan_id=%s (source=%s). "
+                                "Recent %s of pallet %s (hist_id=%s) %.1fs ago (min cooldown %.1fs).",
+                                plan_id,
+                                source_instance,
+                                hist_akcja,
+                                hist_nr_pal,
+                                hist_id,
+                                hist_diff,
+                                cooldown_seconds,
+                            )
+                            try:
+                                from app.services.pakowaczka_signal_trap_service import PakowaczkaSignalTrapService
+                                PakowaczkaSignalTrapService.log_signal(
+                                    decision='TRAPPED_COOLDOWN',
+                                    source_machine='PAKOWACZKA',
+                                    plan_id=plan_id,
+                                    produkt=plan_produkt,
+                                    details=f"Zablokowano auto-dodanie po {hist_akcja} palety ({hist_nr_pal or hist_id}) {hist_diff:.1f}s temu (wymagane min. {cooldown_seconds:.0f}s)",
+                                    instance_id=source_instance,
+                                )
+                            except Exception:
+                                pass
+                            return False
+                except Exception as hist_chk_err:
+                    logger.debug("History cooldown check skipped: %s", hist_chk_err)
                 
                 nr_palety_czyszczenie = None
                 is_czyszczenie = (plan_sekcja == 'Czyszczenie' or (plan_produkt and 'czyszczenie' in plan_produkt.lower()))
@@ -865,6 +925,7 @@ class AgroTanksRepository:
 
                 nr_palety = None
                 paleta_id = None
+                nr_palety_lp = None
 
                 pallet_type = 'surowiec' if is_czyszczenie else 'wyrób gotowy'
 
@@ -881,14 +942,14 @@ class AgroTanksRepository:
                     if not nr_palety or (is_czyszczenie and (nr_palety == nr_palety_czyszczenie or not nr_palety.startswith('SUR'))):
                         nr_palety = generate_pallet_id(linia, pallet_type)
                     cursor.execute(
-                        f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = %s, status = 'do_przyjecia', dodal_login = %s, nr_palety = %s, auto_label_state = 'pending' WHERE id = %s",
-                        (waga_input, now_ts, user_login, nr_palety, paleta_id),
+                        f"UPDATE {table_pal} SET waga = %s, tara = 25, waga_brutto = 0, data_dodania = NOW(), status = 'do_przyjecia', dodal_login = %s, nr_palety = %s, auto_label_state = 'pending' WHERE id = %s",
+                        (waga_input, user_login, nr_palety, paleta_id),
                     )
                 else:
                     nr_palety = generate_pallet_id(linia, pallet_type)
                     cursor.execute(
-                        f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety, auto_label_state) VALUES (%s, %s, 25, 0, %s, 'do_przyjecia', %s, %s, 'pending')",
-                        (plan_id, waga_input, now_ts, user_login, nr_palety),
+                        f"INSERT INTO {table_pal} (plan_id, waga, tara, waga_brutto, data_dodania, status, dodal_login, nr_palety, auto_label_state) VALUES (%s, %s, 25, 0, NOW(), 'do_przyjecia', %s, %s, 'pending')",
+                        (plan_id, waga_input, user_login, nr_palety),
                     )
                     paleta_id = cursor.lastrowid if hasattr(cursor, 'lastrowid') else None
 
@@ -958,8 +1019,6 @@ class AgroTanksRepository:
                 except Exception as lp_err:
                     logger.warning("Failed to compute nr_palety_lp: %s", lp_err)
 
-
-                
                 conn.commit()
                 
                 # Ensure status is updated (e.g. from 'w toku' to 'zakonczone' if target reached, though usually stays 'w toku')
@@ -1031,4 +1090,3 @@ class AgroTanksRepository:
                 return True
             finally:
                 conn.close()
-

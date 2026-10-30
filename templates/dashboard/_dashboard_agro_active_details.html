@@ -148,7 +148,7 @@
                 </div>
                 {% endif %}
 
-                {% if sekcja == 'Zasyp' and pal|length > 7 and pal[7] and pal[7]|length > 0 and rola not in ['laborant', 'laboratorium'] %}
+                {% if sekcja == 'Zasyp' and pal|length > 7 and pal[7] and pal[7]|length > 0 and role_lc not in ['laborant', 'laboratorium'] %}
                 <div class="active-order-szarze-maluchy" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:6px 10px; margin-top:6px;">
                     <div style="font-size:0.85em; font-weight:800; color:#1d4ed8; margin-bottom:4px; border-bottom:1px solid #bfdbfe; padding-bottom:2px;">
                         🪣 Maluchy (Wrzucone Wiaderka):
@@ -175,6 +175,37 @@
                     </div>
                     {% endfor %}
                 </div>
+                {% elif sekcja == 'Zasyp' and linia == 'AGRO' and pal|length > 7 and pal[7] and pal[7]|length > 0 and role_lc in ['laborant', 'laboratorium'] %}
+                {% set ns_premix = namespace(has_any=false) %}
+                {% for wiaderko in pal[7] %}
+                    {% if wiaderko.premix_pozycje and wiaderko.premix_pozycje|length > 0 %}
+                        {% set ns_premix.has_any = true %}
+                    {% endif %}
+                {% endfor %}
+                {% if ns_premix.has_any %}
+                <div class="active-order-szarze-maluchy-lab" style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:6px; padding:6px 10px; margin-top:6px;">
+                    <div style="font-size:0.85em; font-weight:800; color:#6d28d9; margin-bottom:4px; border-bottom:1px solid #ddd6fe; padding-bottom:2px;">
+                        🧪 Premiks z KO (tylko Laboratorium):
+                    </div>
+                    {% for wiaderko in pal[7] %}
+                        {% if wiaderko.premix_pozycje and wiaderko.premix_pozycje|length > 0 %}
+                        <div style="margin-bottom:4px; font-size:12px;">
+                            {% for poz in wiaderko.premix_pozycje %}
+                            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:2px 0; color:#1e293b;">
+                                <span style="font-weight:800; color:#5b21b6;">[{{ poz.stacja }}] {{ poz.surowiec }}</span>
+                                <span style="background:#ede9fe; color:#4c1d95; font-family:monospace; font-weight:700; padding:1px 6px; border-radius:4px; border:1px solid #c4b5fd;">
+                                    Nr palety: {{ poz.nr_palety or 'brak' }}
+                                </span>
+                                <span style="background:#fef3c7; color:#92400e; font-family:monospace; font-weight:800; padding:1px 6px; border-radius:4px; border:1px solid #fde68a;">
+                                    Partia: {{ poz.nr_partii or 'brak' }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
                 {% endif %}
             </div>
             {% endfor %}

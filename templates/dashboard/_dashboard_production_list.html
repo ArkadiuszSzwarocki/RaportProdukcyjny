@@ -7,6 +7,27 @@
     {% endif %}
     
     <div id="dashboard-production-section" class="cards {% if agro_focus_mode %}agro-focus-mode{% endif %}">
+        {% set top_role_lc = rola|string|trim|lower %}
+        {% if sekcja == 'Zasyp' and linia == 'AGRO' and top_role_lc in ['laborant', 'laboratorium'] and ko_premix_pallets is defined and ko_premix_pallets %}
+        <div style="grid-column: 1 / -1; width: 100%; background: #f5f3ff; border: 2px solid #c4b5fd; border-radius: 10px; padding: 10px 16px; margin-bottom: 12px; box-sizing: border-box; box-shadow: 0 2px 6px rgba(109, 40, 217, 0.08);">
+            <div style="font-size: 0.92rem; font-weight: 800; color: #5b21b6; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                🧪 Premiksy wsypane na stacje KO (widoczne tylko dla Laboratorium):
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                {% for kp in ko_premix_pallets %}
+                <div style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 8px; padding: 5px 10px; font-size: 0.85rem;">
+                    <span style="font-weight: 800; color: #4c1d95;">[{{ kp.stacja }}] {{ kp.surowiec }}</span>
+                    <span style="background: #ede9fe; color: #4c1d95; font-family: monospace; font-weight: 700; padding: 2px 7px; border-radius: 5px; border: 1px solid #c4b5fd;">
+                        Nr palety: {{ kp.nr_palety or 'brak' }}
+                    </span>
+                    <span style="background: #fef3c7; color: #92400e; font-family: monospace; font-weight: 800; padding: 2px 7px; border-radius: 5px; border: 1px solid #fde68a;">
+                        Partia: {{ kp.nr_partii or 'brak' }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
         
         {% if agro_focus_mode %}

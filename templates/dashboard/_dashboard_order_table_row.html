@@ -54,6 +54,18 @@
             {% else %}
             <div><strong style="color:#64748b;">Receptura:</strong> <span style="color:#94a3b8;">-</span></div>
             {% endif %}
+            {% set row_role_lc = rola|string|trim|lower %}
+            {% if linia == 'AGRO' and row_role_lc in ['laborant', 'laboratorium'] and ko_premix_pallets is defined and ko_premix_pallets %}
+            <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 4px;">
+                {% for kp in ko_premix_pallets %}
+                <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 6px; padding: 3px 6px; font-size: 0.78em;">
+                    <div style="font-weight: 800; color: #5b21b6;">🧪 [{{ kp.stacja }}] {{ kp.surowiec }}</div>
+                    <div style="font-family: monospace; color: #4c1d95;">Paleta: <strong>{{ kp.nr_palety or 'brak' }}</strong></div>
+                    <div style="font-family: monospace; color: #92400e;">Partia: <strong>{{ kp.nr_partii or 'brak' }}</strong></div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         {% endif %}
         {% set checklist_ok = (sekcja == 'Workowanie' and linia == 'AGRO' and p|length > 26 and p[26]) %}
         {% if checklist_ok %}

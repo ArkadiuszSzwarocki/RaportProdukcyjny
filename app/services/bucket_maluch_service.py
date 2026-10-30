@@ -483,6 +483,20 @@ class BucketMaluchService:
             if alt_buckets:
                 buckets = alt_buckets
 
+        try:
+            from app.services.production_service import ProductionService
+            ko_map = ProductionService.get_ko_station_pallet_map(linia=linia)
+            for b in buckets:
+                for pos in b.get('pozycje') or []:
+                    st = str(pos.get('stacja_kod') or '').strip().upper()
+                    sur = str(pos.get('surowiec_nazwa') or '').strip()
+                    ko_info = ko_map.get(st) or {}
+                    pos['is_premix'] = ProductionService.is_ko_premix(st, sur or ko_info.get('surowiec', ''))
+                    pos['nr_palety'] = ko_info.get('nr_palety') or ''
+                    pos['nr_partii'] = ko_info.get('nr_partii') or ''
+        except Exception:
+            pass
+
         w_trakcie = [b for b in buckets if b['status'] == 'w_trakcie_nawazania']
         skompletowane = [b for b in buckets if b['status'] == 'skompletowane']
         wrzucone = [b for b in buckets if b['status'] == 'wrzucone_do_mieszalnika']

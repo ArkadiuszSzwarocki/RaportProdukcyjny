@@ -17,27 +17,34 @@ class ScannerLookupService:
         """Returns (remaining_qty_in_production, tank) for given raw material."""
         if not surowiec_id:
             return 0.0, ''
-        try:
-            table_ruch = get_table_name('magazyn_ruch', linia)
-            cur.execute(
-                f"SELECT r.id, ABS(r.ilosc) as pobrana, COALESCE(r.zbiornik, '') as zbiornik, "
-                f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as zwrocona, "
-                f"COALESCE((SELECT SUM(k.ilosc) FROM {table_ruch} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as korekta "
-                f"FROM {table_ruch} r "
-                f"WHERE r.surowiec_id = %s AND r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
-                f"ORDER BY r.autor_data DESC, r.id DESC LIMIT 1",
-                (surowiec_id,)
-            )
-            row = cur.fetchone()
-            if row:
-                pobrana = float(row.get('pobrana') or 0)
-                zwrocona = float(row.get('zwrocona') or 0)
-                korekta = float(row.get('korekta') or 0)
-                rem = round(pobrana - zwrocona + korekta, 2)
-                if rem > 0:
-                    return rem, (row.get('zbiornik') or '').strip().upper()
-        except Exception:
-            pass
+
+        candidate_lines = [linia or 'AGRO']
+        for alt_line in ('AGRO', 'PSD'):
+            if alt_line not in [str(x).upper() for x in candidate_lines]:
+                candidate_lines.append(alt_line)
+
+        for cand_line in candidate_lines:
+            try:
+                table_ruch = get_table_name('magazyn_ruch', cand_line)
+                cur.execute(
+                    f"SELECT r.id, ABS(r.ilosc) as pobrana, COALESCE(r.zbiornik, '') as zbiornik, "
+                    f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as zwrocona, "
+                    f"COALESCE((SELECT SUM(k.ilosc) FROM {table_ruch} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as korekta "
+                    f"FROM {table_ruch} r "
+                    f"WHERE r.surowiec_id = %s AND r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
+                    f"ORDER BY r.autor_data DESC, r.id DESC LIMIT 1",
+                    (surowiec_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    pobrana = float(row.get('pobrana') or 0)
+                    zwrocona = float(row.get('zwrocona') or 0)
+                    korekta = float(row.get('korekta') or 0)
+                    rem = round(pobrana - zwrocona + korekta, 2)
+                    if rem > 0:
+                        return rem, (row.get('zbiornik') or '').strip().upper()
+            except Exception:
+                pass
         return 0.0, ''
 
     @staticmethod
@@ -55,7 +62,7 @@ class ScannerLookupService:
     ) -> dict | None:
         table_name = get_table_name(base_table, linia)
         line_expression = 'NULL' if base_table in {'magazyn_surowce', 'magazyn_opakowania', 'magazyn_dodatki'} else f"COALESCE(NULLIF(linia, ''), '{linia}')"
-        where = [f"COALESCE({qty_col}, 0) > 0"]
+        where = [f"ROUND(COALESCE({qty_col}, 0), 3) > 0"]
         params: list[object] = []
 
         if location_code is not None:
@@ -81,13 +88,24 @@ class ScannerLookupService:
             cur.execute(sql, tuple(params))
             row = cur.fetchone()
             if row:
+                if base_table == 'magazyn_surowce':
+                    from app.utils.location_validator import is_production_tank_code
+                    if is_production_tank_code(row.get('lokalizacja')):
+                        prod_qty, prod_tank = ScannerLookupService.get_active_production_qty(cur, row['id'], linia)
+                        if prod_qty > 0:
+                            row['ilosc'] = prod_qty
+                            if prod_tank:
+                                row['lokalizacja'] = prod_tank
                 return row
         except Exception:
             pass
 
-        if location_code is None and (item_id is not None or pallet_no is not None or partial_pallet_no is not None):
+        if base_table == 'magazyn_surowce' and (item_id is not None or pallet_no is not None or partial_pallet_no is not None or location_code is not None):
             where_unbound = []
             params_unbound: list[object] = []
+            if location_code is not None:
+                where_unbound.append("UPPER(COALESCE(lokalizacja, '')) = %s")
+                params_unbound.append(location_code)
             if item_id is not None:
                 where_unbound.append("id = %s")
                 params_unbound.append(item_id)
