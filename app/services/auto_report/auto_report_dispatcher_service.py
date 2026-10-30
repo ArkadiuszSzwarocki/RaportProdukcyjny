@@ -87,6 +87,9 @@ class AutoReportDispatcherService:
             if not pdf_path or not xls_path or not all(os.path.isfile(p) for p in (pdf_path, xls_path)):
                 raise ValueError('Nie wygenerowano kompletu załączników PDF i Excel. Raport nie został wysłany.')
 
+            from app.services.report_pdf_version import verify_pdf_layout
+            verify_pdf_layout(pdf_path)
+
             valid_attachments = [str(p) for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]
 
@@ -177,6 +180,9 @@ class AutoReportDispatcherService:
 
             if not pdf_path or not xls_path or not all(os.path.isfile(p) for p in (pdf_path, xls_path)):
                 raise ValueError('Nie wygenerowano kompletu załączników PDF i Excel. Raport nie został wysłany.')
+
+            from app.services.report_pdf_version import verify_pdf_layout
+            verify_pdf_layout(pdf_path)
 
             valid_attachments = [str(p) for p in [pdf_path, xls_path] if p and os.path.exists(p)]
             att_filenames = [os.path.basename(p) for p in valid_attachments]

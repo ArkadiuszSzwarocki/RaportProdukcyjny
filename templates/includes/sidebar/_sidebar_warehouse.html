@@ -2,7 +2,7 @@
 {% if effective_hall != 'OSIP' %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0} %}
-    {% set hall_key = (effective_hall or 'ALL')|upper %}
+    {% set hall_key = 'CENTRALA' %}
     {% set pending_for_hall = (pending_map.get('ALL', (pending_map.get('PSD', 0) + pending_map.get('AGRO', 0))) if hall_key == 'ALL' else pending_map.get(hall_key, 0))|int %}
     {% set can_open_prod_inventory = role_has_access('magazyn.agro_total') and role_has_access('magazyn.inventory') %}
     
@@ -23,10 +23,10 @@
         <a href="{{ url_for('magazyn_dostawy.reception_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' %}active{% endif %}">Przyjęcie dostawy</a>
         {% endif %}
         {% if role_has_access('magazyn.return') %}
-        <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' and request.args.get('linia') != 'OSIP' %}active{% endif %}">
+        <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia='ALL') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' and request.args.get('linia') != 'OSIP' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Przesunięcia Palet</span>
-                <span class="nav-draft-badge" data-draft-hall="{{ (effective_hall or 'ALL')|upper }}" title="Aktywny szkic otwartego formularza przesunięcia">SZKIC</span>
+                <span class="nav-draft-badge" data-draft-hall="ALL" title="Aktywny szkic otwartego formularza przesunięcia">SZKIC</span>
             </span>
         </a>
         {% endif %}
@@ -35,7 +35,7 @@
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
         {% if role_has_access('magazyn.pending') %}
-        <a href="{{ url_for('magazyn_dostawy.oczekujace', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' %}active{% endif %}">
+        <a href="{{ url_for('magazyn_dostawy.oczekujace', linia='ALL') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Oczekujące Przyjęcia</span>
                 {% set pallet_map = pending_pallets if pending_pallets is defined else {'PSD': 0, 'AGRO': 0} %}

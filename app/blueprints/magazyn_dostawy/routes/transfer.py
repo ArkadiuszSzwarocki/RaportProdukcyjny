@@ -20,7 +20,9 @@ from ..base import magazyn_dostawy_bp
 def lista_dostaw():
     linia = request.args.get('linia', 'PSD').upper()
     # Lista przesuniec ma pokazywac tylko ruchy wewnetrzne (bez dostawcy zewnetrznego).
-    dostawy = [d for d in DeliveryQueries.get_dostawy(linia) if not str(d.get('supplier') or '').strip()]
+    scope='osip' if linia=='OSIP' else 'centrala'
+    linia='OSIP' if scope=='osip' else 'ALL'
+    dostawy = [d for d in DeliveryQueries.get_dostawy(linia,warehouse_scope=scope) if not str(d.get('supplier') or '').strip()]
     return render_template('magazyn_dostawy/lista.html', dostawy=dostawy, linia=linia)
 
 @magazyn_dostawy_bp.route('/oczekujace')
@@ -28,6 +30,7 @@ def oczekujace():
     linia = request.args.get('linia', 'PSD').upper()
     # Uniwersalny skaner - pobieraj dane ze wszystkich linii dla pending_scan_items
     dostawy = DeliveryQueries.get_oczekujace('ALL')
+    dostawy['dostawy']=[d for d in dostawy['dostawy'] if (str(d.get('linia') or '').upper()=='OSIP') == (linia=='OSIP')]
     pending_scan_items = []
 
     def _safe_date(value):

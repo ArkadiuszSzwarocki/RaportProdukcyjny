@@ -324,7 +324,8 @@
             const url = new URL(link.href, window.location.origin);
             let groups = [];
             if (url.pathname === '/magazyn-dostawy/') {
-                const hall = (url.searchParams.get('linia') || 'ALL').toUpperCase();
+                const requestedHall = (url.searchParams.get('linia') || 'ALL').toUpperCase();
+                const hall = requestedHall==='OSIP'?'OSIP':'CENTRALA';
                 link.querySelectorAll('.nav-open-transfer-badge').forEach(el => el.remove());
                 const count = data.open_transfer_orders?.[hall] || 0;
                 if (count > 0) {
@@ -337,7 +338,8 @@
                 return;
             }
             if (url.pathname === '/magazyn-dostawy/oczekujace') {
-                const hall = (url.searchParams.get('linia') || 'ALL').toUpperCase();
+                const requestedHall = (url.searchParams.get('linia') || 'ALL').toUpperCase();
+                const hall = requestedHall==='OSIP'?'OSIP':'CENTRALA';
                 groups = [
                     [data.pending_external_orders?.[hall], data.pending_external_pallets?.[hall], true],
                     [data.pending_transfer_orders?.[hall], data.pending_transfer_pallets?.[hall], false]
@@ -363,7 +365,10 @@
             const label = sub?.parentElement.querySelector('.nav-main-label');
             if (!label) return;
             label.querySelectorAll('.nav-main-dot').forEach(dot => dot.remove());
-            if (sub.querySelector('.nav-pending-badge')) {
+            const hasPending=[...sub.querySelectorAll('.nav-pending-badge')].some(badge=>
+                !badge.hidden && badge.style.display!=='none' && getComputedStyle(badge).display!=='none' &&
+                (badge.textContent.match(/\d+/g)||[]).some(value=>Number(value)>0));
+            if (hasPending) {
                 const dot = document.createElement('span');
                 dot.className = 'nav-main-dot';
                 dot.setAttribute('aria-hidden', 'true');
