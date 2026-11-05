@@ -1,3 +1,4 @@
+# cspell:words paletyzatora palletizer
 from flask import current_app
 
 from app.core.audit import audit_log

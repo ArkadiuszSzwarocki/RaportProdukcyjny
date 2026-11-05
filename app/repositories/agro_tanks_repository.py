@@ -1,3 +1,4 @@
+# cspell:words TIMESTAMPDIFF
 import logging
 
 logger = logging.getLogger(__name__)

@@ -34,16 +34,18 @@ def test_lookup_returns_finished_goods_for_pal_prefix():
 
 def test_lookup_returns_packaging_for_location():
     mock_cursor = MagicMock()
-    # 1) brak w surowcach, 2) znalezione w opakowaniach
-    mock_cursor.fetchone.side_effect = [
-        None,
-        {
-            'id': 12,
-            'nazwa': 'Worek 25kg',
-            'ilosc': 1400,
-            'lokalizacja': 'MOP01',
-        },
-    ]
+    def fetch_inventory_row():
+        sql, params = mock_cursor.execute.call_args.args
+        if 'FROM magazyn_opakowania ' in sql and params == ('MOP01',):
+            return {
+                'id': 12,
+                'nazwa': 'Worek 25kg',
+                'ilosc': 1400,
+                'lokalizacja': 'MOP01',
+            }
+        return None
+
+    mock_cursor.fetchone.side_effect = fetch_inventory_row
 
     mock_conn = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
