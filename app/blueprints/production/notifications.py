@@ -1,7 +1,7 @@
 import time
 from datetime import date
 
-from flask import current_app, jsonify, request, session
+from flask import Response, current_app, jsonify, request, session
 
 from app.db import get_db_connection, get_table_name
 from app.decorators import roles_required, login_required
@@ -99,6 +99,23 @@ def register_production_notification_routes(
         if current_ack > last_seen and current_ack >= current_release and is_fresh:
             return jsonify({"new_ack": True, "timestamp": current_ack})
         return jsonify({"new_ack": False})
+
+    @production_bp.route('/api/zasyp/stage-events', methods=['GET'])
+    @roles_required('laborant', 'laboratorium')
+    def api_zasyp_stage_events():
+        from app.core.database import get_active_database_name
+        from app.services.warehouse_live_updates import reserve_stream, reserved_stream, zasyp_stage_channel
+
+        release = reserve_stream()
+        if release is None:
+            return jsonify(success=False), 503
+        response = Response(
+            reserved_stream(zasyp_stage_channel(get_active_database_name()), release),
+            mimetype='text/event-stream',
+            headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'},
+        )
+        response.call_on_close(release)
+        return response
 
     @production_bp.route('/api/zasyp/poll_etap_start', methods=['GET'])
     def api_poll_etap_start():

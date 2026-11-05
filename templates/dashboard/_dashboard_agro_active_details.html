@@ -86,7 +86,7 @@
                                 <span class="material-icons" style="font-size:16px; vertical-align:middle;">edit_note</span>
                             </a>
                             {% endif %}
-                            {% if pal[2] and pal[2]|int > 0 %}
+                            {% if pal[2] and pal[2]|int > 0 and role_lc not in ['laborant', 'laboratorium'] %}
                             <a href="{{ url_for('maluchy.zasyp_wiaderka_page', plan_id=p[0], szarza_id=pal[2], linia=linia, _v=static_version) }}"
                                class="btn-action btn-outline-secondary szarza-bucket-btn"
                                data-slide
@@ -130,7 +130,13 @@
                     <div style="font-size:0.85em; font-weight:700; color:#d97706; margin-bottom:4px; border-bottom:1px solid #fcd34d; padding-bottom:2px;">Dodane dosypki:</div>
                     {% for dosypka_item in pal[3] %}
                     <div class="active-order-szarze-dosypki-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; font-size:12.5px;">
-                        <span style="font-weight:700; color:#1e293b;">{{ dosypka_item[0] }}</span>
+                        <span style="font-weight:700; color:#1e293b;">
+                            {{ dosypka_item[0] }}
+                            {% set dosypka_name = dosypka_item[0]|lower %}
+                            {% if linia == 'AGRO' and sekcja == 'Zasyp' and role_lc in ['laborant', 'laboratorium'] and ((dosypka_item|length > 4 and dosypka_item[4]) or 'premix' in dosypka_name or 'premiks' in dosypka_name) %}
+                            <small style="color:#92400e;">Partia: {{ dosypka_item[4] if dosypka_item|length > 4 and dosypka_item[4] else 'nieustalona' }}</small>
+                            {% endif %}
+                        </span>
                         <div style="display:flex; align-items:center; gap:6px;">
                             {% if dosypka_item|length > 2 and dosypka_item[2] is not none %}
                             <span style="font-size:11px; color:#475569; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 5px; border-radius:4px;" title="Zaplanowane przez laboranta">plan: <strong>{{ dosypka_item[2] }} kg</strong></span>
@@ -175,37 +181,6 @@
                     </div>
                     {% endfor %}
                 </div>
-                {% elif sekcja == 'Zasyp' and linia == 'AGRO' and pal|length > 7 and pal[7] and pal[7]|length > 0 and role_lc in ['laborant', 'laboratorium'] %}
-                {% set ns_premix = namespace(has_any=false) %}
-                {% for wiaderko in pal[7] %}
-                    {% if wiaderko.premix_pozycje and wiaderko.premix_pozycje|length > 0 %}
-                        {% set ns_premix.has_any = true %}
-                    {% endif %}
-                {% endfor %}
-                {% if ns_premix.has_any %}
-                <div class="active-order-szarze-maluchy-lab" style="background:#f5f3ff; border:1px solid #ddd6fe; border-radius:6px; padding:6px 10px; margin-top:6px;">
-                    <div style="font-size:0.85em; font-weight:800; color:#6d28d9; margin-bottom:4px; border-bottom:1px solid #ddd6fe; padding-bottom:2px;">
-                        🧪 Premiks z KO (tylko Laboratorium):
-                    </div>
-                    {% for wiaderko in pal[7] %}
-                        {% if wiaderko.premix_pozycje and wiaderko.premix_pozycje|length > 0 %}
-                        <div style="margin-bottom:4px; font-size:12px;">
-                            {% for poz in wiaderko.premix_pozycje %}
-                            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:2px 0; color:#1e293b;">
-                                <span style="font-weight:800; color:#5b21b6;">[{{ poz.stacja }}] {{ poz.surowiec }}</span>
-                                <span style="background:#ede9fe; color:#4c1d95; font-family:monospace; font-weight:700; padding:1px 6px; border-radius:4px; border:1px solid #c4b5fd;">
-                                    Nr palety: {{ poz.nr_palety or 'brak' }}
-                                </span>
-                                <span style="background:#fef3c7; color:#92400e; font-family:monospace; font-weight:800; padding:1px 6px; border-radius:4px; border:1px solid #fde68a;">
-                                    Partia: {{ poz.nr_partii or 'brak' }}
-                                </span>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-                {% endif %}
                 {% endif %}
             </div>
             {% endfor %}

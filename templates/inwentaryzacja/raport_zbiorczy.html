@@ -22,7 +22,7 @@
         </div>
     </div>
 
-    {% if not report_items %}
+    {% if not report_items and not production_entries %}
     <div style="background: white; padding: 30px; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; color: #64748b;">Brak sesji w wybranym okresie.</div>
     {% endif %}
 
@@ -149,6 +149,33 @@
         </div>
     </div>
     {% endfor %}
+
+    {% if production_entries %}
+    <section style="background:white; padding:16px 20px; border:1px solid #e2e8f0; border-radius:16px;">
+        <h2 style="margin:0 0 12px; font-size:16px;">Inwentaryzacja produkcyjna (MZ, BB, KO)</h2>
+        <table class="modern-table no-mobile-cards report-table" style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th>Linia / lokalizacja</th><th>Surowiec / partia</th><th>Paleta</th>
+                    <th>System (kg)</th><th>Faktycznie (kg)</th><th>Różnica (kg)</th><th>Operator / czas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in production_entries %}
+                <tr>
+                    <td>{{ entry.linia }} / <strong>{{ entry.lokalizacja }}</strong></td>
+                    <td>{{ entry.nazwa }}{% if entry.nr_partii %}<br>Partia: {{ entry.nr_partii }}{% endif %}</td>
+                    <td>{{ entry.nr_palety or entry.paleta_id or '-' }}</td>
+                    <td>{{ entry.waga_systemowa if entry.waga_systemowa is not none else '-' }}</td>
+                    <td>{{ entry.waga_faktyczna if entry.waga_faktyczna is not none else '-' }}</td>
+                    <td>{{ '%+.3f'|format(entry.roznica) if entry.roznica is not none else '-' }}</td>
+                    <td>{{ entry.user_login or '-' }}<br>{{ entry.data_wpisu.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
 </div>
 
 <style>

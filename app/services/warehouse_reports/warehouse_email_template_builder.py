@@ -1,3 +1,4 @@
+from html import escape
 """
 Moduł odpowiedzialny za generowanie szablonów HTML wiadomości e-mail (raporty dzienne, pojedyncze dostawy i transfery).
 """
@@ -9,16 +10,31 @@ from app.services.warehouse_reports.warehouse_activity_query_service import Ware
 
 class WarehouseEmailTemplateBuilder:
     @staticmethod
+    def _render_received_summary(totals):
+        if not totals:
+            return ''
+        rows = []
+        for (product, unit), quantity in sorted(totals.items(), key=lambda item: item[0][0].casefold()):
+            amount = f'{quantity:,.2f}'.rstrip('0').rstrip('.').replace(',', ' ').replace('.', ',')
+            rows.append(f'<li>{escape(product)} <strong>{amount} {escape(unit)}</strong></li>')
+        return (
+            '<div style="padding: 0 24px 16px; color: #0f172a;">'
+            '<strong>Podsumowanie przyjętych produktów</strong>'
+            '<ul style="margin: 8px 0 0;">' + ''.join(rows) + '</ul></div>'
+        )
+
+    @staticmethod
     def build_single_delivery_html(dostawa: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
         """Buduje raport HTML pojedynczego przyjęcia dostawy/przesunięcia MM."""
         cat = WarehouseDocumentClassifier.categorize_delivery_doc(dostawa, items)
         doc_status = WarehouseStatusResolver.resolve_document_status(dostawa, items)
 
         rows_html = ""
+        received_totals = {}
         total_qty = 0.0
 
         for idx, it in enumerate(items, start=1):
-            pname = it.get('productName') or 'Brak nazwy'
+            pname = escape(it.get('productName') or 'Brak nazwy')
             nr_pal = it.get('nr_palety') or '-'
             nr_partii = it.get('nr_partii') or '-'
             prod_date = it.get('data_produkcji') or '-'
@@ -32,6 +48,14 @@ class WarehouseEmailTemplateBuilder:
                 target_spot = cat['dest_value']
 
             status_info = WarehouseStatusResolver.resolve_item_status(it, dostawa.get('status'))
+            if status_info['is_accepted']:
+                product = str(it.get('productName') or 'Brak nazwy').strip()
+                unit = str(it.get('unit') or 'kg').strip()
+                key = (product, unit)
+                accepted_qty = it.get('accepted_quantity')
+                received_totals[key] = received_totals.get(key, 0) + (
+                    qty if accepted_qty in (None, '') else float(accepted_qty)
+                )
             badge_color = status_info['badge_color']
             badge_bg = status_info['badge_bg']
             status_txt = status_info['status_label']
@@ -131,6 +155,7 @@ class WarehouseEmailTemplateBuilder:
                     </table>
                 </div>
 
+                {WarehouseEmailTemplateBuilder._render_received_summary(received_totals)}
                 <div style="padding: 16px 24px 24px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
                     W załączniku znajduje się oficjalny dokument PDF potwierdzający operację magazynową.
                 </div>
@@ -381,19 +406,24 @@ class WarehouseEmailTemplateBuilder:
         total_qty = 0.0
         total_pallets = len(items)
         rows_html = ""
+        received_totals = {}
         for idx, it in enumerate(items, start=1):
-            prod = getattr(it, 'product_name', None) or (it.get('product_name') if isinstance(it, dict) else 'Brak nazwy')
-            nr_pal = getattr(it, 'nr_palety', None) or (it.get('nr_palety') if isinstance(it, dict) else '-')
-            batch = getattr(it, 'batch_number', None) or (it.get('batch_number') if isinstance(it, dict) else '-')
-            qty = float(getattr(it, 'loaded_qty', 0.0) or getattr(it, 'requested_qty', 0.0) or (it.get('loaded_qty', 0.0) if isinstance(it, dict) else it.get('requested_qty', 0.0)) or 0.0)
-            unit = getattr(it, 'unit', 'kg') or (it.get('unit', 'kg') if isinstance(it, dict) else 'kg')
-            it_status = getattr(it, 'status', 'RECEIVED') or (it.get('status') if isinstance(it, dict) else 'RECEIVED')
+            field = it.get if isinstance(it, dict) else lambda key, default=None: getattr(it, key, default)
+            prod = str(field('product_name') or 'Brak nazwy')
+            nr_pal = field('nr_palety') or '-'
+            batch = field('batch_number') or '-'
+            qty = float(field('loaded_qty') or field('requested_qty') or 0)
+            unit = str(field('unit') or 'kg')
+            it_status = field('status') or 'RECEIVED'
+            if str(it_status).strip().upper() == 'RECEIVED':
+                key = (prod.strip(), unit.strip())
+                received_totals[key] = received_totals.get(key, 0) + qty
             total_qty += qty
 
             rows_html += f"""
             <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
                 <td style="padding: 10px 12px; text-align: center; color: #64748b; font-weight: 600;">{idx}</td>
-                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{prod}</td>
+                <td style="padding: 10px 12px; font-weight: 700; color: #0f172a;">{escape(prod)}</td>
                 <td style="padding: 10px 12px; font-family: monospace; font-weight: 700; color: #1e293b; background: #f8fafc; text-align: center;">{nr_pal}</td>
                 <td style="padding: 10px 12px; text-align: center; color: #475569;">{batch}</td>
                 <td style="padding: 10px 12px; text-align: right; font-weight: 800; color: #166534;">{qty:,.2f} {unit}</td>
@@ -465,6 +495,7 @@ class WarehouseEmailTemplateBuilder:
                     </table>
                 </div>
 
+                {WarehouseEmailTemplateBuilder._render_received_summary(received_totals)}
                 <div style="padding: 16px 24px 24px 24px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
                     W załączniku znajduje się oficjalny dokument PDF potwierdzający przyjęcie transferu w systemie RaportProdukcyjny.
                 </div>

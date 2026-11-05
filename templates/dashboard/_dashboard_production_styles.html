@@ -1,4 +1,33 @@
 <style>
+.agro-mixing-notice {
+    margin: 8px 0;
+    padding: 12px;
+    border: 3px solid #ea580c;
+    border-radius: 8px;
+    background: #ffedd5;
+    color: #7c2d12;
+    font-size: clamp(1.5rem, 4vw, 2.5rem);
+    font-weight: 900;
+    animation: agro-mixing-warning-pulse 1.2s ease-in-out infinite alternate;
+}
+.agro-mixing-notice[data-mixing-phase="ready"] {
+    border-color: #7f1d1d;
+    background: #b91c1c;
+    color: #fff;
+    font-size: clamp(1.75rem, 4.5vw, 2.8rem);
+    animation: agro-mixing-ready-pulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes agro-mixing-warning-pulse {
+    to { background: #fdba74; }
+}
+@keyframes agro-mixing-ready-pulse {
+    to { background: #7f1d1d; box-shadow: 0 0 0 4px #fca5a5; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .agro-mixing-notice,
+    .agro-mixing-notice[data-mixing-phase="ready"] { animation: none; }
+}
+
     /* Active Agro Details Side-by-Side Layout */
     .active-agro-details-direct {
         display: grid;

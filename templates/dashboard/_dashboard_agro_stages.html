@@ -9,6 +9,7 @@
 {% for p in target_plans %}{% if p[3] in ['w toku', 'zakonczone', 'zamkniete'] %}
 {% set etapy_sesje = etapy_sesje_mapa.get(p[0]) if etapy_sesje_mapa is defined and etapy_sesje_mapa else [] %}
 {% set param = etapy_parametry.get(p[0]) if etapy_parametry is defined and etapy_parametry else {} %}
+{% if role_lc in ['laborant', 'laboratorium'] %}<div data-laborant-stages="{{ p[0] }}">{% endif %}
 {% for sesja in etapy_sesje %}
 {% set has_real = namespace(val=false) %}
 {% for etap in sesja.etapy %}
@@ -18,10 +19,11 @@
 {% set cur_szarza = sesja.szarza_nr|default(1) %}
 {% set pending_batch_dosypki = dosypki_oczekujace_mapa.get(('nr', p[0], cur_szarza), 0) if dosypki_oczekujace_mapa is defined else 0 %}
 {% set etapy = sesja.etapy|default([]) %}
-{% set sesja_running = namespace(etap=None, label='') %}
+{% set sesja_running = namespace(etap=None, label='', info=None) %}
 {% for etap_info in etapy %}
     {% if sesja_running.etap is none and etap_info.is_running %}
         {% set sesja_running.etap = etap_info.etap %}
+        {% set sesja_running.info = etap_info %}
         {% set etap_info_str = etap_info.etap|string %}
         {% if etap_info.etap == 1 %}
             {% set sesja_running.label = 'Naważanie' %}
@@ -42,7 +44,35 @@
         {% endif %}
     {% endif %}
 {% endfor %}
-<div class="section-box mt-20 p-0" id="etapy-panel-{{ p[0] }}-{{ cur_szarza }}" style="border-left: 4px solid {% if sesja.is_current %}#e67e22{% else %}#cfd6dd{% endif %}; {% if not sesja.is_current %}opacity:0.92; margin-left:18px;{% endif %}">
+{% if sesja.is_current and p[3] == 'w toku' and sesja_running.info %}
+{% set active_stage = sesja_running.info %}
+{% set mixing = active_stage.etap == 2 or (active_stage.etap|string).startswith('4') %}
+<div class="section-box" style="padding:16px; text-align:center;">
+    <div style="font-size:clamp(1.5rem, 3vw, 2.5rem); font-weight:800;">
+        {{ sesja_running.label }}
+        {% if active_stage.etap == 1 and param and param.wielkosc_szarzy_kg %}
+        <span style="white-space:nowrap;">· {{ ('%.3f'|format(param.wielkosc_szarzy_kg)).rstrip('0').rstrip('.')|replace('.', ',') }} kg</span>
+        {% endif %}
+    </div>
+    {% if mixing %}
+    <div data-mixing-notice="{{ p[0] }}-{{ cur_szarza }}-{{ active_stage.etap }}-{{ active_stage.czas_start }}"
+         hidden class="agro-mixing-notice">
+        <span data-mixing-message role="status"></span>
+        {% if role_lc in ['laborant', 'laboratorium'] %}
+        <button type="button" class="btn-action" data-mixing-dismiss>Zamknij</button>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div style="font-size:clamp(2rem, 5vw, 3.5rem); font-weight:800; font-variant-numeric:tabular-nums;">
+        <span class="etap-live-timer" data-seconds="{{ active_stage.duration_s|default(0) }}"
+              data-running="{{ 0 if active_stage.is_paused else 1 }}">{{ active_stage.duration_str or '00:00' }}</span>
+    </div>
+</div>
+{% endif %}
+<div class="section-box mt-20 p-0" id="etapy-panel-{{ p[0] }}-{{ cur_szarza }}"
+     {% if role_lc in ['laborant', 'laboratorium'] %}
+     data-stage-state="{{ sesja.is_current }}:{{ param.wielkosc_szarzy_kg if param else '' }}{% for e in etapy %}|{{ e.etap }}:{{ e.czas_start }}:{{ e.czas_stop }}:{{ e.is_running }}:{{ e.is_paused }}{% endfor %}"
+     {% endif %} style="border-left: 4px solid {% if sesja.is_current %}#e67e22{% else %}#cfd6dd{% endif %}; {% if not sesja.is_current %}opacity:0.92; margin-left:18px;{% endif %}">
     <div class="p-10 p-10-bg d-flex justify-between align-center flex-wrap gap-8"
          style="background: {% if sesja.is_current %}var(--card-header-bg, #fdf3e7){% else %}#f5f7fa{% endif %};">
          <div class="d-flex align-center gap-8 flex-wrap">
@@ -481,6 +511,7 @@
 </div>
 {% endif %}
 {% endfor %}
+{% if role_lc in ['laborant', 'laboratorium'] %}</div>{% endif %}
 {% endif %}{% endfor %}
 {% endif %}
 

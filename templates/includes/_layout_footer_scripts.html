@@ -655,6 +655,19 @@
                         return (userRole === 'laborant' || userRole === 'laboratorium') || (isAgro && isOperator) || isAgro;
                     }
 
+                    const todayInWarsaw = new Intl.DateTimeFormat('sv-SE', {
+                        timeZone: 'Europe/Warsaw',
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    }).format(new Date());
+                    function canShowToast(item) {
+                        const planningTypes = ['plan', 'plan_batch', 'plan_agro', 'plan_batch_agro', 'brak_zlecen'];
+                        const type = String(item.type || '').trim().toLowerCase();
+                        return !planningTypes.includes(type) ||
+                            String(item.created_at || '').slice(0, 10) === todayInWarsaw;
+                    }
+
                     if (state.initialized) {
                         notifications.forEach(function(item) {
                             if (item.id > maxNotifId && !state.shownIds.has(item.id)) {
@@ -666,7 +679,7 @@
                                     sessionStorage.setItem('notif_max_id', maxNotifId);
                                 }
                                 
-                                if (typeof showToast === 'function') {
+                                if (canShowToast(item) && typeof showToast === 'function') {
                                     const isSticky = checkIsSticky(item);
                                     const isAgro = Boolean(item.is_sticky || item.type === 'plan_agro' || item.type === 'plan_batch_agro' || (item.title && item.title.toLowerCase().includes('agro')));
                                     const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
@@ -690,7 +703,7 @@
                             }
                             
                             const isSticky = checkIsSticky(item);
-                            if (isSticky && typeof showToast === 'function') {
+                            if (isSticky && canShowToast(item) && typeof showToast === 'function') {
                                 const isAgro = Boolean(item.is_sticky || item.type === 'plan_agro' || item.type === 'plan_batch_agro' || (item.title && item.title.toLowerCase().includes('agro')));
                                 const displayTime = item.created_at ? item.created_at.substring(11, 16) : '';
                                 const toastMsg = (displayTime ? '[' + displayTime + '] ' : '') + (item.title || 'Powiadomienie') + ': ' + (item.message || '');

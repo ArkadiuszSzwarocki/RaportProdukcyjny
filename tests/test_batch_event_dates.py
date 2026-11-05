@@ -41,7 +41,8 @@ def test_dashboard_preserves_batch_date_and_ids_for_individual_duplicate_cancell
         if 's.data_dodania' in query and 'COALESCE(s.uwagi' in query:
             return [(323, 558, 100, '00:12', 'zarejestrowana', 'operator', '', 10, datetime(2026, 10, 15, 0, 12))]
         if 'SELECT d.szarza_id' in query:
-            return [(558, 'Mix', 55.4, 50, 91), (558, 'Mix', 55.4, 50, 92)]
+            confirmed_at = datetime(2026, 10, 15, 0, 10)
+            return [(558, 'Mix', 55.4, 50, 91, confirmed_at), (558, 'Mix', 55.4, 50, 92, confirmed_at)]
         return []
     cursor.fetchall.side_effect = fetchall
     plan = [323, 'Mix', 400, 'w toku', None, None, 0, 210.8] + [None] * 23

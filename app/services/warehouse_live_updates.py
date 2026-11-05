@@ -18,6 +18,9 @@ _REPORT_TABLE = re.compile(r'^(?:plan_produkcji(?:_agro)?|plan_agro|przestoje_za
 def report_channel(database):
     return str(database) + ':periodic-reports'
 
+def zasyp_stage_channel(database):
+    return str(database) + ':zasyp-stages'
+
 def revision_path(database):
     base = Path(os.environ.get('WAREHOUSE_EVENT_DIR') or Path(__file__).resolve().parents[2] / 'instance' / 'warehouse-events')
     return base / (hashlib.sha256(str(database).encode()).hexdigest()[:20] + '.revision')
@@ -43,9 +46,14 @@ def observe_connection(conn, database):
     conn._warehouse_observed = True
     dirty = [False]
     report_dirty = [False]
+    stage_dirty = [False]
     original_cursor, original_commit, original_rollback = conn.cursor, conn.commit, conn.rollback
     def notify():
-        for pending, channel in ((dirty,database),(report_dirty,report_channel(database))):
+        for pending, channel in (
+            (dirty, database),
+            (report_dirty, report_channel(database)),
+            (stage_dirty, zasyp_stage_channel(database)),
+        ):
             if not pending[0]: continue
             pending[0] = False
             try: publish(channel)
@@ -66,6 +74,8 @@ def observe_connection(conn, database):
                     dirty[0] = True
                 if match and _REPORT_TABLE.match(match.group(1)) and result.rowcount != 0:
                     report_dirty[0] = True
+                if match and match.group(1).lower() == 'zasyp_etapy' and result.rowcount != 0:
+                    stage_dirty[0] = True
                 if getattr(conn, '_autocommit', False): notify()
                 return value
             setattr(result, method, execute)
@@ -78,6 +88,7 @@ def observe_connection(conn, database):
         value = original_rollback()
         dirty[0] = False
         report_dirty[0] = False
+        stage_dirty[0] = False
         return value
     conn.cursor, conn.commit, conn.rollback = cursor, commit, rollback
     return conn

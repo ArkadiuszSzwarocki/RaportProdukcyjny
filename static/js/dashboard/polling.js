@@ -263,12 +263,64 @@
         }, false);
     }
 
+    function laborantStageState(panel) {
+        return Array.from(panel.querySelectorAll('[data-stage-state]')).map(function (stage) {
+            return stage.id + ':' + stage.dataset.stageState;
+        }).join(';');
+    }
+
+    async function refreshLaborantStages() {
+        var panels = Array.from(document.querySelectorAll('[data-laborant-stages]'));
+        if (!panels.length || global.__rpNavigating) return;
+        var url = global.location.href;
+        var response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', silent: true });
+        if (!response.ok || global.__rpNavigating || global.location.href !== url) return;
+        var html = await response.text();
+        if (global.__rpNavigating || global.location.href !== url) return;
+        var fresh = new DOMParser().parseFromString(html, 'text/html');
+        panels.forEach(function (panel) {
+            if (!panel.isConnected) return;
+            var next = fresh.querySelector('[data-laborant-stages="' + panel.dataset.laborantStages + '"]');
+            if (next && laborantStageState(next) !== laborantStageState(panel)) {
+                panel.replaceWith(next);
+            }
+        });
+    }
+
     function initLaborantPolling() {
         var config = getConfigState();
         if (!config || !config.isLaborant) {
             return;
         }
         var prefix = (config && config.linia) ? config.linia.toLowerCase() : 'agro';
+
+        if (config.linia === 'AGRO' && global.EventSource) {
+            var stream = new global.EventSource('/api/zasyp/stage-events');
+            var revision;
+            var pending = false;
+            var refreshing = false;
+            stream.addEventListener('warehouse-change', async function (event) {
+                if (event.data === revision) return;
+                revision = event.data;
+                pending = true;
+                if (refreshing) return;
+                refreshing = true;
+                try {
+                    while (pending) {
+                        pending = false;
+                        await refreshLaborantStages();
+                    }
+                } catch (error) {
+                    revision = undefined;
+                    console.error('Laborant stage sync err', error);
+                } finally {
+                    refreshing = false;
+                }
+            });
+            global.addEventListener('pagehide', function (event) {
+                if (!event.persisted) stream.close();
+            });
+        }
 
         addTask('zasyp-start-poll', 4000, function () {
             return fetchJson('/api/zasyp/poll_etap_start?linia=' + config.linia + '&last_seen=' + state.zasypStartLastSeen)

@@ -154,6 +154,40 @@ def podpowiedzi_nazw():
     names = InwentaryzacjaService.get_all_product_names(typ)
     return jsonify({"success": True, "names": names})
 
+def _production_inventory_entries(cursor, date_from, date_to, locations=()):
+    entries = []
+    for line in ('AGRO', 'PSD'):
+        movements = get_table_name('magazyn_ruch', line)
+        materials = get_table_name('magazyn_surowce', line)
+        location = 'UPPER(TRIM(r.zbiornik))'
+        params = [date_from, date_to]
+        location_filter = ''
+        if locations:
+            placeholders = ','.join(['%s'] * len(locations))
+            location_filter = f' AND {location} IN ({placeholders})'
+            params.extend(locations)
+        cursor.execute(
+            f"""
+            SELECT {location} AS lokalizacja,
+                   COALESCE(NULLIF(r.surowiec_nazwa, ''), s.nazwa, 'Brak nazwy') AS nazwa,
+                   s.nr_palety, s.nr_partii, r.surowiec_id AS paleta_id,
+                   r.ilosc_po - r.ilosc AS waga_systemowa,
+                   r.ilosc_po AS waga_faktyczna, r.ilosc AS roznica,
+                   r.autor_login AS user_login, r.autor_data AS data_wpisu
+            FROM {movements} r
+            LEFT JOIN {materials} s ON s.id = r.surowiec_id
+            WHERE r.typ_ruchu = 'INWENTARYZACJA_PROD' AND r.status = 'POTWIERDZONE'
+              AND r.autor_data >= %s AND r.autor_data < %s
+              AND LEFT({location}, 2) IN ('MZ', 'BB', 'KO')
+              {location_filter}
+            ORDER BY r.autor_data, r.id
+            """,
+            tuple(params),
+        )
+        entries.extend(dict(row, linia=line) for row in cursor.fetchall())
+    return sorted(entries, key=lambda row: row['data_wpisu'])
+
+
 @inwentaryzacja_bp.route('/api/lokalizacje', methods=['GET'])
 def get_lokalizacje():
     from datetime import datetime, timedelta
@@ -172,10 +206,10 @@ def get_lokalizacje():
     end_date_exclusive = end_date + timedelta(days=1)
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
     cursor.execute(
         """
-        SELECT DISTINCT UPPER(lokalizacja)
+        SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja
         FROM magazyn_inwentaryzacja_sesje
         WHERE created_at >= %s
           AND created_at < %s
@@ -185,10 +219,14 @@ def get_lokalizacje():
         """,
         (start_date.strftime('%Y-%m-%d'), end_date_exclusive.strftime('%Y-%m-%d')),
     )
-    locations = [row[0] for row in cursor.fetchall() if row and row[0]]
+    locations = {row['lokalizacja'] for row in cursor.fetchall()}
+    production = _production_inventory_entries(
+        cursor, start_date.strftime('%Y-%m-%d'), end_date_exclusive.strftime('%Y-%m-%d')
+    )
+    locations.update(row['lokalizacja'] for row in production)
     conn.close()
 
-    return jsonify({"success": True, "locations": locations})
+    return jsonify({"success": True, "locations": sorted(locations)})
 
 @inwentaryzacja_bp.route('/api/zapisz-wpis', methods=['POST'])
 def zapisz_wpis():
@@ -454,6 +492,7 @@ def drukuj_zbiorczo():
     query = "SELECT * FROM magazyn_inwentaryzacja_sesje WHERE " + " AND ".join(where) + " ORDER BY created_at ASC, id ASC"
     cursor.execute(query, tuple(params))
     sessions = cursor.fetchall()
+    production_entries = _production_inventory_entries(cursor, params[0], params[1], locs)
     conn.close()
 
     report_items = []
@@ -464,6 +503,7 @@ def drukuj_zbiorczo():
     return render_template(
         'inwentaryzacja/raport_zbiorczy.html',
         report_items=report_items,
+        production_entries=production_entries,
         date_from=start_date.strftime('%Y-%m-%d'),
         date_to=end_date.strftime('%Y-%m-%d'),
         selected_locations=locs,
