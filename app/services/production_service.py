@@ -389,7 +389,7 @@ class ProductionService:
 
                 cursor.execute(
                     f"""
-                    SELECT d.szarza_id, d.nazwa, COALESCE(d.kg_wydozowane, d.kg), COALESCE(d.kg_planowane, d.kg), d.id
+                    SELECT d.szarza_id, d.nazwa, COALESCE(d.kg_wydozowane, d.kg), COALESCE(d.kg_planowane, d.kg), d.id, d.data_potwierdzenia
                     FROM {table_dosypki} d
                     WHERE d.plan_id IN ({fmt_ids})
                       AND d.szarza_id IS NOT NULL
@@ -401,7 +401,8 @@ class ProductionService:
                 )
                 dosypki_rows = cursor.fetchall() or []
 
-                dosypki_by_szarza: Dict[int, List[Tuple[str, float, float, int]]] = {}
+                ko_history = ProductionService.get_ko_fill_history(cursor) if linia_u == 'AGRO' else {}
+                dosypki_by_szarza: Dict[int, List[tuple]] = {}
                 dosypki_sum_by_szarza: Dict[int, float] = {}
                 for d_row in dosypki_rows:
                     try:
@@ -411,13 +412,14 @@ class ProductionService:
                     nazwa = str(d_row[1] or '').strip()
                     kg_wyd = float(d_row[2] or 0)
                     kg_plan = float(d_row[3] or d_row[2] or 0)
-                    dosypki_by_szarza.setdefault(szarza_id, []).append((nazwa, kg_wyd, kg_plan, int(d_row[4])))
+                    fill = ProductionService.get_ko_fill_at(ko_history, d_row[5], material=nazwa) if linia_u == 'AGRO' else {}
+                    dosypki_by_szarza.setdefault(szarza_id, []).append((nazwa, kg_wyd, kg_plan, int(d_row[4]), fill.get('nr_partii', '')))
                     dosypki_sum_by_szarza[szarza_id] = float(dosypki_sum_by_szarza.get(szarza_id, 0.0)) + kg_wyd
 
                 # Load dumped Wiaderka z Maluchami
                 cursor.execute(
                     f"""
-                    SELECT w.szarza_id, w.id, w.kod_wiadra, w.waga_calkowita, DATE_FORMAT(w.data_zasypania, '%H:%i'), COALESCE(w.mieszalnik_kod, 'MI01')
+                    SELECT w.szarza_id, w.id, w.kod_wiadra, w.waga_calkowita, DATE_FORMAT(w.data_zasypania, '%H:%i'), COALESCE(w.mieszalnik_kod, 'MI01'), w.data_zasypania
                     FROM wiaderka_maluchy w
                     WHERE w.plan_id IN ({fmt_ids})
                       AND w.status = 'wrzucone_do_mieszalnika'
@@ -428,12 +430,12 @@ class ProductionService:
                 wiaderka_rows = cursor.fetchall() or []
                 bucket_ids = [int(w[1]) for w in wiaderka_rows if w[1] is not None]
                 items_by_bucket: Dict[int, List[Dict[str, Any]]] = {}
-                ko_pallet_map = ProductionService.get_ko_station_pallet_map(cursor=cursor, linia=linia)
+                bucket_times = {int(w[1]): w[6] for w in wiaderka_rows if w[1] is not None}
                 if bucket_ids:
                     fmt_b_ids = ','.join(['%s'] * len(bucket_ids))
                     cursor.execute(
                         f"""
-                        SELECT wiaderko_id, stacja_kod, surowiec_nazwa, waga_faktyczna
+                        SELECT wiaderko_id, stacja_kod, surowiec_nazwa, waga_faktyczna, data_nawazenia
                         FROM wiaderka_maluchy_pozycje
                         WHERE wiaderko_id IN ({fmt_b_ids})
                         ORDER BY id ASC
@@ -444,7 +446,7 @@ class ProductionService:
                         b_id = int(item_row[0])
                         stacja_kod = str(item_row[1] or '').strip().upper()
                         surowiec_nazwa = str(item_row[2] or '').strip()
-                        ko_info = ko_pallet_map.get(stacja_kod) or {}
+                        ko_info = ProductionService.get_ko_fill_at(ko_history, item_row[4] or bucket_times[b_id], station=stacja_kod)
                         is_premix = ProductionService.is_ko_premix(stacja_kod, surowiec_nazwa or ko_info.get('surowiec', ''))
                         items_by_bucket.setdefault(b_id, []).append({
                             'stacja': stacja_kod,
@@ -599,6 +601,67 @@ class ProductionService:
         if station in ('KO21', 'KO22', 'KO23'):
             return True
         return False
+
+    @staticmethod
+    def get_ko_fill_history(cursor):
+        history = {}
+        for table in ('magazyn_agro_ruch', 'magazyn_ruch'):
+            try:
+                cursor.execute(
+                    f"""
+                    SELECT UPPER(TRIM(r.zbiornik)), r.autor_data,
+                           COALESCE(NULLIF(TRIM(r.surowiec_nazwa), ''), TRIM(s.nazwa)),
+                           TRIM(s.nr_palety), TRIM(s.nr_partii), r.id
+                    FROM {table} r
+                    LEFT JOIN magazyn_surowce s ON s.id = r.surowiec_id
+                    WHERE r.status = 'POTWIERDZONE' AND r.typ_ruchu = 'PRODUKCJA'
+                      AND r.ilosc < 0 AND r.autor_data IS NOT NULL
+                      AND UPPER(TRIM(r.zbiornik)) LIKE 'KO%'
+                    """
+                )
+                for station, filled_at, name, pallet, batch, movement_id in cursor.fetchall() or []:
+                    history.setdefault(station, []).append(
+                        (filled_at, movement_id, name or '', pallet or '', batch or '')
+                    )
+            except Exception:
+                _logger.debug('Could not read KO fills from %s', table, exc_info=True)
+        for fills in history.values():
+            fills.sort(reverse=True)
+        return history
+
+    @staticmethod
+    def _ko_material_key(material):
+        key = ''.join(material.casefold().split())
+        if key in {'c', 'premixc', 'premiksc', 'witaminac', 'witc', 'wit.c', 'vitc', 'vit.c'}:
+            return 'vitaminc'
+        if key in {'c/cu', 'premixc/cu', 'premiksc/cu', 'vitc/cu', 'witaminac/cu'}:
+            return 'vitaminc/cu'
+        if key in {'c+chelaty', 'premixc+chelaty', 'premiksc+chelaty', 'witaminachelaty', 'witaminac+chelaty'}:
+            return 'vitaminc+chelaty'
+        return key
+
+    @staticmethod
+    def get_ko_fill_at(history, used_at, *, station=None, material=''):
+        if used_at is None:
+            return {}
+        material_key = ProductionService._ko_material_key(material)
+        stations = {station: history.get(station, [])} if station is not None else history
+        matches = set()
+        for code, fills in stations.items():
+            fill = next((entry for entry in fills if entry[0] <= used_at), None)
+            if fill is None:
+                continue
+            _, _, name, pallet, batch = fill
+            if station is None and (
+                not material_key or ProductionService._ko_material_key(name) != material_key
+                or not ProductionService.is_ko_premix(code, name)
+            ):
+                continue
+            matches.add((name, pallet, batch))
+        if len(matches) != 1:
+            return {}
+        name, pallet, batch = matches.pop()
+        return {'surowiec': name, 'nr_palety': pallet, 'nr_partii': batch}
 
     @staticmethod
     def get_ko_station_pallet_map(cursor=None, linia='AGRO') -> Dict[str, Dict[str, Any]]:

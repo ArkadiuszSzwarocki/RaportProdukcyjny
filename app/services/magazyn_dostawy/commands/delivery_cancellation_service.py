@@ -70,6 +70,9 @@ class DeliveryCancellationService:
             order_ref = dostawa['order_ref']
             items = json.loads(dostawa['items'] or '[]') if isinstance(dostawa['items'], str) else (dostawa['items'] or [])
 
+            if any(item.get('return_approval_login') for item in items):
+                return False, 'Zwrot różnicy wymaga zatwierdzenia przez wydającego; nie można go anulować.'
+
             # Restore buffered locations
             cls.restore_buffered_items(cursor, items, linia, order_ref, login)
 

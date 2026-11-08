@@ -702,6 +702,7 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
             conn.close()
 
     @admin_bp.route('/admin/ustawienia/email')
+    @admin_bp.route('/ustawienia-osobiste/email')
     @admin_bp.route('/moje_konto_email')
     @login_required
 
@@ -956,7 +957,9 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
         from app.repositories.osip_email_settings_repository import OsipEmailSettingsRepository
         repo = OsipEmailSettingsRepository()
         settings = repo.get_settings()
-        return render_template('admin/magazyn_email_settings.html', settings=settings)
+        from app.services.email_service import EmailService
+        actual_sender = EmailService().get_smtp_config_for_user(None).get('username')
+        return render_template('admin/magazyn_email_settings.html', settings=settings, actual_sender=actual_sender)
 
     @admin_bp.route('/admin/api/ustawienia-email-magazyn', methods=['POST'])
     @dynamic_role_required('ustawienia')

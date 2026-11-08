@@ -1,8 +1,10 @@
 function loadRack(prefix, slotToOpen = null) {
     const normPrefix = normalizeRackPrefix(prefix);
-    currentRackPrefix = normPrefix;
-    localStorage.setItem('lastInventoryRack', normPrefix);
-    localStorage.removeItem('lastInventoryLoc');
+    const slot = slotToOpen && normalizeLocationCode(slotToOpen);
+    if (slot && !isSlotOnInventoryRack(slot, normPrefix)) {
+        safeToast('Nie ma takiego gniazda: ' + slot, 'error');
+        return Promise.resolve();
+    }
     
     return fetch(window.INVENTORY_CONFIG.url_szukaj_regalu, {
         method: 'POST',
@@ -12,6 +14,10 @@ function loadRack(prefix, slotToOpen = null) {
     .then(r => r.json())
     .then(data => {
         if(data.success) {
+            currentRackPrefix = normPrefix;
+            localStorage.setItem('lastInventoryRack', normPrefix);
+            localStorage.removeItem('lastInventoryLoc');
+            closeDetail();
             rackData = data.rack_data || {};
             document.getElementById('locationSearchCard').style.display = 'none';
             document.getElementById('resultsContainer').style.display = 'none';
@@ -32,41 +38,36 @@ function loadRack(prefix, slotToOpen = null) {
             } else {
                 refocusRackScanner();
             }
+        } else {
+            safeToast(data.message || 'Nie można otworzyć tego regału.', 'error');
         }
-    });
+    }).catch(() => safeToast('Nie udało się sprawdzić regału.', 'error'));
 }
 
+
+function inventoryRackDimensions(prefix) {
+    return ({R04: [6, 3], R05: [4, 4], R06: [5, 5], R07: [11, 4], R09: [4, 6]})[prefix] || [10, 3];
+}
+
+function isSlotOnInventoryRack(slot, prefix) {
+    if (!/^R[0-9]{6}$/.test(slot) || !slot.startsWith(prefix)) return false;
+    const [maxCols, maxRows] = inventoryRackDimensions(prefix);
+    const col = Number(slot.slice(3, 5));
+    const row = Number(slot.slice(5, 7));
+    return col >= 1 && col <= maxCols && row >= 1 && row <= maxRows;
+}
 
 function renderRackGrid(prefix) {
     const normPrefix = normalizeRackPrefix(prefix);
     const grid = document.getElementById('rackGrid');
     grid.innerHTML = '';
     
-    let maxCols = 10;
-    let maxRows = 3;
-    
-    // Rack dimensions (columns x levels)
-    if (normPrefix === 'R04') {
-        maxCols = 6;
-        maxRows = 3;
-    } else if (normPrefix === 'R05') {
-        maxCols = 4;
-        maxRows = 4;
-    } else if (normPrefix === 'R06') {
-        maxCols = 5;
-        maxRows = 5;
-    } else if (normPrefix === 'R07') {
-        maxCols = 11;
-        maxRows = 4;
-    } else if (normPrefix === 'R09') {
-        maxCols = 4;
-        maxRows = 6;
-    }
-    
+    const [maxCols, maxRows] = inventoryRackDimensions(normPrefix);
+
     grid.style.gridTemplateColumns = `repeat(${maxCols}, minmax(60px, 1fr))`;
     grid.style.minWidth = maxCols > 6 ? `${Math.max(650, maxCols * 62)}px` : '300px';
 
-    for(let r = maxRows; r >= 1; r--) {
+    for (let r = maxRows; r >= 1; r--) {
         for(let c = 1; c <= maxCols; c++) {
             const colStr = c.toString().padStart(2, '0');
             const rowStr = r.toString().padStart(2, '0');
@@ -88,38 +89,17 @@ function renderRackGrid(prefix) {
             cell.style.position = 'relative';
             
             const items = rackData[locId] || [];
-            const hasCounted = items.some(i => i.counted);
-            
-            // Determine if there is a pallet in the slot currently (systemic or actual)
-            let hasPallet = false;
-            let activeItemCount = 0;
-            if (items.length > 0) {
-                const countedItems = items.filter(i => i.counted);
-                if (countedItems.length > 0) {
-                    hasPallet = countedItems.some(i => parseFloat(i.waga_faktyczna || 0) > 0);
-                    activeItemCount = countedItems.filter(i => parseFloat(i.waga_faktyczna || 0) > 0 && i.nazwa !== 'PUSTE GNIAZDO').length;
-                } else {
-                    hasPallet = true; // system has it, not counted yet
-                    activeItemCount = items.filter(i => parseFloat(i.stan_magazynowy || 0) > 0 && i.nazwa !== 'PUSTE GNIAZDO').length;
-                }
-            }
+            const pending = items.filter(item => !item.counted && item.nazwa !== 'PUSTE GNIAZDO');
+            const counted = items.filter(item => item.counted);
+            const complete = counted.length > 0 && pending.length === 0;
+            const present = items.filter(item => item.nazwa !== 'PUSTE GNIAZDO' &&
+                Number(item.counted ? item.waga_faktyczna : item.stan_magazynowy) > 0);
+            const partial = counted.length > 0 && pending.length > 0;
+            cell.style.background = complete ? '#dcfce7' : partial ? '#fef3c7' : items.length ? '#dbeafe' : 'white';
+            cell.style.color = complete ? '#166534' : partial ? '#92400e' : items.length ? '#1e40af' : '#94a3b8';
+            const indicatorNum = String(present.length);
+            const numColor = cell.style.color;
 
-            if(items.length > 0) {
-                cell.style.background = hasCounted ? '#dcfce7' : '#dbeafe'; // green if counted, blue if systemic exists
-                cell.style.color = hasCounted ? '#166534' : '#1e40af';
-            } else {
-                if (hasCounted) {
-                    cell.style.background = '#dcfce7'; // green if confirmed empty
-                    cell.style.color = '#166534';
-                } else {
-                    cell.style.background = '#ffffff'; // white if system empty & uncounted
-                    cell.style.color = '#94a3b8';
-                }
-            }
-
-            let indicatorNum = hasPallet ? String(activeItemCount > 0 ? activeItemCount : 1) : '0';
-            const numColor = hasPallet ? (hasCounted ? '#166534' : '#2563eb') : '#94a3b8';
-            
             cell.innerHTML = `
                 <span>${colStr}-${rowStr}</span>
                 <span style="font-size: 13px; font-weight: 900; margin-top: 3px; color: ${numColor};">${indicatorNum}</span>
@@ -155,13 +135,17 @@ function renderRackList(prefix) {
         return;
     }
     
-    allItemsOnRack.sort((a, b) => {
-        if (a.location < b.location) return -1;
-        if (a.location > b.location) return 1;
-        if (a.nazwa < b.nazwa) return -1;
-        if (a.nazwa > b.nazwa) return 1;
-        return 0;
-    });
+    function rackListOrder(location) {
+        const code = normalizeLocationCode(location);
+        if (!/^R[0-9]{6}$/.test(code)) return 'Z' + code;
+        // The stored slot code has the position before the row.
+        return code.slice(0, 3) + code.slice(5, 7) + code.slice(3, 5);
+    }
+
+    allItemsOnRack.sort((a, b) =>
+        rackListOrder(a.location).localeCompare(rackListOrder(b.location)) ||
+        a.nazwa.localeCompare(b.nazwa, 'pl')
+    );
     
     let html = '<div style="background: white; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">';
     html += '<table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">';
@@ -208,7 +192,7 @@ function refreshRackData(prefix, activeLocIdToOpen) {
     })
     .then(r => r.json())
     .then(data => {
-        if(data.success) {
+        if(data.success && currentRackPrefix === prefix) {
             rackData = data.rack_data;
             renderRackGrid(prefix);
             if(activeLocIdToOpen) {

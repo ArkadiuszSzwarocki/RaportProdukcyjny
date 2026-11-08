@@ -343,6 +343,11 @@ class ScannerMovementService:
             )
             if not history_saved:
                 raise RuntimeError("Nie udało się zapisać historii przesunięcia")
+            from app.services.inwentaryzacja_service import InwentaryzacjaService
+            InwentaryzacjaService.sync_pallet_relocation(
+                cur, surowiec_id, 'Surowiec', linia, stara_lokalizacja, nowa_lokalizacja,
+                pallet.get('nr_palety'), pallet.get('nr_palety'),
+            )
             from app.services.magazyn_dostawy.acceptance_service import AcceptanceService
             AcceptanceService.confirm_moved_pallet(cur, conn, pallet.get('nr_palety'), nowa_lokalizacja, worker_login)
             from app.services.osip_transfer_service import OsipTransferService

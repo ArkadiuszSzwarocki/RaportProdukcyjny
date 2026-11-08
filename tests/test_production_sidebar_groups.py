@@ -7,6 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def render(name, permissions=None, role='masteradmin', endpoint='main.index'):
     environment=Environment(loader=FileSystemLoader(str(ROOT/'templates')))
+    environment.globals['navigation_group_allowed'] = lambda group: True
     return environment.get_template('includes/sidebar/'+name).render(
         effective_hall='AGRO',role=role,role_has_access=lambda key:True if permissions is None else key in permissions,
         request=SimpleNamespace(args={'linia':'AGRO'},path='/agro/lp01' if endpoint=='agro_warehouse.lp01_view' else '/',endpoint=endpoint,blueprint='agro_warehouse'),

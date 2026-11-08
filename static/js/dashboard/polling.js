@@ -263,6 +263,71 @@
         }, false);
     }
 
+    function laborantStageState(panel) {
+        return Array.from(panel.querySelectorAll('[data-stage-state]')).map(function (stage) {
+            return stage.id + ':' + stage.dataset.stageState;
+        }).join(';');
+    }
+
+    async function refreshLiveZasypPanels() {
+        var panels = Array.from(document.querySelectorAll('[data-laborant-stages]'));
+        var bucketPanels = Array.from(document.querySelectorAll('[data-live-buckets]'));
+        if ((!panels.length && !bucketPanels.length) || global.__rpNavigating) return;
+        var url = global.location.href;
+        var response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', silent: true });
+        if (!response.ok || global.__rpNavigating || global.location.href !== url) return;
+        var html = await response.text();
+        if (global.__rpNavigating || global.location.href !== url) return;
+        var fresh = new DOMParser().parseFromString(html, 'text/html');
+        panels.forEach(function (panel) {
+            if (!panel.isConnected) return;
+            var next = fresh.querySelector('[data-laborant-stages="' + panel.dataset.laborantStages + '"]');
+            if (next && laborantStageState(next) !== laborantStageState(panel)) {
+                panel.replaceWith(next);
+            }
+        });
+        bucketPanels.forEach(function (panel) {
+            if (!panel.isConnected) return;
+            var next = fresh.querySelector('[data-live-buckets="' + panel.dataset.liveBuckets + '"]');
+            if (next && next.dataset.bucketState !== panel.dataset.bucketState) panel.replaceWith(next);
+        });
+    }
+
+    function initLiveZasypEvents(config) {
+        var role = String(config.currentRole || '').toLowerCase();
+        var roles = ['laborant', 'laboratorium', 'operator', 'operator_agro', 'operator_psd',
+            'pracownik', 'produkcja', 'lider', 'zarzad', 'admin', 'masteradmin'];
+        if (!roles.includes(role)) return;
+        if (config.linia === 'AGRO' && global.EventSource) {
+            var stream = new global.EventSource('/api/zasyp/stage-events');
+            var revision;
+            var pending = false;
+            var refreshing = false;
+            stream.addEventListener('warehouse-change', async function (event) {
+                if (event.data === revision) return;
+                revision = event.data;
+                pending = true;
+                if (refreshing) return;
+                refreshing = true;
+                try {
+                    while (pending) {
+                        pending = false;
+                        await refreshLiveZasypPanels();
+                    }
+                } catch (error) {
+                    revision = undefined;
+                    console.error('Zasyp live sync err', error);
+                } finally {
+                    refreshing = false;
+                }
+            });
+            global.addEventListener('pagehide', function (event) {
+                if (!event.persisted) stream.close();
+            });
+        }
+
+    }
+
     function initLaborantPolling() {
         var config = getConfigState();
         if (!config || !config.isLaborant) {
@@ -388,6 +453,7 @@
             initZasypOperatorPolling();
             initDosypkiObserverPolling();
             initLaborantPolling();
+            initLiveZasypEvents(config);
         }
         
         initSystemStatePolling();

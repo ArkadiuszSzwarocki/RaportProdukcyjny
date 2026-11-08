@@ -32,7 +32,11 @@ def test_buffer_navigation_reads_without_synchronizing_production():
 def test_menu_counts_never_fetch_during_html_render_and_mask_admin_data():
     app = Flask(__name__)
     app.secret_key = 'isolated-counters-check'
-    cached = {'pending_orders_count': {'val': {'pending_orders_count': 3}, 'ts': 0}, 'system_errors_count': {'val': {'system_errors_count': 7}, 'ts': 0}}
+    cached = {
+        'pending_orders_count': {'val': {'pending_orders_count': 3}, 'ts': 0},
+        'system_errors_count': {'val': {'system_errors_count': 7}, 'ts': 0},
+        'bug_report_counters': {'val': {'unread_bug_reports_count': 12}, 'ts': 0},
+    }
     with patch.dict(contexts._CONTEXT_CACHE, {}, clear=True), patch.object(contexts, '_get_cached_context', side_effect=AssertionError('Must not query counters while rendering')):
         with app.test_request_context('/'):
             session.update(zalogowany=True, rola='masteradmin')
@@ -40,8 +44,11 @@ def test_menu_counts_never_fetch_during_html_render_and_mask_admin_data():
             contexts._CONTEXT_CACHE.update(cached)
             assert contexts.inject_navigation_counters()['pending_orders_count'] == 3
             assert contexts.inject_navigation_counters()['system_errors_count'] == 7
+            assert contexts.inject_navigation_counters()['unread_bug_reports_count'] == 12
             session['rola'] = 'pracownik'
             assert contexts.inject_navigation_counters()['system_errors_count'] == 0
+            assert contexts.inject_navigation_counters()['unread_bug_reports_count'] == 0
+            assert contexts.inject_bug_report_counters()['unread_bug_reports_count'] == 0
 
 
 def test_picking_badge_counts_shortages_without_loading_or_reserving_orders():

@@ -114,7 +114,7 @@ function triggerScan() {
     scanInput.value = code;
   }
 
-  if (/^[0-9]{6}$/.test(code) && typeof requestPalletSuggestions === 'function') {
+  if (typeof isPalletSuffixSearch === 'function' && isPalletSuffixSearch(code)) {
     requestPalletSuggestions(code);
     return;
   }
@@ -142,8 +142,9 @@ function triggerScan() {
     return;
   }
 
+  const isRack = /^R[0-9]{6}$/i.test(code);
   if (currentPallet) {
-    if (isPalletCode(code)) {
+    if (!isRack && isPalletCode(code)) {
       lookupPallet(code);
     } else {
       doMoveFromMainInput(code);
@@ -432,7 +433,7 @@ async function doMoveFromMainInput(loc) {
         hidePallet();
         currentPallet = null;
         refreshSidebarBadgesSilently();
-      } else if (loc && loc.length >= 6) {
+      } else if (loc.length >= 6 && !/^R[0-9]{6}$/.test(loc)) {
         setProcessingState(false);
         lookupPallet(loc);
         return;
@@ -554,7 +555,10 @@ async function lookupPallet(code) {
     if (d.success && d.pallet) {
       if (d.pallet.is_station) {
         showStation(d.pallet);
-        showToast(`✅ Znaleziono stację: ${d.pallet.station_code}`, 'success');
+        const assigned = d.pallet.warehouse_stock?.assigned_material;
+        const occupied = Boolean(d.pallet.items?.length || Number(assigned?.stan_stacji) > 0);
+        showToast(occupied ? `✅ Znaleziono stację: ${d.pallet.station_code}` :
+          `Lokalizacja ${d.pallet.station_code} jest pusta.`, occupied ? 'success' : 'info');
       } else {
         showPallet(d.pallet);
         if (d.pallet.receiving_required) {

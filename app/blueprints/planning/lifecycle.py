@@ -4,7 +4,7 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 
 from app.db import get_db_connection, get_table_name
 from app.decorators import hall_restricted, roles_required, masteradmin_required
-from app.services.planning.status import PlanningStatusService
+from app.services.planning.status import COMPLETED_ORDER_RESTORE_ROLES, PlanningStatusService
 from app.services.planning.mutation import PlanningMutationService
 
 
@@ -18,7 +18,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
         )
 
     @planning_bp.route('/przywroc_zlecenie_page/<int:id>', methods=['GET'])
-    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @roles_required(*COMPLETED_ORDER_RESTORE_ROLES)
     def przywroc_zlecenie_page(id):
         """Render a confirmation page for resuming an order."""
         linia = request.args.get('linia') or 'PSD'
@@ -51,7 +51,7 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
             return redirect(url_for('main.index'))
 
     @planning_bp.route('/reanimate_zlecenie/<int:id>', methods=['POST'])
-    @roles_required('planista', 'admin', 'zarzad', 'lider')
+    @roles_required(*COMPLETED_ORDER_RESTORE_ROLES)
     @hall_restricted
     def reanimate_zlecenie(id):
         """Przywraca zakończone lub zarchiwizowane zlecenie do statusu zaplanowane."""
@@ -88,7 +88,10 @@ def register_planning_lifecycle_routes(planning_bp, *, return_url_builder):
             flash('Nie podano statusu', 'warning')
             return redirect(return_url_builder())
 
-        success, message = PlanningStatusService.change_status(id, status, linia=linia)
+        success, message = PlanningStatusService.change_status(
+            id, status, linia=linia,
+            can_restore_completed=str(session.get('rola') or '').strip().lower() in COMPLETED_ORDER_RESTORE_ROLES,
+        )
         flash(message, 'success' if success else 'warning')
         return redirect(return_url_builder())
 

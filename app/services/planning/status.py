@@ -6,6 +6,10 @@ import logging
 from flask import current_app, request, session
 from app.db import get_db_connection, get_table_name, refresh_bufor_queue
 
+COMPLETED_ORDER_RESTORE_ROLES = ('masteradmin', 'zarzad', 'admin')
+COMPLETED_ORDER_STATUSES = ('zakonczone', 'zamkniete')
+
+
 class PlanningStatusService:
     """Service for status operations."""
 
@@ -203,7 +207,7 @@ class PlanningStatusService:
             return (False, f'Błąd przy zawieszaniu: {str(e)}')
 
     @staticmethod
-    def change_status(plan_id, new_status, linia='PSD'):
+    def change_status(plan_id, new_status, linia='PSD', *, can_restore_completed=True):
         """Change plan status.
         
         Args:
@@ -220,7 +224,7 @@ class PlanningStatusService:
             
             # Get current plan info
             cursor.execute(
-                f"SELECT status, produkt FROM {table_plan} WHERE id=%s",
+                f"SELECT status, produkt FROM {table_plan} WHERE id=%s FOR UPDATE",
                 (plan_id,)
             )
             res = cursor.fetchone()
@@ -230,6 +234,11 @@ class PlanningStatusService:
                 return (False, 'Zlecenie nie istnieje.')
             
             old_status = res[0]
+            if old_status in COMPLETED_ORDER_STATUSES and new_status != old_status and not can_restore_completed:
+                conn.rollback()
+                conn.close()
+                return False, 'Przywracanie zakończonych zleceń jest dostępne tylko dla MasterAdmina, Zarządu i Admina.'
+
             produkt = res[1]
             
             # Update status

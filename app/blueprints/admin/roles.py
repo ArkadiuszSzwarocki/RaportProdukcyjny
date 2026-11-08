@@ -6,6 +6,8 @@ import tempfile
 from flask import current_app, jsonify, render_template, request, session
 
 from app.core.audit import audit_log
+from app.core.navigation_group_permissions import GROUPS, GROUP_KEYS
+from app.core.hall_roles import HALL_ROLES, with_hall_role_defaults, with_hall_roles
 from app.db import get_db_connection
 from app.decorators import dynamic_role_required, login_required, masteradmin_required
 
@@ -108,11 +110,14 @@ def register_admin_roles_routes(admin_bp):
         conn.close()
 
         perms, cfg_path = _load_role_permissions()
-        perms = _normalize_permissions_pages(perms)
+        roles = with_hall_roles(roles)
+        perms = with_hall_role_defaults(_normalize_permissions_pages(perms))
         from app.core.function_permissions import function_catalog
         functions = function_catalog()
-        pages = [key for key in dict.fromkeys(ROLES_PAGES + list(perms) + list(functions))
+        pages = [key for key in dict.fromkeys(ROLES_PAGES + list(perms) + list(functions) + sorted(GROUP_KEYS))
                  if not key.startswith('function.') or key in functions]
+        if 'jakosc.index' in perms and 'jakosc' not in perms:
+            pages.remove('jakosc')
         if perms == {}:
             try:
                 current_app.logger.error('Error loading role_permissions.json from %s', cfg_path)
@@ -135,7 +140,7 @@ def register_admin_roles_routes(admin_bp):
             for role in roles:
                 role_name = role[0]
                 json_key = role_name if role_name in json_role_keys else ROLE_NAME_MAPPING.get(role_name, role_name)
-                source = ordered_perms[page].get(json_key, {'access': page in functions, 'readonly': False})
+                source = ordered_perms[page].get(json_key, {'access': page in functions or page in GROUP_KEYS, 'readonly': False})
                 if role_name not in ordered_perms[page]:
                     ordered_perms[page][role_name] = {'access': bool(source.get('access')), 'readonly': bool(source.get('readonly'))}
 
@@ -147,7 +152,11 @@ def register_admin_roles_routes(admin_bp):
         except Exception:
             pass
 
-        return render_template('ustawienia_roles.html', pages=pages, roles=roles, perms_json=ordered_perms, functions=functions)
+        from app.core.shared_inventory_permissions import WAREHOUSE_PAGES
+        return render_template('ustawienia_roles.html', pages=pages, roles=roles, perms_json=ordered_perms,
+                               functions=functions, shared_warehouse_pages=sorted(WAREHOUSE_PAGES),
+                               navigation_groups={title: f'group.{key}' for key, title in GROUPS.items()},
+                               hall_roles=HALL_ROLES)
 
     @admin_bp.route('/admin/ustawienia/roles/users')
     @dynamic_role_required('ustawienia')
@@ -215,7 +224,7 @@ def register_admin_roles_routes(admin_bp):
             return ('Bad request', 400)
         from app.core.function_permissions import function_catalog
         existing, _ = _load_role_permissions()
-        known = set(ROLES_PAGES) | set(existing) | set(function_catalog())
+        known = set(ROLES_PAGES) | set(existing) | set(function_catalog()) | GROUP_KEYS
         if not isinstance(data, dict) or any(
             page not in known or not isinstance(values, dict) or any(
                 not isinstance(value, dict) or type(value.get('access')) is not bool
@@ -318,6 +327,8 @@ def register_admin_roles_routes(admin_bp):
 
             if not role_name:
                 return jsonify({'success': False, 'error': 'Nazwa roli nie może być pusta'}), 400
+            if role_name in HALL_ROLES:
+                return jsonify(success=False, error='Ta rola jest już dostępna jako rola hali.'), 400
 
             if not all(character.isalnum() or character == '_' for character in role_name):
                 return jsonify({'success': False, 'error': 'Nazwa roli może zawierać tylko litery, liczby i podkreślnik'}), 400
@@ -341,7 +352,7 @@ def register_admin_roles_routes(admin_bp):
 
             for page in config:
                 if isinstance(config[page], dict):
-                    config[page][role_name] = {'access': False, 'readonly': False}
+                    config[page][role_name] = {'access': page in GROUP_KEYS, 'readonly': False}
 
             try:
                 conn = get_db_connection()

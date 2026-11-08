@@ -67,6 +67,10 @@ def enforce_logistics_permissions(default_line='ALL'):
     if line not in {'PSD', 'AGRO', 'OSIP', 'ALL'}:
         return jsonify(success=False, error='forbidden'), 403
     write = request.method not in {'GET', 'HEAD', 'OPTIONS'}
+    if line == 'OSIP':
+        from app.core.navigation_group_permissions import group_allowed
+        if not group_allowed('osip'):
+            return jsonify(success=False, error='forbidden'), 403
     if request.endpoint in {'magazyn_dostawy.api_draft_check', 'agro_warehouse.suggest_location'}:
         write = False
     halls = ('PSD', 'AGRO', 'OSIP') if line == 'ALL' else (line,)

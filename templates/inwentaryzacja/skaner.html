@@ -2,6 +2,7 @@
 
 {% block scanner_css %}
 <style>
+    #rackLocationScanRow[hidden], #detailPalletScanRow[hidden] { display: none !important; }
     :root {
         --scanner-mode-color: #f97316;
     }
@@ -207,7 +208,10 @@ Inwentaryzacja Magazynu
 {% block scanner_scripts %}
 <script>
     window.INVENTORY_CONFIG = {
+        canMovePallet: {{ (session.get('rola', '')|trim|lower == 'masteradmin')|tojson }},
+        url_move_pallet: {{ url_for('inwentaryzacja.move_inventory_pallet')|tojson }},
         sesjaId: {{ sesja_id }},
+        url_warehouse_events: {{ url_for('warehouse_v2.warehouse_live_events')|tojson }},
         targetLokalizacja: '{{ target_lokalizacja | default("") }}',
         url_szukaj_lokalizacji: '{{ url_for("inwentaryzacja.szukaj_lokalizacji") }}',
         url_verify_location: '{{ url_for("inwentaryzacja.verify_location") }}',
@@ -221,13 +225,13 @@ Inwentaryzacja Magazynu
     };
 </script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/globals.js') }}?v={{ static_version }}&v2=26"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/utils.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/utils.js') }}?v={{ static_version }}&v2=27"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/api.js') }}?v={{ static_version }}&v2=26"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/rack_mode.js') }}?v={{ static_version }}&v2=26"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/slot_mode.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/rack_mode.js') }}?v={{ static_version }}&v2=28&multi_pallet=3&warehouse_live=2"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/slot_mode.js') }}?v={{ static_version }}&v2=26&multi_pallet=4&warehouse_live=1&inventory_move_role=2"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/blind_mode_v2.js') }}?v={{ static_version }}&v2=26"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/pallet_manager.js') }}?v={{ static_version }}&v2=26"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/main.js') }}?v={{ static_version }}&v2=26"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/pallet_manager.js') }}?v={{ static_version }}&v2=26&multi_pallet=3&inventory_move_role=2"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/main.js') }}?v={{ static_version }}&v2=29&warehouse_live=1"></script>
 
 
 

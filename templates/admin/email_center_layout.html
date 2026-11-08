@@ -16,7 +16,11 @@
     <p>Konta nadawcze SMTP, odbiorcy raportów, automatyczna wysyłka magazynowa oraz historia wiadomości i błędów.</p>
   </div>{% if role_has_access('ustawienia') %}<a href="{{ url_for('admin.admin_ustawienia') }}" class="btn btn-secondary">Ustawienia systemu</a>{% endif %}</header>
   <nav class="email-center-nav" aria-label="Ustawienia poczty">
-    <a href="{{ url_for('admin.email_center', tab='konta') }}"{% if mail_tab == 'konta' %} aria-current="page"{% endif %}>Konta SMTP i odbiorcy</a>
+    <a href="{{ url_for('admin.email_center') }}"{% if mail_tab == 'start' %} aria-current="page"{% endif %}>Przegląd</a>
+    {% if mail_role in ['admin','masteradmin'] %}<a href="{{ url_for('admin.email_center',tab='mapa') }}"{% if mail_tab == 'mapa' %} aria-current="page"{% endif %}>Konta i wysyłki</a>{% endif %}
+    {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}<a href="{{ url_for('admin.email_center',tab='dzienne') }}"{% if mail_tab == 'dzienne' %} aria-current="page"{% endif %}>Raporty dzienne</a>{% endif %}
+    {% if mail_role in ['admin','masteradmin','zarzad','lider'] %}<a href="{{ url_for('admin.email_center', tab='stany') }}"{% if mail_tab == 'stany' %} aria-current="page"{% endif %}>Stany minimalne opakowań</a>{% endif %}
+    {% if mail_role in ['admin','masteradmin'] %}<a href="{{ url_for('admin.email_center', tab='konta') }}"{% if mail_tab == 'konta' %} aria-current="page"{% endif %}>Konto systemowe i odbiorcy</a>{% endif %}
     {% if role_has_access('ustawienia') %}<a href="{{ url_for('admin.email_center', tab='magazyn') }}"{% if mail_tab == 'magazyn' %} aria-current="page"{% endif %}>Magazyn i OSIP</a>{% endif %}
     {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}<a href="{{ url_for('admin.email_center', tab='historia') }}"{% if mail_tab == 'historia' %} aria-current="page"{% endif %}>Historia wysyłek</a>{% endif %}
     {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}<a href="{{ url_for('admin.email_center', tab='raporty') }}"{% if mail_tab == 'raporty' %} aria-current="page"{% endif %}>Wysyłki raportów</a>{% endif %}

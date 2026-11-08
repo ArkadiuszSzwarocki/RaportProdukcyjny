@@ -1,0 +1,21 @@
+{# cspell:words preheader #}
+{% extends 'emails/packaging_stock_alert.html' %}
+{% block preheader %}Zestawienie niskich stanów: {{ rows|length }} opakowań poniżej minimum. Odbiorcy: {{ group }}.{% endblock %}
+{% block alert_content %}
+<tr><td bgcolor="#ffffff" style="padding:28px 24px 20px;background-color:#ffffff;">
+  <span style="display:inline-block;padding:7px 11px;background-color:#fff1df;color:#9a4b08;border-radius:6px;font-size:12px;font-weight:bold;">ZESTAWIENIE NISKICH STANÓW</span>
+  <h1 style="margin:18px 0 10px;font-size:26px;line-height:1.3;color:#183247;">Opakowania do uzupełnienia</h1>
+  <p style="font-size:14px;line-height:1.7;color:#52667a;">Liczba opakowań poniżej minimum: <strong>{{ rows|length }}</strong>. Zestawienie wysłano ręcznie dla odbiorców <strong>{{ group }}</strong>.</p>
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr bgcolor="#20374b"><th align="left" style="padding:12px 8px;color:white;">Opakowanie</th><th align="right" style="padding:12px 8px;color:white;">Stan</th><th align="right" style="padding:12px 8px;color:white;">Minimum</th><th align="right" style="padding:12px 8px;color:white;">Brakuje</th></tr>
+    {% for row in rows %}
+    <tr bgcolor="{{ '#f8fafc' if loop.index is odd else '#ffffff' }}">
+      <td style="padding:14px 8px;border-bottom:1px solid #e2e8f0;color:#20374b;word-break:break-word;"><strong>{{ row.material }}</strong><br><span style="font-size:11px;color:#64748b;">{{ row.unit }}</span></td>
+      <td align="right" style="padding:14px 8px;border-bottom:1px solid #e2e8f0;color:#be123c;font-weight:bold;">{{ row.stock|stock_quantity }}</td>
+      <td align="right" style="padding:14px 8px;border-bottom:1px solid #e2e8f0;color:#20374b;">{{ row.minimum|stock_quantity }}</td>
+      <td align="right" style="padding:14px 8px;border-bottom:1px solid #e2e8f0;color:#b45309;font-weight:bold;">{{ row.shortage|stock_quantity }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</td></tr>
+{% endblock %}

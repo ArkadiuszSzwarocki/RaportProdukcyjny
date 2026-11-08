@@ -186,6 +186,10 @@
                     <div style="font-size: 0.8rem; color: #166534; margin-top: 4px;">
                         Przyjęto na lokalizację: <strong>{{ item.lokalizacja_przyjecia or '---' }}</strong>
                         {% if item.nr_partii %}| Partia: <strong>{{ item.nr_partii }}</strong>{% endif %}
+                        {% if item.return_document_id %}
+                        <span>Wydano: {{ item.original_quantity }} · Przyjęto: {{ item.accepted_quantity }} · Nie przyjęto: {{ item.unaccepted_quantity }}.
+                        <a href="/magazyn-dostawy/przyjecie-ruchu/{{ item.return_document_id }}?linia=ALL">Zwrot różnicy</a> · {{ item.quantity_reason }}</span>
+                        {% endif %}
                         {% if item.accepted_by %}| Magazynier: <strong>{{ item.accepted_by }}</strong>{% endif %}
                     </div>
                 </div>
@@ -218,7 +222,7 @@
             {% else %}
             <!-- Editable pending state view -->
             {% set user_role = (session.get('rola') or session.get('role') or '')|lower|trim %}
-            {% set can_manual_accept = user_role in ['masteradmin', 'admin', 'zarzad'] %}
+            {% set can_manual_accept = user_role in ['masteradmin', 'admin', 'zarzad', 'kierownik', 'lider', 'magazynier'] or (item.return_approval_login and item.return_approval_login|lower == session.get('login', '')|lower) %}
 
             {% if not is_external and not can_manual_accept %}
             <!-- Magazynier / Standardowy użytkownik - Tylko skanowanie (wpisywanie ręczne ukryte) -->
@@ -273,11 +277,27 @@
                 </div>
             </div>
 
+            {% if item.return_approval_login %}
+            <p role="status"><strong>Zwrot nieprzyjętej różnicy.</strong> Zatwierdza wydający: {{ item.return_approval_login }}.
+                Powód: {{ item.return_reason }}. Paleta źródłowa: {{ item.return_parent_sscc }}.</p>
+            {% else %}
+            <div class="acceptance-inputs-row" style="margin:12px 0; flex-wrap:wrap">
+                <div class="field-box">
+                    <label for="received_qty_{{ idx }}">Faktycznie przyjęta ilość (wydano {{ qty }})</label>
+                    <input id="received_qty_{{ idx }}" type="number" min="0.001" max="{{ qty }}" step="0.001" value="{{ qty }}">
+                </div>
+                <div class="field-box" style="flex:1">
+                    <label for="quantity_reason_{{ idx }}">Powód różnicy (wymagany przy zmianie ilości)</label>
+                    <input id="quantity_reason_{{ idx }}" type="text" maxlength="500" placeholder="np. część palety nieprzyjęta">
+                </div>
+            </div>
+            <p style="font-size:.8rem;color:#64748b">Różnica nie trafi na dostępny stan. Powstanie zwrot do miejsca wydania, oczekujący na zatwierdzenie przez wydającego.</p>
+            {% endif %}
             <div class="bottom-row-grid">
                 <div class="acceptance-inputs-row">
                     <div class="field-box loc strong">
                         <label for="loc_{{ idx }}">Lokalizacja odstawienia</label>
-                        <input id="loc_{{ idx }}" type="text" placeholder="np. R040101" value="{{ item.lokalizacja_przyjecia or '' }}" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
+                        <input id="loc_{{ idx }}" type="text" placeholder="np. R040101" value="{{ item.lokalizacja_przyjecia or (item.targetSpot if item.return_approval_login else '') }}" list="locationSuggestionsList" oninput="handleLocationSuggestInput(this)" onfocus="queueLocationSuggestions(this.value)" autocomplete="off">
                     </div>
                     <div>
                         <label style="font-size: 0.72rem; font-weight: 800; color: #0f766e; text-transform: uppercase; margin-bottom: 5px; display: block; letter-spacing: 0.4px;">Drukarka do etykiet</label>

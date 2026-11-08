@@ -1,0 +1,20 @@
+{% extends 'admin/email_center_layout.html' %}
+{% block email_content %}
+<section style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:22px;">
+<h2>Raporty dzienne</h2>
+<form method="get" action="{{ url_for('admin.email_center') }}" style="display:flex;gap:14px;flex-wrap:wrap;align-items:end;">
+<input type="hidden" name="tab" value="dzienne">
+<label>Data raportu<br><input type="date" name="data" value="{{ day }}" required style="padding:10px;"></label>
+<label>Hala produkcyjna<br><select name="linia" style="padding:10px;"><option{% if line=='AGRO' %} selected{% endif %}>AGRO</option><option{% if line=='PSD' %} selected{% endif %}>PSD</option></select></label>
+<button class="btn btn-primary">Pokaż raporty</button>
+</form>
+<div style="display:grid;gap:0;margin-top:22px;">
+<a style="padding:16px 0;border-bottom:1px solid #e2e8f0;" href="{{ url_for('main.raport_podglad_pdf',linia=line,data=day) }}">Raport dobowy / zmianowy {{ line }} — podgląd i PDF →</a>
+<a style="padding:16px 0;border-bottom:1px solid #e2e8f0;" href="{{ url_for('main.raport_zakoncz_zmiane_page',linia=line,data=day) }}">Ręczna wysyłka raportu zmianowego {{ line }} →</a>
+<a style="padding:16px 0;border-bottom:1px solid #e2e8f0;" href="{{ url_for('magazyn_dostawy.print_daily_report_center',data=day) }}">Dzienny raport magazynowy — dokumenty i wydruk →</a>
+<a style="padding:16px 0;border-bottom:1px solid #e2e8f0;" href="{{ url_for('admin.email_center',tab='magazyn') }}">Edycja godziny i odbiorców dziennego raportu magazynowego →</a>
+<a style="padding:16px 0;" href="{{ url_for('admin.email_center',tab='raporty') }}">Historia automatycznych wysyłek raportów →</a>
+</div>
+<p style="color:#64748b;line-height:1.7;">Automatyczny raport produkcyjny dotyczy AGRO. Termin dla {{ day }}: <strong>{{ schedule.scheduled_time or '15:00' }}</strong>{% if schedule.is_paused %} — wysyłka wstrzymana{% endif %}. Wybór daty otwiera raporty z wybranego dnia i nie uruchamia wysyłki.</p>
+</section>
+{% endblock %}

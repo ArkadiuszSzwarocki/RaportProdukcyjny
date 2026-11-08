@@ -8,6 +8,7 @@ from .system import register_admin_system_routes
 from .team import register_admin_team_routes
 from .users_center import register_users_center_routes
 from .email_center import register_email_center_routes
+from .packaging_alerts import register_packaging_alert_routes
 from .workowanie_times import register_admin_workowanie_times_routes
 from .warehouse_capacities import register_admin_warehouse_capacities_routes
 from .raw_materials import register_admin_raw_materials_routes
@@ -17,13 +18,14 @@ from .tank_settings import register_admin_tank_settings_routes
 from .user_permissions import register_user_permissions_routes
 from .process_flow import register_admin_process_flow_routes
 from app.db import create_notification_for_login, list_online_users
+from app.core.hall_roles import with_hall_roles
 
 def _load_roles(cursor):
     try:
         cursor.execute("SELECT name, label FROM roles ORDER BY id ASC")
-        return cursor.fetchall()
+        return with_hall_roles(cursor.fetchall())
     except Exception:
-        return [('admin', 'admin'), ('planista', 'planista'), ('pracownik', 'pracownik'), ('magazynier', 'magazynier'), ('dur', 'dur'), ('zarzad', 'zarzad'), ('laborant', 'laborant')]
+        return with_hall_roles([('admin', 'admin'), ('planista', 'planista'), ('pracownik', 'pracownik'), ('magazynier', 'magazynier'), ('dur', 'dur'), ('zarzad', 'zarzad'), ('laborant', 'laborant')])
 
 admin_bp = Blueprint('admin', __name__)
 register_admin_backup_routes(admin_bp)
@@ -44,4 +46,5 @@ register_admin_process_flow_routes(admin_bp)
 
 register_users_center_routes(admin_bp)
 
+register_packaging_alert_routes(admin_bp)
 register_email_center_routes(admin_bp)

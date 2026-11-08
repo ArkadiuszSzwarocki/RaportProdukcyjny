@@ -9,7 +9,7 @@ RUN pip install --require-hashes --no-cache-dir -r requirements-build.lock && \
 FROM python:3.11-alpine@sha256:d9368b3a5ac59afea7b5d4f2e2aea0941dbf9fdee9c369c5bec00b98244bc929
 WORKDIR /app
 RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser
-RUN apk add --no-cache tzdata libstdc++
+RUN apk add --no-cache tzdata libstdc++ font-dejavu
 
 COPY --from=builder /root/.local /home/appuser/.local
 # Installation tools and their bundled dependencies belong only in the builder.

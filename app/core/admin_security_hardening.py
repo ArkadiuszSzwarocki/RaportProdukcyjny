@@ -175,6 +175,12 @@ def secure_email_settings_page():
     session_user_id = session.get('user_id')
     user_login = str(session.get('login') or '').strip()
     is_admin = _normalized_role() in {'admin', 'masteradmin'}
+    account_edit = request.endpoint == 'admin.email_account_edit'
+    if account_edit and not is_admin:
+        return jsonify({'success':False,'message':'Brak uprawnień.'}), 403
+    personal_page = account_edit or request.path in ('/ustawienia-osobiste/email', '/moje_konto_email')
+    if not is_admin and not personal_page:
+        return redirect('/admin/ustawienia/poczta')
 
     if not session_user_id and user_login:
         conn = get_db_connection()
@@ -191,13 +197,13 @@ def secure_email_settings_page():
     if not session_user_id:
         return redirect('/login')
 
-    target_user_id = request.args.get('user_id', type=int) if is_admin else None
+    target_user_id = request.view_args.get('target_user_id') if account_edit else None
     edit_user_id = target_user_id or int(session_user_id)
     repo = UserEmailSettingsRepository()
     user_cfg = repo.get_by_user_id(edit_user_id)
 
     user_accounts_list = []
-    if is_admin:
+    if is_admin and not personal_page:
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -226,6 +232,17 @@ def secure_email_settings_page():
         all_recipients = []
 
     edit_user_login = user_login
+    if account_edit:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute('SELECT login FROM uzytkownicy WHERE id=%s', (edit_user_id,))
+            row = cursor.fetchone()
+            if not row:
+                return 'Nie znaleziono użytkownika.', 404
+            edit_user_login = row[0]
+        finally:
+            conn.close()
     for item in user_accounts_list:
         if int(item.get('id') or 0) == int(edit_user_id):
             edit_user_login = item.get('login') or user_login
@@ -236,7 +253,8 @@ def secure_email_settings_page():
         user_email_cfg=user_cfg,
         system_config=system_cfg,
         all_recipients=all_recipients,
-        default_scope='user' if not is_admin or user_cfg is not None else 'system',
+        default_scope='user' if personal_page else 'system',
+        personal_email_page=personal_page,
         current_user_login=user_login,
         edit_user_id=edit_user_id,
         edit_user_login=edit_user_login,

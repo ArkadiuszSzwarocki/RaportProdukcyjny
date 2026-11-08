@@ -148,7 +148,7 @@
     <!-- Header -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
         <div>
-            <h1 style="font-size: 1.4rem; font-weight: 800; color: #0f172a; margin: 0;">📧 Historia Wysłanych E-maili</h1>
+            <h1 style="font-size: 1.4rem; font-weight: 800; color: #0f172a; margin: 0;">📧 Historia wysyłek e-mail</h1>
             <p style="font-size: 0.82rem; color: #64748b; margin: 3px 0 0 0;">Pełna kontrola nad automatycznymi raportami i wysyłkami wiadomości</p>
         </div>
         <div style="display: flex; gap: 8px;">
@@ -167,28 +167,28 @@
             <div class="kpi-icon blue"><span class="material-icons">send</span></div>
             <div>
                 <div class="kpi-val">{{ stats.total }}</div>
-                <div class="kpi-lbl">Wysłane dzisiaj</div>
+                <div class="kpi-lbl">Zarejestrowane próby</div>
             </div>
         </div>
         <div class="kpi-card">
             <div class="kpi-icon green"><span class="material-icons">check_circle</span></div>
             <div>
                 <div class="kpi-val">{{ stats.success }}</div>
-                <div class="kpi-lbl">Dostarczone</div>
+                <div class="kpi-lbl">Przyjęte przez SMTP</div>
             </div>
         </div>
         <div class="kpi-card">
             <div class="kpi-icon red"><span class="material-icons">error</span></div>
             <div>
                 <div class="kpi-val">{{ stats.failed }}</div>
-                <div class="kpi-lbl">Błędy SMTP</div>
+                <div class="kpi-lbl">Błędy wysyłki</div>
             </div>
         </div>
         <div class="kpi-card">
             <div class="kpi-icon purple"><span class="material-icons">schedule</span></div>
             <div>
                 <div class="kpi-val" style="font-size: 1.1rem; padding-top: 4px;">{{ stats.last_sent_at|default('Brak', true) }}</div>
-                <div class="kpi-lbl">Ostatnia wysyłka</div>
+                <div class="kpi-lbl">Ostatnia próba</div>
             </div>
         </div>
     </div>
@@ -214,6 +214,7 @@
                 <select name="status" class="filter-input" onchange="this.form.submit()">
                     <option value="ALL" {% if selected_status == 'ALL' %}selected{% endif %}>Wszystkie</option>
                     <option value="SUCCESS" {% if selected_status == 'SUCCESS' %}selected{% endif %}>Tylko sukces ✅</option>
+                    <option value="SKIPPED" {% if selected_status == 'SKIPPED' %}selected{% endif %}>Pominięte — bez wysyłki</option>
                     <option value="FAILED" {% if selected_status == 'FAILED' %}selected{% endif %}>Tylko błędy ❌</option>
                 </select>
             </div>
@@ -243,6 +244,8 @@
                     <td>
                         {% if log.status == 'SUCCESS' %}
                         <span class="status-badge success"><span class="material-icons" style="font-size: 14px;">check</span> Sukces</span>
+                        {% elif log.status == 'SKIPPED' %}
+                        <span class="status-badge" style="background:#f1f5f9;color:#475569;" title="{{ log.error_message }}">Pominięto</span>
                         {% else %}
                         <span class="status-badge failed" title="{{ log.error_message }}"><span class="material-icons" style="font-size: 14px;">close</span> Błąd</span>
                         {% endif %}
@@ -258,6 +261,7 @@
                     </td>
                     <td style="font-weight: 600;">
                         {{ log.subject }}
+                        <div style="font-size:0.74rem;color:#64748b;margin-top:3px;font-weight:normal;">Nadawca: {{ log.sender }}</div>
                         {% if log.error_message %}
                         <div style="font-size: 0.74rem; color: #dc2626; margin-top: 2px; font-weight: normal;">
                             {{ log.error_message }}

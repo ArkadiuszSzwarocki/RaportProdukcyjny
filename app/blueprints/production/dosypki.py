@@ -7,7 +7,6 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name, list_unconfirmed_dosypki, sync_dosypka_notifications
 from app.decorators import roles_required, _normalize_role
-from app.services.zasyp_etapy_service import ZasypEtapyService
 from app.repositories.production_repository import cancel_confirmed_dosypka
 
 
@@ -465,7 +464,6 @@ def register_production_dosypki_routes(
             cursor.execute(f"SELECT plan_id, szarza_id FROM {table_dosypki} WHERE id=%s", (dosypka_id,))
             dosypka_row = cursor.fetchone()
             plan_id = dosypka_row[0] if dosypka_row else None
-            batch_id = dosypka_row[1] if dosypka_row else None
             if plan_id:
                 cursor.execute(f"SELECT id FROM {table_plan} WHERE id=%s FOR UPDATE", (plan_id,))
                 cursor.fetchone()
@@ -526,17 +524,11 @@ def register_production_dosypki_routes(
                     linia=linia,
                 )
 
-            next_stage = None
-            if str(linia).upper() == 'AGRO' and plan_id and batch_id:
-                next_stage = ZasypEtapyService.advance_after_confirmed_dosypka(
-                    cursor, plan_id, batch_id, session.get('login') or '')
             conn.commit()
             mark_dosypki_updated(linia)
             message = 'Potwierdzono dosypkę.'
-            if next_stage is not None:
-                message += ' Automatycznie zatrzymano mieszanie i uruchomiono etap Dosypka.'
             if is_ajax:
-                return jsonify({'success': True, 'message': message, 'plan_id': plan_id, 'next_stage': next_stage})
+                return jsonify({'success': True, 'message': message, 'plan_id': plan_id, 'next_stage': None})
             flash(message, 'success')
             try:
                 audit_log('Potwierdził dosypkę', f'id={dosypka_id}, plan_id={plan_id}')

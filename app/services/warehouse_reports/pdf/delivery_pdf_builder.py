@@ -1,3 +1,5 @@
+from html import escape
+from app.services.magazyn_dostawy.receipt_difference import difference_note
 from typing import Dict, Any, List
 from datetime import datetime
 from app.services.warehouse_reports.warehouse_document_classifier import WarehouseDocumentClassifier
@@ -22,7 +24,9 @@ class DeliveryPdfBuilder:
         total_qty = 0.0
 
         for idx, it in enumerate(items, start=1):
-            pname = it.get('productName') or 'Brak nazwy'
+            pname = escape(it.get('productName') or 'Brak nazwy')
+            note = escape(difference_note(it))
+            display_name = pname + ('<br><small>' + note + '</small>' if note else '')
             nr_pal = it.get('nr_palety') or '-'
             nr_partii = it.get('nr_partii') or '-'
             prod_date = it.get('data_produkcji') or '-'
@@ -48,7 +52,7 @@ class DeliveryPdfBuilder:
             rows_html += f"""
             <tr>
                 <td style="text-align: center; font-weight: bold; color: #64748b;">{idx}</td>
-                <td style="font-weight: 700; color: #0f172a;">{pname}</td>
+                <td style="font-weight: 700; color: #0f172a;">{display_name}</td>
                 <td style="text-align: center; font-family: monospace; font-size: 8px; font-weight: bold;">{nr_pal}</td>
                 <td style="text-align: center;">{nr_partii}</td>
                 <td style="text-align: center;">{prod_date}</td>
@@ -207,7 +211,7 @@ class DeliveryPdfBuilder:
             'headers': ['Lp', 'Produkt', 'Nr Palety', 'Partia', 'Ilość', 'Skąd', 'Dokąd', 'Status'],
             'items': [
                 [
-                    it.get('productName') or 'Brak',
+                    (it.get('productName') or 'Brak') + (' — ' + difference_note(it) if difference_note(it) else ''),
                     it.get('nr_palety') or '-',
                     it.get('nr_partii') or '-',
                     f"{WarehouseActivityQueryService.extract_item_qty(it):,.2f} kg",

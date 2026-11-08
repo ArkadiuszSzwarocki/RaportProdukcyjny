@@ -1,7 +1,7 @@
 {# cspell:words wydozowań #}
-{% set reports_agro = effective_hall in ['AGRO', 'ALL'] %}
-{% set reports_psd = effective_hall in ['PSD', 'ALL'] %}
-{% set reports_general = role not in ['pracownik', 'magazynier'] %}
+{% set reports_agro = navigation_group_allowed('reports_agro') and effective_hall in ['AGRO', 'ALL'] %}
+{% set reports_psd = navigation_group_allowed('reports_psd') and effective_hall in ['PSD', 'ALL'] %}
+{% set reports_general = navigation_group_allowed('reports_general') and role not in ['pracownik', 'agro', 'psd', 'magazynier'] %}
 {% set reports_active = request.endpoint in ['agro_warehouse.raport_palet', 'agro_warehouse.raport_palet_daily', 'production.zasyp_etapy_podsumowanie', 'warehouse.podsumowanie_zasypow', 'production.raport_zasypy_dosypki', 'warehouse_v2.raport_palet', 'magazyn_dostawy.raport', 'zarzad.raporty_okresowe', 'zarzad.dosing_times_report', 'quality.jakosc_podsumowanie_zasypow'] or request.path.startswith('/agro/report') or request.path == '/zarzad' or request.path.startswith('/zarzad/') %}
 {% if reports_agro or reports_psd or reports_general or role_has_access('wyniki') or role_has_access('jakosc') %}
 <div class="nav-item-group">
@@ -27,15 +27,19 @@
         {% endif %}
 
           {% set zasypy_dosypki_endpoint = 'production.raport_zasypy_dosypki' if app.view_functions.get('production.raport_zasypy_dosypki') else 'warehouse.podsumowanie_zasypow' %}
+          {% if navigation_group_allowed('entry_dosing_report_agro') %}
           <a href="{{ url_for(zasypy_dosypki_endpoint, linia='AGRO') }}" 
               class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'AGRO' %}active{% elif zasypy_dosypki_endpoint == 'warehouse.podsumowanie_zasypow' and request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia') == 'AGRO' %}active{% endif %}">
             Raport Zasypów i Dosypek AGRO
         </a>
+          {% endif %}
 
+        {% if navigation_group_allowed('entry_pallet_report_agro') %}
         <a href="{{ url_for('agro_warehouse.raport_palet', select=1) }}"
            class="nav-sub-item {% if request.endpoint in ['agro_warehouse.raport_palet', 'agro_warehouse.raport_palet_daily'] %}active{% endif %}">
             Raport Palet AGRO
         </a>
+        {% endif %}
         {% endif %}
         {% if reports_psd %}
         <div class="nav-report-heading" style="padding:8px 12px 4px;font-size:11px;font-weight:700;">PSD</div>
@@ -47,15 +51,19 @@
         {% endif %}
 
           {% set zasypy_dosypki_endpoint = 'production.raport_zasypy_dosypki' if app.view_functions.get('production.raport_zasypy_dosypki') else 'warehouse.podsumowanie_zasypow' %}
+          {% if navigation_group_allowed('entry_dosing_report_psd') %}
           <a href="{{ url_for(zasypy_dosypki_endpoint, linia='PSD') }}" 
               class="nav-sub-item {% if request.endpoint == 'production.raport_zasypy_dosypki' and request.args.get('linia') == 'PSD' %}active{% elif zasypy_dosypki_endpoint == 'warehouse.podsumowanie_zasypow' and request.endpoint == 'warehouse.podsumowanie_zasypow' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
             Raport Zasypów i Dosypek PSD
         </a>
+          {% endif %}
 
+        {% if navigation_group_allowed('entry_pallet_report_psd') %}
         <a href="/warehouse-v2/psd/raport_palet" 
            class="nav-sub-item {% if request.path == '/warehouse-v2/psd/raport_palet' %}active{% endif %}">
           Raport Palet PSD
         </a>
+        {% endif %}
         {% endif %}
         {% if reports_general %}
         <div class="nav-report-heading" style="padding:8px 12px 4px;font-size:11px;font-weight:700;">POZOSTAŁE RAPORTY</div>

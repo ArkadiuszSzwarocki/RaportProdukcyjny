@@ -179,6 +179,9 @@ def _get_role_permissions(cfg_path):
                 return _PERMS_CACHE['data']
             with open(target_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+            if data:
+                from app.core.hall_roles import with_hall_role_defaults
+                data = with_hall_role_defaults(data)
                 _PERMS_CACHE['mtime'] = mtime
                 _PERMS_CACHE['path'] = target_path
                 _PERMS_CACHE['data'] = data
@@ -199,6 +202,7 @@ def inject_role_permissions():
         'errors': 'ustawienia.errors',
         'logs': 'ustawienia.logs',
         'backups': 'ustawienia.backups',
+        'jakosc': 'jakosc.index',
     }
 
     def _resolve_page_key(page, perms):
@@ -541,7 +545,7 @@ def _fetch_bug_report_counters():
 def inject_bug_report_counters():
     """Inject unread bug reports count for templates (cached 5s)."""
     try:
-        if not session.get('zalogowany'):
+        if not session.get('zalogowany') or not inject_role_permissions()['role_has_access']('ustawienia'):
             return dict(unread_bug_reports_count=0)
         return _get_cached_context('bug_report_counters', 5.0, _fetch_bug_report_counters)
     except Exception:
@@ -766,10 +770,7 @@ def _fetch_system_errors_count():
 def inject_system_errors_count():
     """Inject unread system errors count for templates (cached 15s)."""
     try:
-        if not session.get('zalogowany'):
-            return dict(system_errors_count=0)
-        role = str(session.get('rola', '')).lower()
-        if role not in ['masteradmin', 'admin']:
+        if not session.get('zalogowany') or not inject_role_permissions()['role_has_access']('ustawienia.errors'):
             return dict(system_errors_count=0)
         return _get_cached_context('system_errors_count', 15.0, _fetch_system_errors_count)
     except Exception:
@@ -841,7 +842,10 @@ def inject_navigation_counters():
             cached = _CONTEXT_CACHE.get(key)
             if cached:
                 values.update(cached['val'])
-    if _normalize_role_name(session.get('rola')) not in ('admin', 'masteradmin'):
+    role_has_access = inject_role_permissions()['role_has_access']
+    if not role_has_access('ustawienia'):
+        values['unread_bug_reports_count'] = 0
+    if not role_has_access('ustawienia.errors'):
         values['system_errors_count'] = 0
     return values
 

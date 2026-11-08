@@ -331,6 +331,12 @@ class PalletRelocationService:
             except Exception as e:
                 raise RuntimeError(f"Błąd zapisu ruchu: {e}") from e
 
+            from app.services.inwentaryzacja_service import InwentaryzacjaService
+            InwentaryzacjaService.sync_pallet_relocation(
+                cursor, real_pallet_id, pallet_type, linia, old_loc, new_location,
+                nr_palety, target_pallet_sscc, split=is_split,
+            )
+
             # Auto-accept in pending deliveries
             if nr_palety and not is_split:
                 from app.services.magazyn_dostawy.acceptance_service import AcceptanceService

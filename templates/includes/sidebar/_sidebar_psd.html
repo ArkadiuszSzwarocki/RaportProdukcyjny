@@ -1,4 +1,4 @@
-{% if effective_hall in ['PSD', 'ALL'] %}
+{% if navigation_group_allowed('psd') and effective_hall in ['PSD', 'ALL'] %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span>PRODUKCJA PSD</span>

@@ -74,6 +74,8 @@ class LiveTransferService:
             if not cls._is_active(dostawa):
                 return False, "Nie można zmieniać zamkniętego przesunięcia"
             items = cls._read_items(dostawa)
+            if any(item.get('return_approval_login') for item in items):
+                return False, 'Zwrot różnicy wymaga zatwierdzenia przez wydającego.'
 
             p_nr = item.get('nr_palety') or item.get('sourcePalletNo')
             p_id = item.get('sourcePalletId') or item.get('id')
@@ -137,6 +139,8 @@ class LiveTransferService:
             if not cls._is_active(dostawa):
                 return False, "Nie można zmieniać zamkniętego przesunięcia"
             items = cls._read_items(dostawa)
+            if any(item.get('return_approval_login') for item in items):
+                return False, 'Zwrot różnicy wymaga zatwierdzenia przez wydającego.'
 
             norm_nr = str(nr_palety).strip().upper() if nr_palety else None
             norm_id = str(item_id).strip() if item_id is not None else None
@@ -193,6 +197,8 @@ class LiveTransferService:
             if not cls._is_active(dostawa):
                 return False, "Nie można zamknąć przesunięcia w tym statusie"
             items = cls._read_items(dostawa)
+            if any(item.get('return_approval_login') for item in items):
+                return False, 'Zwrot różnicy wymaga zatwierdzenia przez wydającego.'
             if not items or any(not (item.get('accepted') or item.get('rejected')) for item in items):
                 return False, "Przyjmij lub odrzuć wszystkie pozycje przed zamknięciem przesunięcia"
 

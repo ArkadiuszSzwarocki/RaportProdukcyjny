@@ -245,7 +245,7 @@
                         <td style="text-align: center; font-weight: 700;">{{ lp_c.val }}</td>
                         <td style="text-align: center;"><span style="font-weight: 800; color: #1e40af;">PZ</span></td>
                         <td style="text-align: center; font-weight: 800;">{{ d.order_ref }}</td>
-                        <td><strong>{{ it.product_name }}</strong></td>
+                        <td><strong>{{ it.product_name }}</strong>{% if it.difference_note %}<br><small>{{ it.difference_note }}</small>{% endif %}</td>
                         <td style="text-align: center; font-family: monospace; font-weight: 700;">{{ it.nr_palety }}</td>
                         <td style="text-align: center;">{{ it.nr_partii }}</td>
                         <td style="text-align: right; font-weight: 800; color: #166534;">{{ "%.2f"|format(it.quantity) }} {{ it.unit }}</td>
@@ -264,7 +264,7 @@
                         <td style="text-align: center; font-weight: 700;">{{ lp_c.val }}</td>
                         <td style="text-align: center;"><span style="font-weight: 800; color: #166534;">MM</span></td>
                         <td style="text-align: center; font-weight: 800;">{{ t.order_ref }}</td>
-                        <td><strong>{{ it.product_name }}</strong></td>
+                        <td><strong>{{ it.product_name }}</strong>{% if it.difference_note %}<br><small>{{ it.difference_note }}</small>{% endif %}</td>
                         <td style="text-align: center; font-family: monospace; font-weight: 700;">{{ it.nr_palety }}</td>
                         <td style="text-align: center;">{{ it.nr_partii }}</td>
                         <td style="text-align: right; font-weight: 800; color: #166534;">{{ "%.2f"|format(it.quantity) }} {{ it.unit }}</td>
@@ -334,7 +334,7 @@
                 {% for it in d.items %}
                 <tr>
                     <td style="text-align: center;">{{ loop.index }}</td>
-                    <td><strong>{{ it.product_name }}</strong></td>
+                    <td><strong>{{ it.product_name }}</strong>{% if it.difference_note %}<br><small>{{ it.difference_note }}</small>{% endif %}</td>
                     <td style="text-align: center; font-family: monospace; font-weight: 700;">{{ it.nr_palety }}</td>
                     <td style="text-align: center;">{{ it.nr_partii }}</td>
                     <td style="text-align: center;">{{ it.data_produkcji }}</td>
@@ -402,7 +402,7 @@
                 {% for it in t.items %}
                 <tr>
                     <td style="text-align: center;">{{ loop.index }}</td>
-                    <td><strong>{{ it.product_name }}</strong></td>
+                    <td><strong>{{ it.product_name }}</strong>{% if it.difference_note %}<br><small>{{ it.difference_note }}</small>{% endif %}</td>
                     <td style="text-align: center; font-family: monospace; font-weight: 700;">{{ it.nr_palety }}</td>
                     <td style="text-align: center;">{{ it.nr_partii }}</td>
                     <td style="text-align: center;">{{ it.data_produkcji }}</td>

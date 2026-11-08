@@ -12,8 +12,7 @@ BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25) if i not in (7, 8, 9, 10, 23
 
 MZ_TANK_CODES = ["MZ07", "MZ08", "MZ09", "MZ10", "MZ23", "MZ24"]
 KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 41)]
-K_TANK_CODES = [f"K{i:03d}" for i in range(1, 51)]
-PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES + K_TANK_CODES + ["WZ04"]
+PRODUCTION_TANK_CODES = BB_TANK_CODES + MZ_TANK_CODES + KO_TANK_CODES + ["WZ04"]
 
 from app.utils.location_validator import normalize_production_tank_code
 
@@ -102,7 +101,6 @@ class AgroTanksRepository:
                 'BB': list(BB_TANK_CODES),
                 'MZ': list(MZ_TANK_CODES),
                 'KO': list(KO_TANK_CODES),
-                'K': list(K_TANK_CODES),
                 'ALL': list(PRODUCTION_TANK_CODES),
             }
 

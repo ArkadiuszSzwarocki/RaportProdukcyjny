@@ -12,6 +12,10 @@ def scanner_resource_read_allowed(resource):
     """Check the actual resource hall after a lookup with legacy fallbacks."""
     if not session.get('zalogowany'):
         return request.endpoint in {'scanner.label', 'scanner.label_location'}
+    from app.core.navigation_group_permissions import group_allowed
+    from app.utils.location_validator import is_osip_location
+    if any(is_osip_location(resource.get(key)) for key in ('lokalizacja', 'location', 'station_code')) and not group_allowed('osip'):
+        return False
     payload = request.get_json(silent=True) if request.is_json else {}
     payload = payload if isinstance(payload, dict) else {}
     if resource.get('is_shelf') or (resource.get('is_station') and not resource.get('is_production_station')):

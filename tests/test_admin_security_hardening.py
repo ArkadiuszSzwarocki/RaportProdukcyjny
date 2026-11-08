@@ -230,3 +230,50 @@ def test_email_service_rechecks_stored_smtp_target_before_sending(monkeypatch):
     ok, message = service.send_report_email(['dest@example.com'], 'Test', '<p>Test</p>')
     assert ok is False
     assert 'zablokowana' in message.lower()
+
+
+def test_admin_personal_smtp_is_always_own_account(app, monkeypatch):
+    from flask import session
+    from unittest.mock import Mock
+    from app.core import admin_security_hardening as hardening
+    from app.repositories.user_email_settings_repository import UserEmailSettingsRepository
+    from app.models.user_email_settings_model import UserEmailSettingsModel
+    load = Mock(return_value=UserEmailSettingsModel(user_id=7))
+    monkeypatch.setattr(UserEmailSettingsRepository,'get_by_user_id',load)
+    monkeypatch.setattr(UserEmailSettingsRepository,'get_system_config',lambda self: (_ for _ in ()).throw(AssertionError('No global credentials on personal page')))
+    render = Mock(return_value='OK')
+    monkeypatch.setattr(hardening,'render_template',render)
+    with app.test_request_context('/ustawienia-osobiste/email?user_id=99'):
+        session.update(zalogowany=True,user_id=7,login='admin',rola='masteradmin')
+        assert hardening.secure_email_settings_page()=='OK'
+    load.assert_called_once_with(7)
+    assert render.call_args.kwargs['default_scope']=='user'
+    assert render.call_args.kwargs['personal_email_page'] is True
+
+
+def test_non_admin_global_smtp_redirects_to_email_overview(app):
+    from flask import session
+    from app.core.admin_security_hardening import secure_email_settings_page
+    with app.test_request_context('/admin/ustawienia/poczta?tab=konta'):
+        session.update(zalogowany=True,user_id=7,login='lider',rola='lider')
+        result=secure_email_settings_page()
+    assert result.status_code==302
+    assert result.location=='/admin/ustawienia/poczta'
+
+
+def test_email_center_default_is_overview_not_personal_smtp():
+    from flask import Flask, Blueprint
+    from unittest.mock import patch
+    from app.blueprints.admin.email_center import register_email_center_routes
+    application=Flask(__name__)
+    application.secret_key='isolated-navigation-test'
+    bp=Blueprint('admin',__name__)
+    register_email_center_routes(bp)
+    application.register_blueprint(bp)
+    client=application.test_client()
+    with client.session_transaction() as session:
+        session.update(zalogowany=True,rola='lider',user_id=7)
+    with patch('app.blueprints.admin.email_center.render_template',return_value='Email overview') as render:
+        result=client.get('/admin/ustawienia/poczta')
+    assert result.status_code==200
+    render.assert_called_once_with('admin/email_center_overview.html')

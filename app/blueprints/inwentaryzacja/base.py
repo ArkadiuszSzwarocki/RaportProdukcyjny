@@ -11,6 +11,23 @@ inwentaryzacja_bp = Blueprint('inwentaryzacja', __name__, url_prefix='/magazyn/i
 def require_inventory_login():
     return login_required_response()
 
+def _warehouse_inventory_locations(cursor):
+    cursor.execute(
+        """
+        SELECT DISTINCT UPPER(TRIM(l.nazwa)) AS lokalizacja
+        FROM magazyn_dozwolone_lokalizacje l
+        WHERE TRIM(l.nazwa) <> ''
+          AND NOT EXISTS (
+              SELECT 1 FROM magazyn_inwentaryzacja_sesje s
+              WHERE s.status IN ('OPEN', 'CLOSED')
+                AND UPPER(TRIM(s.lokalizacja)) = UPPER(TRIM(l.nazwa))
+          )
+        ORDER BY lokalizacja
+        """
+    )
+    return [row['lokalizacja'] for row in cursor.fetchall()]
+
+
 @inwentaryzacja_bp.route('/')
 def index():
     active_sessions = InwentaryzacjaService.get_active_sessions()
@@ -20,18 +37,20 @@ def index():
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT * FROM magazyn_inwentaryzacja_sesje ORDER BY id DESC LIMIT 500")
     sessions = cursor.fetchall()
+    available_locations = _warehouse_inventory_locations(cursor)
     conn.close()
 
     return render_template(
         'inwentaryzacja/index.html',
         active_sessions=active_sessions,
         sessions=sessions,
+        available_locations=available_locations,
     )
 
 @inwentaryzacja_bp.route('/start', methods=['POST'])
 def start():
     comment = request.form.get('comment', '')
-    lokalizacja = request.form.get('lokalizacja', 'WSZYSTKO').strip().upper()
+    lokalizacja = request.form.get('lokalizacja', '').strip().upper()
 
     success, result = InwentaryzacjaService.start_session(None, session.get('login', 'system'), comment, lokalizacja)
     if success:
@@ -59,7 +78,10 @@ def verify_location():
     data = request.json
     lokalizacja = data.get('lokalizacja', '').strip().upper()
     sesja_id = data.get('sesja_id')
-    
+    return _verify_inventory_location(lokalizacja, sesja_id)
+
+
+def _verify_inventory_location(lokalizacja, sesja_id):
     if not lokalizacja:
         return jsonify({"success": False, "message": "Brak lokalizacji"})
         
@@ -92,7 +114,9 @@ def verify_location():
         if sesja_id:
             cursor.execute("SELECT lokalizacja FROM magazyn_inwentaryzacja_sesje WHERE id = %s", (sesja_id,))
             sesja = cursor.fetchone()
-            target = (sesja.get('lokalizacja') or '').strip().upper() if sesja else ''
+            if not sesja:
+                return jsonify({"success": False, "message": "Nie znaleziono sesji inwentaryzacji."})
+            target = (sesja.get('lokalizacja') or '').strip().upper()
             if target and target not in ('WSZYSTKO', 'WSZYSTKIE'):
                 is_session_valid = False
                 if lokalizacja == target:
@@ -129,8 +153,20 @@ def szukaj_regalu():
     prefix = data.get('prefix', '').strip().upper()
     sesja_id = data.get('sesja_id')
     
+    validation = _verify_inventory_location(prefix, sesja_id)
+    if not validation.get_json()['success']:
+        return validation
+
     rack_data = InwentaryzacjaService.get_rack_data(prefix, sesja_id)
     return jsonify({"success": True, "rack_data": rack_data})
+
+
+@inwentaryzacja_bp.route('/api/przenies-palete', methods=['POST'])
+def move_inventory_pallet():
+    if str(session.get('rola') or '').strip().lower() != 'masteradmin':
+        return jsonify(success=False, message='Przenoszenie palet w inwentaryzacji jest dostępne tylko dla MasterAdmina.'), 403
+    from app.blueprints.warehouse_v2.controllers.pallet_relocation_controller import PalletRelocationController
+    return PalletRelocationController.move_pallet()
 
 
 @inwentaryzacja_bp.route('/api/szukaj-globalnie', methods=['POST'])
@@ -154,6 +190,32 @@ def podpowiedzi_nazw():
     names = InwentaryzacjaService.get_all_product_names(typ)
     return jsonify({"success": True, "names": names})
 
+def _production_inventory_entries(cursor, date_from, date_to, locations=()):
+    area = 'UPPER(TRIM(s.lokalizacja))'
+    params = [date_from, date_to]
+    area_filter = ''
+    if locations:
+        placeholders = ','.join(['%s'] * len(locations))
+        area_filter = f' AND {area} IN ({placeholders})'
+        params.extend(locations)
+    cursor.execute(
+        f"""
+        SELECT s.id AS sesja_id, {area} AS obszar, s.linia, s.status,
+               w.zbiornik AS lokalizacja, w.surowiec_nazwa AS nazwa,
+               w.nr_palety, w.nr_partii, w.paleta_id,
+               w.waga_faktyczna, w.user_login, w.data_wpisu,
+               (s.status IN ('CLOSED', 'APPLIED') OR w.data_wpisu > w.created_at) AS policzona
+        FROM magazyn_inwentaryzacja_produkcji_sesje s
+        JOIN magazyn_inwentaryzacja_produkcji_wpisy w ON w.sesja_id = s.id
+        WHERE s.created_at >= %s AND s.created_at < %s
+          {area_filter}
+        ORDER BY s.created_at, s.id, w.zbiornik, w.id
+        """,
+        tuple(params),
+    )
+    return cursor.fetchall()
+
+
 @inwentaryzacja_bp.route('/api/lokalizacje', methods=['GET'])
 def get_lokalizacje():
     from datetime import datetime, timedelta
@@ -172,10 +234,10 @@ def get_lokalizacje():
     end_date_exclusive = end_date + timedelta(days=1)
 
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(dictionary=True)
     cursor.execute(
         """
-        SELECT DISTINCT UPPER(lokalizacja)
+        SELECT DISTINCT UPPER(lokalizacja) AS lokalizacja
         FROM magazyn_inwentaryzacja_sesje
         WHERE created_at >= %s
           AND created_at < %s
@@ -185,10 +247,14 @@ def get_lokalizacje():
         """,
         (start_date.strftime('%Y-%m-%d'), end_date_exclusive.strftime('%Y-%m-%d')),
     )
-    locations = [row[0] for row in cursor.fetchall() if row and row[0]]
+    locations = {row['lokalizacja'] for row in cursor.fetchall()}
+    production = _production_inventory_entries(
+        cursor, start_date.strftime('%Y-%m-%d'), end_date_exclusive.strftime('%Y-%m-%d')
+    )
+    locations.update(row['obszar'] for row in production if row['obszar'])
     conn.close()
 
-    return jsonify({"success": True, "locations": locations})
+    return jsonify({"success": True, "locations": sorted(locations)})
 
 @inwentaryzacja_bp.route('/api/zapisz-wpis', methods=['POST'])
 def zapisz_wpis():
@@ -454,6 +520,7 @@ def drukuj_zbiorczo():
     query = "SELECT * FROM magazyn_inwentaryzacja_sesje WHERE " + " AND ".join(where) + " ORDER BY created_at ASC, id ASC"
     cursor.execute(query, tuple(params))
     sessions = cursor.fetchall()
+    production_entries = _production_inventory_entries(cursor, params[0], params[1], locs)
     conn.close()
 
     report_items = []
@@ -464,6 +531,7 @@ def drukuj_zbiorczo():
     return render_template(
         'inwentaryzacja/raport_zbiorczy.html',
         report_items=report_items,
+        production_entries=production_entries,
         date_from=start_date.strftime('%Y-%m-%d'),
         date_to=end_date.strftime('%Y-%m-%d'),
         selected_locations=locs,

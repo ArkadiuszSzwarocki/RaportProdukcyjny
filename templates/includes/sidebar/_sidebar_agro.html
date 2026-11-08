@@ -1,4 +1,4 @@
-{% if effective_hall in ['AGRO', 'ALL'] %}
+{% if navigation_group_allowed('agro') and effective_hall in ['AGRO', 'ALL'] %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span>PRODUKCJA AGRO</span>
@@ -54,7 +54,7 @@
         </a>
         {% endif %}
 
-        {% if role not in ['laborant', 'laboratorium'] %}
+        {% if navigation_group_allowed('agro_station_history') and role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('production.agro_station_history') }}"
             class="nav-sub-item {% if request.endpoint == 'production.agro_station_history' %}active{% endif %}">
             Historia Stacji (BB/MZ/WZ)
@@ -68,7 +68,7 @@
             Surowce w produkcji
         </a>
         {% endif %}
-        {% if role not in ['pracownik', 'laborant', 'laboratorium'] %}
+        {% if navigation_group_allowed('agro_picking') and role not in ['pracownik', 'agro', 'psd', 'laborant', 'laboratorium'] %}
         <a href="{{ url_for('warehouse_v2.kompletacja', linia='AGRO') }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.kompletacja' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Dyspozycje Kompletacji</span>
@@ -78,9 +78,10 @@
             </span>
         </a>
         {% endif %}
-        {% set can_open_packaging = role_has_access('magazyn.agro_packaging') %}
-        {% set can_open_lp01 = can_open_packaging or (role_has_access('agro.workowanie') and role not in ['laborant', 'laboratorium']) %}
-        {% if can_open_packaging or can_open_lp01 %}
+        {% set can_manage_packaging = role_has_access('magazyn.agro_packaging') %}
+        {% set can_open_packaging = navigation_group_allowed('agro_packaging_stock') and can_manage_packaging %}
+        {% set can_open_lp01 = navigation_group_allowed('agro_lp01') and (can_manage_packaging or (role_has_access('agro.workowanie') and role not in ['laborant', 'laboratorium'])) %}
+        {% if navigation_group_allowed('agro_packaging') and (can_open_packaging or can_open_lp01) %}
         <details class="nav-sub-group" {% if request.endpoint in ['agro_warehouse.lp01_view', 'agro_warehouse.opakowania'] %}open{% endif %}>
             <summary class="nav-sub-item"><span>Opakowania i LP01</span><span class="material-icons chevron" aria-hidden="true">expand_more</span></summary>
             {% if can_open_lp01 %}

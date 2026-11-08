@@ -60,6 +60,8 @@ class DeliverySaveService:
             if old_status in ('COMPLETED', 'CANCELLED'):
                 return False, "Nie można edytować zamkniętego przesunięcia"
             old_items = json.loads(old_data['items']) if old_data and old_data.get('items') else []
+            if any(item.get('return_approval_login') for item in old_items):
+                return False, 'Zwrot różnicy jest rozliczany wyłącznie w odbiorze przez wydającego.'
             if not is_external:
                 old_by_id = {str(item.get('id')): item for item in old_items}
                 old_by_code = {str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper(): item

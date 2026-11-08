@@ -32,6 +32,10 @@ def _page_allowed(line, section, write=True):
     role = _normalize_role(session.get('rola'))
     if role == 'masteradmin':
         return True
+    if section != 'magazyn' and line in {'PSD', 'AGRO'}:
+        from app.core.navigation_group_permissions import group_allowed
+        if not group_allowed(line.lower()):
+            return False
     page = line.lower() + '.' + section
     if session.get('user_id'):
         from app.repositories.user_permission_override_repository import user_permission_override_repository

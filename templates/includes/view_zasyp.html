@@ -139,7 +139,7 @@
                                 </div>
                             {% endif %}
                             {% endif %}
-                            {% if p[3] != 'zakonczone' and rola in ['admin', 'masteradmin', 'lider'] %}
+                            {% if p[3] == 'zakonczone' and rola in ['admin', 'masteradmin', 'zarzad'] %}
                             <form action="{{ url_for('planning.reanimate_zlecenie', id=p[0]) }}" method="POST"
                                 data-confirm="Wznowić {{ p[1]|e }}?">
                                 <input type="hidden" name="linia" value="{{ linia }}">

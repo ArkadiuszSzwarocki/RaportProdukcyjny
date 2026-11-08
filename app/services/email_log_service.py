@@ -20,7 +20,9 @@ class EmailLogService:
         linia: Optional[str] = None,
         success: bool = True,
         error_message: Optional[str] = None,
-        attachments: Optional[List[str] | str] = None
+        attachments: Optional[List[str] | str] = None,
+        connection=None,
+        status: Optional[str] = None
     ) -> int:
         """Records an email transmission attempt."""
         recipients_str = ", ".join(recipients) if isinstance(recipients, list) else str(recipients or '')
@@ -32,7 +34,7 @@ class EmailLogService:
         elif attachments:
             att_str = str(attachments)
 
-        status_str = 'SUCCESS' if success else 'FAILED'
+        status_str = status or ('SUCCESS' if success else 'FAILED')
 
         return EmailLogRepository.create_log(
             sender=str(sender or 'system'),
@@ -42,7 +44,8 @@ class EmailLogService:
             linia=str(linia).upper() if linia else None,
             status=status_str,
             error_message=str(error_message) if error_message else None,
-            attachments=att_str
+            attachments=att_str,
+            connection=connection
         )
 
     @staticmethod

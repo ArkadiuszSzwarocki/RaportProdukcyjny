@@ -1,8 +1,9 @@
 import time
 from datetime import date
 
-from flask import current_app, jsonify, request, session
+from flask import Response, current_app, jsonify, request, session
 
+from app.core.hall_roles import worker_role
 from app.db import get_db_connection, get_table_name
 from app.decorators import roles_required, login_required
 from app.services.zasyp_start_notification_service import build_sound_url_if_exists
@@ -99,6 +100,24 @@ def register_production_notification_routes(
         if current_ack > last_seen and current_ack >= current_release and is_fresh:
             return jsonify({"new_ack": True, "timestamp": current_ack})
         return jsonify({"new_ack": False})
+
+    @production_bp.route('/api/zasyp/stage-events', methods=['GET'])
+    @roles_required('laborant', 'laboratorium', 'operator', 'operator_agro', 'operator_psd',
+                    'pracownik', 'produkcja', 'lider', 'zarzad', 'admin', 'masteradmin')
+    def api_zasyp_stage_events():
+        from app.core.database import get_active_database_name
+        from app.services.warehouse_live_updates import reserve_stream, reserved_stream, zasyp_stage_channel
+
+        release = reserve_stream()
+        if release is None:
+            return jsonify(success=False), 503
+        response = Response(
+            reserved_stream(zasyp_stage_channel(get_active_database_name()), release),
+            mimetype='text/event-stream',
+            headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'},
+        )
+        response.call_on_close(release)
+        return response
 
     @production_bp.route('/api/zasyp/poll_etap_start', methods=['GET'])
     def api_poll_etap_start():
@@ -301,7 +320,7 @@ def register_production_notification_routes(
         """Return pending dosypki badge counts per plan_id for Zasyp dashboard (PSD/AGRO)."""
         role = str(session.get('rola') or '').strip().lower()
         allowed_roles = {'operator', 'pracownik', 'produkcja', 'lider', 'admin', 'zarzad', 'masteradmin', 'laborant', 'laboratorium'}
-        if role not in allowed_roles:
+        if worker_role(role) not in allowed_roles:
             return jsonify({"success": False, "error": "forbidden"}), 403
 
         linia = request.args.get('linia', 'PSD').upper()

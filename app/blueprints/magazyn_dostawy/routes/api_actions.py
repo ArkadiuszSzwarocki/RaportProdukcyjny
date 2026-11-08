@@ -120,7 +120,11 @@ def przyjmij_pozycje(dostawa_id):
         chk_d = cursor.fetchone()
         if chk_d and chk_d.get('lokalizacja_z'): # to jest przesunięcie wewnętrzne
             user_role = str(session.get('rola') or session.get('role') or '').lower().strip()
-            if user_role not in ['masteradmin', 'admin', 'zarzad', 'kierownik', 'lider', 'magazynier']:
+            check_items = json.loads(chk_d.get('items') or '[]')
+            approval_item = next((item for item in check_items if str(item.get('id')) == str(data.get('item_id'))), {})
+            is_issuer = bool(approval_item.get('return_approval_login') and
+                str(approval_item['return_approval_login']).casefold() == str(session.get('login') or '').casefold())
+            if not is_issuer and user_role not in ['masteradmin', 'admin', 'zarzad', 'kierownik', 'lider', 'magazynier']:
                 return jsonify({'success': False, 'error': 'Brak uprawnień. W przesunięciu magazynowym przyjęcie jest możliwe wyłącznie poprzez zeskanowanie palety skanerem.'}), 403
     finally:
         conn.close()
@@ -134,7 +138,9 @@ def przyjmij_pozycje(dostawa_id):
         data_produkcji=data.get('data_produkcji'),
         data_przydatnosci=data.get('data_przydatnosci'),
         printer_ip=printer_ip,
-        printer_name=printer_name
+        printer_name=printer_name,
+        accepted_quantity=data.get("accepted_quantity"),
+        quantity_reason=data.get("quantity_reason"),
     )
     if success:
         res = result if isinstance(result, dict) else {}
@@ -144,6 +150,8 @@ def przyjmij_pozycje(dostawa_id):
             "accepted_count": res.get("accepted_count", 0),
             "total": res.get("total", 0),
             "report_url": None,
+            "return_document_id": res.get("return_document_id"),
+            "unaccepted_quantity": res.get("unaccepted_quantity", 0),
             "nr_palety": res.get("nr_palety"),
             "message": f"Przyjęto pomyślnie. SSCC: {res.get('nr_palety')}" if res.get("nr_palety") else "Przyjęto pomyślnie."
         })

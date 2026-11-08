@@ -1,3 +1,4 @@
+from app.services.magazyn_dostawy.receipt_difference import difference_note
 """
 Moduł odpowiedzialny za odczyt i agregację danych magazynowych do raportów dziennych (CQRS: Query).
 """
@@ -12,7 +13,7 @@ class WarehouseActivityQueryService:
     @staticmethod
     def extract_item_qty(item: Dict[str, Any]) -> float:
         """Pobiera ilość lub wagę z pozycji niezależnie od klucza w JSON."""
-        for k in ('netWeight', 'currentWeight', 'weight', 'waga_netto', 'waga', 'stan_magazynowy'):
+        for k in ('accepted_quantity', 'netWeight', 'currentWeight', 'weight', 'waga_netto', 'waga', 'stan_magazynowy'):
             val = item.get(k)
             if val not in (None, '', 0, '0'):
                 try:
@@ -172,6 +173,7 @@ class WarehouseActivityQueryService:
                     'data_produkcji': prod_date,
                     'data_przydatnosci': exp_date,
                     'quantity': qty,
+                    'difference_note': difference_note(it),
                     'unit': unit,
                     'source_spot': source_spot,
                     'target_spot': target_spot,

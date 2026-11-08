@@ -276,6 +276,9 @@ def create_app(config_secret_key=None, init_db=True):
     register_file_security_hardening(app)
     register_download_security_hardening(app)
     register_browser_security_headers(app)
+    from app.core.navigation_group_permissions import enforce_group_permission, group_allowed
+    app.jinja_env.globals['navigation_group_allowed'] = group_allowed
+    app.before_request(enforce_group_permission)
     from app.core.function_permissions import register_function_permissions
     register_function_permissions(app)
 

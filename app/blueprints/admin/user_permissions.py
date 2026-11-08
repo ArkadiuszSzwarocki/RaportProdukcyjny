@@ -9,6 +9,8 @@ from app.decorators import dynamic_role_required, masteradmin_required
 from app.core.database import get_db_connection
 from app.repositories.user_permission_override_repository import user_permission_override_repository
 from app.core.audit import security_audit_log
+from app.core.navigation_group_permissions import GROUP_KEYS
+from app.core.hall_roles import with_hall_role_defaults
 
 
 def register_user_permissions_routes(admin_bp):
@@ -53,6 +55,7 @@ def register_user_permissions_routes(admin_bp):
                     role_perms = json.load(f)
         except Exception as e:
             current_app.logger.error("Failed to load role_permissions.json: %s", e)
+        role_perms = with_hall_role_defaults(role_perms)
 
         # Get existing user overrides
         from app.core.function_permissions import function_catalog
@@ -62,13 +65,15 @@ def register_user_permissions_routes(admin_bp):
         explicit_function_rules = {key for key in role_perms if key.startswith('function.')}
         for key in functions:
             role_perms.setdefault(key, {user_role: {'access': True, 'readonly': False}})
+        for key in sorted(GROUP_KEYS):
+            role_perms.setdefault(key, {})
         user_overrides = user_permission_override_repository.get_user_overrides(user_id)
 
         from app.core.permission_presentation import permission_metadata
         modules = []
         for page_key, perms in role_perms.items():
             role_cfg = perms.get(user_role, {})
-            role_access = bool(role_cfg.get('access', False))
+            role_access = bool(role_cfg.get('access', page_key in GROUP_KEYS))
             role_readonly = bool(role_cfg.get('readonly', False))
 
             override = user_overrides.get(page_key)
@@ -106,7 +111,7 @@ def register_user_permissions_routes(admin_bp):
         overrides = data.get('overrides', {})  # Dict[page_key, {'mode': 'inherit'|'allow'|'deny', 'readonly': bool}]
         from app.blueprints.admin.roles import _load_role_permissions
         from app.core.function_permissions import function_catalog
-        known = set(_load_role_permissions()[0]) | set(function_catalog())
+        known = set(_load_role_permissions()[0]) | set(function_catalog()) | GROUP_KEYS
         if not isinstance(overrides, dict) or any(
             key not in known or not isinstance(cfg, dict) or cfg.get('mode') not in {'inherit', 'allow', 'deny'}
             or ('readonly' in cfg and type(cfg['readonly']) is not bool)

@@ -122,7 +122,7 @@
                 if (data.data.length) render(data.data);
                 else message('Brak wpisów dla wybranej stacji i filtrów.', false);
                 count.textContent = 'Wpisy: ' + data.data.length;
-                status.textContent = (values.linia === 'ALL' ? 'Wszystkie hale' : values.linia) + (values.stacja ? ' · Stacja: ' + values.stacja : '') +
+                status.textContent = (values.linia === 'ALL' ? 'Wszystkie operacje — bez filtra hali' : values.linia) + (values.stacja ? ' · Stacja: ' + values.stacja : '') +
                     (data.data.length >= Number(values.limit) ? ' · Osiągnięto limit wyników — zawęź filtry lub zwiększ limit.' : '');
             } catch (error) {
                 if (version !== sequence || (error.name === 'AbortError' && !timedOut)) return;

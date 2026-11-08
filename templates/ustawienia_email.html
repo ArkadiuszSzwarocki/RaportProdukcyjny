@@ -1,5 +1,5 @@
 <!-- File: templates/ustawienia_email.html -->
-{% extends 'admin/email_center_layout.html' %}
+{% extends 'admin/personal_email_layout.html' if personal_email_page else 'admin/email_center_layout.html' %}
 {% block title %}Zarządzanie Kontem E-mail & Odbiorcami | AgroMES{% endblock %}
 
 {% block email_content %}
@@ -271,6 +271,7 @@
 </style>
 
 <div class="email-settings-container">
+    {% if not personal_email_page %}
     <!-- 1. Hero Header -->
     <div class="hero-header">
         <div>
@@ -285,9 +286,11 @@
         </div>
     </div>
 
+    {% endif %}
     <!-- 2. Status Konta Nadawcy -->
     <div class="app-card">
         <div class="app-card-body">
+            {% if not personal_email_page %}
             <!-- Informacja o domyślnym koncie systemowym -->
             <div class="status-banner">
                 <div style="display: flex; align-items: center; gap: 12px;">
@@ -300,56 +303,13 @@
                     </div>
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <button type="button" onclick="resetSystemAccountConfig()" class="btn-app-secondary" style="padding: 6px 14px; font-size: 0.82rem;" title="Przywróć konto WP.pl">
-                        🔄 Przywróć Domyślne WP.pl
+                    <button type="button" onclick="resetSystemAccountConfig()" class="btn-app-secondary" style="padding: 6px 14px; font-size: 0.82rem;" title="Przywróć konfigurację środowiskową">
+                        🔄 Przywróć domyślne środowiska
                     </button>
                 </div>
             </div>
 
-            <!-- Wybór zakresu edycji: 2 przejrzyste kafelki -->
-            <div style="margin-bottom: 20px;">
-                <label class="form-group-label" style="font-size: 0.9rem; margin-bottom: 10px;">🎯 Wybierz konto do edycji:</label>
-                <div class="scope-selector-grid">
-                    <!-- Opcja 1: Konto Systemowe -->
-                    <div class="scope-card {% if default_scope != 'user' %}active{% endif %}" id="scopeCardSystem" onclick="selectScope('system')">
-                        <input type="radio" name="accountScopeRadio" id="radioSystem" value="system" class="scope-radio" {% if default_scope != 'user' %}checked{% endif %}>
-                        <div>
-                            <div class="scope-title">🌐 Globalne Konto Systemowe</div>
-                            <div class="scope-desc">Wspólna skrzynka firmowa dla auto-raportów o 15:00</div>
-                        </div>
-                    </div>
-
-                    <!-- Opcja 2: Konto Indywidualne -->
-                    <div class="scope-card {% if default_scope == 'user' %}active{% endif %}" id="scopeCardUser" onclick="selectScope('user')">
-                        <input type="radio" name="accountScopeRadio" id="radioUser" value="user" class="scope-radio" {% if default_scope == 'user' %}checked{% endif %}>
-                        <div>
-                            <div class="scope-title">👤 Konto Użytkownika / Lidera</div>
-                            <div class="scope-desc">Indywidualna skrzynka: <strong>{{ edit_user_login or current_user_login }}</strong></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Jeśli Administrator: Dedykowany selektor wyboru użytkownika -->
-                {% if is_admin_user and user_accounts_list %}
-                <div id="adminUserSelectWrapper" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: {% if default_scope == 'user' %}block{% else %}none{% endif %};">
-                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                        <div>
-                            <div style="font-weight: 700; font-size: 0.88rem; color: #1e293b;">👑 Wybierz lidera do edycji (Panel Admina):</div>
-                            <div style="font-size: 0.78rem; color: #64748b;">Wybierz konto, dla którego chcesz skonfigurować indywidualne dane SMTP.</div>
-                        </div>
-                        <div>
-                            <select id="adminUserSelect" class="form-select form-select-sm" style="min-width: 260px; font-weight: 600; padding: 6px 12px; border-radius: 8px; border-color: #cbd5e1;" onchange="window.location.href='{{ url_for('admin.email_center', tab='konta') }}&user_id=' + encodeURIComponent(this.value)">
-                                {% for u in user_accounts_list %}
-                                <option value="{{ u.id }}" {% if u.id == edit_user_id %}selected{% endif %}>
-                                    {{ u.login }} ({{ u.rola }}) {% if u.smtp_username %}— {{ u.smtp_username }}{% else %}— [brak konta]{% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
+            {% else %}<p>Konto osobiste SMTP użytkownika — {{ edit_user_login or current_user_login }}.</p>{% endif %}
 
             <!-- Szybki wybór popularnych dostawców -->
             <div>
@@ -437,6 +397,7 @@
         </div>
     </div>
 
+    {% if not personal_email_page %}
     <!-- 3. Słownik Odbiorców Raportów -->
     <div class="app-card">
         <div class="app-card-header">
@@ -533,6 +494,7 @@
             </div>
         </div>
     </div>
+{% endif %}
 </div>
 
 <script>
@@ -655,6 +617,7 @@ async function testEmailConnection() {
                 smtp_security,
                 smtp_username,
                 smtp_password,
+                is_system: currentScope === 'system',
                 target_user_id: currentScope === 'user' ? {{ (edit_user_id or '')|tojson }} : 0
             })
         });
@@ -710,7 +673,7 @@ async function saveEmailConfig(e) {
                 smtp_password,
                 sender_name,
                 is_system,
-                target_user_id: {{ (edit_user_id or '')|tojson }}
+                target_user_id: currentScope === 'system' ? 0 : {{ (edit_user_id or '')|tojson }}
             })
         });
         const res = await response.json();

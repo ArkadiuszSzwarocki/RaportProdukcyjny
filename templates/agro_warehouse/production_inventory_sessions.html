@@ -169,18 +169,18 @@
             <button onclick="document.getElementById('prodStartModal').style.display='none'" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:26px;line-height:1;">×</button>
         </div>
 
-        <form action="{{ url_for('agro_warehouse.start_production_inventory') }}" method="POST" onsubmit="return validateStartForm()" data-ajax="false">
+        <form action="{{ url_for('agro_warehouse.start_production_inventory', linia=linia) }}" method="POST" onsubmit="return validateProductionInventoryStart(this)" data-ajax="false">
             <div style="margin-bottom: 18px;">
                 <label style="display: block; font-size: 11px; font-weight: 800; color: #475569; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px;">
                     <span class="material-icons" style="font-size:14px; vertical-align:middle;">qr_code_scanner</span> Obszar / Lokalizacja
                 </label>
-                <input type="text" name="lokalizacja" id="inv_start_lok_input"
-                       placeholder="Zeskanuj QR lub wpisz np. R07, MGW01..."
-                       autofocus autocomplete="off"
-                       oninput="this.value=this.value.toUpperCase(); updateStartBtn()"
-                       style="width:100%; border:2px solid #e2e8f0; border-radius:12px; padding:16px 14px; font-family:inherit; font-size:16px; font-weight:800; text-transform:uppercase; outline:none; box-sizing:border-box; transition:border-color 0.2s;"
-                       onfocus="this.style.borderColor='#3b82f6'"
-                       onblur="this.style.borderColor='#e2e8f0'">
+                <select name="lokalizacja" id="inv_start_lok_input" required onchange="updateStartBtn()"
+                        style="width:100%; border:2px solid #e2e8f0; border-radius:12px; padding:14px; font-size:16px;">
+                    <option value="">{{ 'Wybierz lokalizację' if available_locations else 'Brak dostępnych lokalizacji' }}</option>
+                    {% for location in available_locations %}
+                    <option value="{{ location }}">{{ 'BB + MZ' if location == 'BB+MZ' else location }}</option>
+                    {% endfor %}
+                </select>
                 <input type="hidden" name="comment" value="">
             </div>
 
@@ -201,12 +201,15 @@
 function updateStartBtn() {
     const val = document.getElementById('inv_start_lok_input').value.trim();
     const btn = document.getElementById('inv_start_submit_btn');
-    btn.disabled = !val;
+    btn.disabled = !val || btn.form.dataset.submitting === 'true';
     btn.style.opacity = val ? '1' : '0.4';
 }
-function validateStartForm() {
+function validateProductionInventoryStart(form) {
+    if (form.dataset.submitting === 'true') return false;
     const val = document.getElementById('inv_start_lok_input').value.trim();
-    if (!val) { alert('Zeskanuj lub wpisz obszar!'); return false; }
+    if (!val) { alert('Wybierz lokalizację z listy!'); return false; }
+    form.dataset.submitting = 'true';
+    document.getElementById('inv_start_submit_btn').disabled = true;
     return true;
 }
 // Auto-focus when modal opens

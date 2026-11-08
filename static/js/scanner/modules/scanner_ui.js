@@ -31,7 +31,7 @@ function showStation(station) {
   currentStationReturnPallet = null;
   if (stationReturnButton) stationReturnButton.style.display = 'none';
 
-  if (station.is_production_station && assigned && assigned.has_active_assignment) {
+  if (station.is_production_station && assigned.has_active_assignment && Number(assigned.stan_stacji) > 0) {
     if (assignedCard) assignedCard.style.display = 'flex';
     if (assignedNameEl) assignedNameEl.textContent = assigned.name;
     if (assignedSSCCEl) assignedSSCCEl.textContent = assigned.sscc || '—';

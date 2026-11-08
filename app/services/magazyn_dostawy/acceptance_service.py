@@ -43,7 +43,7 @@ class AcceptanceService:
         return rows[0]
 
     @staticmethod
-    def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None, expected_status=None, strict_putaway=False):
+    def accept_item(dostawa_id, item_id, lokalizacja, login='system', nr_partii=None, data_produkcji=None, data_przydatnosci=None, printer_ip=None, printer_name=None, expected_status=None, strict_putaway=False, accepted_quantity=None, quantity_reason=None):
             from app.utils.pallet_receipt_rules import validate_pallet_dates, delivery_pallet_type, ensure_unique_stock_code
             conn = get_db_connection()
             try:
@@ -69,7 +69,13 @@ class AcceptanceService:
                     return False, error_msg
 
                 from app.utils.location_validator import validate_registered_warehouse_location
-                valid, error = validate_registered_warehouse_location(cursor, lokalizacja)
+                early_items = json.loads(dostawa.get('items') or '[]')
+                early_target = next((i for i in early_items if str(i.get('id')) == str(item_id)), {})
+                from app.services.magazyn_dostawy.receipt_difference import require_issuer
+                require_issuer(early_target, login)
+                staging_return = bool(early_target.get('return_approval_login') and
+                    early_target.get('return_to_staging') and early_target.get('targetSpot') == 'RAMPA' and lokalizacja == 'RAMPA')
+                valid, error = (True, None) if staging_return else validate_registered_warehouse_location(cursor, lokalizacja)
                 if not valid:
                     return False, error, None
 
@@ -80,6 +86,8 @@ class AcceptanceService:
                 if not target: return False, "Nie znaleziono pozycji", None
                 if target.get('accepted'): return False, "Pozycja już przyjęta", None
                 if target.get('rejected'): return False, "Pozycja została odrzucona", None
+                from app.services.magazyn_dostawy.receipt_difference import require_issuer
+                require_issuer(target, login)
                 if actual_status == 'PUTAWAY_IN_PROGRESS' and strict_putaway:
                     suggested = target.get('putaway_suggested_location')
                     from app.services.magazyn_dostawy.commands.putaway_suggestion_service import PutawaySuggestionService
@@ -248,7 +256,7 @@ class AcceptanceService:
                 source_pallet_id = target.get('sourcePalletId')
 
                 physical_table = (table_opk if is_opk_pkg else 'magazyn_dodatki' if p_type_scanned == 'dodatek' else
-                                  table_got if p_type_scanned == 'wyrob_gotowy' else table_sur)
+                                  table_got if p_type_scanned in ('wyrob_gotowy', 'magazyn', 'produkcja') else table_sur)
                 if physical_table == 'magazyn_palety_agro':
                     physical_table = table_got = 'magazyn_palety'
                 # Serialize all receipts before resolving the existing physical row.
@@ -279,6 +287,20 @@ class AcceptanceService:
                 qty = float(raw_qty) if raw_qty else 0.0
                 if not math.isfinite(qty) or ((is_external or is_return) and qty <= 0):
                     return False, 'Ilość przyjęcia musi być dodatnia i skończona.', None
+
+                declared_qty = qty
+                difference = 0.0
+                difference_snapshot = None
+                return_document_id = None
+                if accepted_quantity is not None:
+                    from app.services.magazyn_dostawy.receipt_difference import receipt_quantity, prepare_difference
+                    qty, difference = receipt_quantity(declared_qty, accepted_quantity, quantity_reason)
+                    if difference:
+                        return_source = source_spot
+                        if is_external:
+                            return_source = str(dostawa.get('strefa_przyjec') or 'RAMPA').strip().upper()
+                        difference_snapshot = prepare_difference(cursor, dostawa, target, physical_table,
+                                                                 nr_palety, declared_qty, difference, return_source)
 
                 if is_opk_pkg:
                     if not is_external:
@@ -397,6 +419,12 @@ class AcceptanceService:
                 target['data_produkcji'] = data_produkcji
                 target['data_przydatnosci'] = data_przydatnosci
 
+                if difference:
+                    from app.services.magazyn_dostawy.receipt_difference import create_difference
+                    return_document_id = create_difference(cursor, conn, dostawa, target, physical_table,
+                        difference_snapshot, return_source, lokalizacja, declared_qty, qty, difference,
+                        str(quantity_reason).strip(), login, p_type)
+
                 # Zwalniamy blokadę dla przyjętej palety źródłowej i nowej palety (dla obu linii PSD i AGRO)
                 PalletLockManager.set_pallets_blocked(cursor, [target], 0, exclude_delivery_id=dostawa_id)
 
@@ -426,6 +454,12 @@ class AcceptanceService:
                 # Log to palety_historia
                 action_name = 'PRZYJECIE_ZWROT' if is_return else 'PRZYJECIE'
                 comment_text = f"Przyjęcie zwrotu z produkcji: {product_name} na {lokalizacja}" if is_return else f"Przyjęcie z dostawy: {product_name}, partia: {nr_partii}"
+                if difference:
+                    comment_text += (f"; wydano {declared_qty:g}, przyjęto {qty:g}, różnica {difference:g}; "
+                                     f"zwrot {return_document_id}; powód: {quantity_reason}")
+                if target.get('return_approval_login'):
+                    comment_text = (f"Zatwierdzenie zwrotu różnicy: {qty:g}; paleta źródłowa {target.get('return_parent_sscc')}; "
+                                    f"dokument źródłowy {target.get('return_origin_doc_id')}; {target.get('return_reason')}")
                 operation_id = f"delivery:{dostawa_id}:item:{item_id}:accept"
                 history_saved = MovementRecorder.record_movement(
                     pallet_id, linia, p_type, action_name,
@@ -474,8 +508,11 @@ class AcceptanceService:
                     "linia": linia,
                     "dostawa_id": dostawa_id,
                     "nr_palety": nr_palety,
+                    "return_document_id": return_document_id,
+                    "unaccepted_quantity": difference,
                 }
             except Exception as e:
+                conn.rollback()
                 return False, str(e), None
             finally:
                 conn.close()
@@ -502,6 +539,8 @@ class AcceptanceService:
             for item in items:
                 nr = str(item.get('nr_palety') or item.get('sourcePalletNo') or '').strip().upper()
                 if nr == number and not (item.get('accepted') or item.get('rejected')):
+                    from app.services.magazyn_dostawy.receipt_difference import require_issuer
+                    require_issuer(item, login)
                     item.update(accepted=True,accepted_by=login,
                                 accepted_at=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                                 lokalizacja_przyjecia=location)
@@ -565,6 +604,8 @@ class AcceptanceService:
                 target = next((i for i in items if str(i.get('id')) == str(item_id)), None)
                 if not target:
                     return False, "Nie znaleziono pozycji", None
+                if target.get('return_approval_login'):
+                    return False, 'Zwrot różnicy wymaga zatwierdzenia przez wydającego; nie można go odrzucić.', None
                 if target.get('accepted'):
                     return False, "Pozycja już przyjęta", None
                 if target.get('rejected'):
