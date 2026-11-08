@@ -1,3 +1,4 @@
+# cspell:words arialbd dejavu FONTNAME pdfbase pdfmetrics ttfonts WINDIR
 import contextlib
 import io
 import os

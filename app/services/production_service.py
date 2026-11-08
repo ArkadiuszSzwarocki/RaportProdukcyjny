@@ -1,3 +1,4 @@
+# cspell:words premiksc premixc vitaminc vitc witaminac witaminachelaty witc
 """
 Wersja: 1.1.0
 Opis: Serwis planowania i realizacji produkcji. Zarządza zleceniami i wagami.

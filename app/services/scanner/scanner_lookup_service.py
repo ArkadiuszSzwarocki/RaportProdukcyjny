@@ -23,9 +23,9 @@ class ScannerLookupService:
             if alt_line not in [str(x).upper() for x in candidate_lines]:
                 candidate_lines.append(alt_line)
 
-        for cand_line in candidate_lines:
+        for candidate_line in candidate_lines:
             try:
-                table_ruch = get_table_name('magazyn_ruch', cand_line)
+                table_ruch = get_table_name('magazyn_ruch', candidate_line)
                 cur.execute(
                     f"SELECT r.id, ABS(r.ilosc) as pobrana, COALESCE(r.zbiornik, '') as zbiornik, "
                     f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as zwrocona, "

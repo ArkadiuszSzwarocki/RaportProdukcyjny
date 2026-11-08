@@ -296,7 +296,7 @@
     function initLiveZasypEvents(config) {
         var role = String(config.currentRole || '').toLowerCase();
         var roles = ['laborant', 'laboratorium', 'operator', 'operator_agro', 'operator_psd',
-            'pracownik', 'produkcja', 'lider', 'zarzad', 'admin', 'masteradmin'];
+            'pracownik', 'agro', 'psd', 'produkcja', 'lider', 'zarzad', 'admin', 'masteradmin'];
         if (!roles.includes(role)) return;
         if (config.linia === 'AGRO' && global.EventSource) {
             var stream = new global.EventSource('/api/zasyp/stage-events');
