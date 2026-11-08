@@ -14,7 +14,8 @@ def warehouse_context(client):
         'id': 123, 'nr_palety': 'TEST-123', 'linia': 'PSD'}
     helpers = {'role_has_access': lambda key: key == 'psd.magazyn',
                'role_is_readonly': lambda key: False}
-    with patch('app.core.warehouse_permissions.get_db_connection', return_value=connection), patch(
+    with patch('app.core.contexts._get_role_permissions', return_value={}), patch(
+            'app.core.warehouse_permissions.get_db_connection', return_value=connection), patch(
             'app.core.function_permissions.configured_function_permission', return_value=None), patch(
             'app.core.contexts.inject_role_permissions', return_value=helpers), patch(
             'app.services.warehouse_v2_service.WarehouseV2Service.move_pallet', return_value=(True, 'OK')) as move:

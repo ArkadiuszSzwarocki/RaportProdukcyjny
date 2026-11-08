@@ -47,7 +47,7 @@ def test_laboratory_header_and_quick_actions_hide_downtime_and_cleaning_bell(app
             rola=role, sekcja=section, linia='AGRO', dzisiaj=date(2026, 10, 11), plan=[(323, 'Produkt', 400, 'w toku' if running else 'zaplanowane', None, None, None, 0)],
             suma_plan=0, suma_wykonanie=0)
     assert ('/action/production.zglos_przestoj_page' in html) == (role == 'masteradmin' and running)
-    assert ('id="cleaningNotificationsBtn"' in html) == (role == 'masteradmin' and running and section == 'Zasyp')
+    assert ('id="cleaningNotificationsBtn"' in html) == (role == 'masteradmin' and section == 'Zasyp')
 
 
 @pytest.mark.parametrize('role', ['laborant', 'laboratorium', 'masteradmin'])

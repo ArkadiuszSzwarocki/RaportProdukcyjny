@@ -164,6 +164,8 @@ class TestWarehouseV2PartialMove(unittest.TestCase):
         executed_sql = []
         def capture_exec(sql, params=None):
             executed_sql.append((sql, params))
+            if sql.startswith('SELECT w.id FROM magazyn_inwentaryzacja_wpisy'):
+                mock_cursor.fetchone.return_value = None
         mock_cursor.execute.side_effect = capture_exec
 
         new_sscc_gen = 'SUR_POTOMEK_88'

@@ -28,7 +28,7 @@ def configure_environment():
         TRUSTED_HOSTS='127.0.0.1,localhost', SESSION_COOKIE_SECURE='false',
         ALLOW_RUNTIME_DB_SWITCH='true', DB_ALLOW_LOCALHOST_FALLBACK='false',
         ENABLE_BACKGROUND_DAEMONS='true', ENABLE_MQTT_BRIDGE='true',
-        ENABLE_AUTO_REPORT_SCHEDULER='true', PRINTER_BRIDGE_AUTOSTART='true',
+        ENABLE_AUTO_REPORT_SCHEDULER='false', PRINTER_BRIDGE_AUTOSTART='true',
         PRINTER_ALLOW_DIRECT_TCP_FALLBACK='true', SKIP_DB_SETUP='true')
 
 
@@ -70,7 +70,7 @@ def main():
     if os.getenv('LOCAL_STARTUP_TRACE') == 'true':
         faulthandler.cancel_dump_traceback_later()
     print('LOCAL APPLICATION: http://127.0.0.1:8082', flush=True)
-    print('Email, printing, MQTT commands and background workers are enabled.', flush=True)
+    print('Manual email, printing and MQTT commands are enabled. The automatic report scheduler is disabled.', flush=True)
     serve(application, host='127.0.0.1', port=8082, threads=8)
 
 
