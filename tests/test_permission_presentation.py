@@ -155,3 +155,24 @@ def test_save_still_uses_one_original_key_and_no_unrequested_changes(tmp_path):
         assert response.status_code==200
         repository.set_user_override.assert_called_once_with(99,SHARED,False,False)
         repository.delete_user_override.assert_not_called()
+
+def test_user_overrides_are_refreshed_on_the_next_request(monkeypatch):
+    from app.repositories.user_permission_override_repository import UserPermissionOverrideRepository
+
+    app = Flask(__name__)
+    repository = UserPermissionOverrideRepository()
+    read = MagicMock(side_effect=[
+        {SHARED: {'access': True, 'readonly': False}},
+        {SHARED: {'access': False, 'readonly': False}},
+    ])
+    monkeypatch.setattr(UserPermissionOverrideRepository, 'get_user_overrides', read)
+
+    with app.app_context():
+        with app.test_request_context():
+            assert repository.get_user_override(42, SHARED)['access'] is True
+            assert repository.get_user_override(42, SHARED)['access'] is True
+            assert read.call_count == 1
+
+        with app.test_request_context():
+            assert repository.get_user_override(42, SHARED)['access'] is False
+            assert read.call_count == 2

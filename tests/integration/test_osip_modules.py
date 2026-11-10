@@ -122,3 +122,30 @@ def test_within_warehouse_moves_allowed():
     )
     assert ok2 is True
     assert msg2 is None
+
+@pytest.mark.parametrize(
+    ('role', 'login', 'allowed'),
+    [('magazynier', 'master_admin', False), ('masteradmin', 'operator', True)],
+)
+def test_osip_transfer_exception_uses_authenticated_role(role, login, allowed):
+    from flask import Flask, session
+    from app.services.osip_transfer_service import OsipTransferService
+    from app.utils.location_validator import validate_centrala_osip_move
+
+    app = Flask(__name__)
+    app.secret_key = 'test-key'
+    with app.test_request_context(), patch('app.core.database.get_db_connection') as db:
+        db.return_value.cursor.return_value.fetchone.return_value = None
+        session.update(zalogowany=True, login=login, rola=role)
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [
+            {'status': 'IN_TRANSIT', 'transfer_code': 'T-1'}
+        ]
+
+        assert validate_centrala_osip_move('MS01', 'OSIP', nr_palety='P-1', user_login=login)[0] is allowed
+        if allowed:
+            assert OsipTransferService.require_receiving(cursor, 'P-1', 'OSIP', user_login=login) is False
+            cursor.execute.assert_not_called()
+        else:
+            with pytest.raises(ValueError, match='T-1'):
+                OsipTransferService.require_receiving(cursor, 'P-1', 'OSIP', user_login=login)

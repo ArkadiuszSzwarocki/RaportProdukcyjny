@@ -366,35 +366,28 @@ def is_osip_location(location_code):
 
 
 def is_masteradmin_user(user_login=None) -> bool:
-    """Sprawdza czy użytkownik to MasterAdmin (po loginie, sesji Flask lub roli w bazie)."""
-    if user_login:
-        clean_login = str(user_login).strip().lower().replace(' ', '').replace('_', '')
-        if clean_login == 'masteradmin':
-            return True
+    """Check the authenticated role for the OSIP transfer exception."""
+    from flask import has_request_context, session
+    from app.decorators import _normalize_role
+
+    if has_request_context():
+        return bool(session.get('zalogowany')) and _normalize_role(session.get('rola')) == 'masteradmin'
+    if not user_login:
+        return False
+
+    from app.core.database import get_db_connection
     try:
-        from flask import has_request_context, session
-        if has_request_context():
-            sess_role = str(session.get('rola') or session.get('role') or '').strip().lower().replace(' ', '').replace('_', '')
-            sess_login = str(session.get('login') or session.get('username') or '').strip().lower().replace(' ', '').replace('_', '')
-            if sess_role == 'masteradmin' or sess_login == 'masteradmin':
-                return True
-    except Exception:
-        pass
-    if user_login:
+        conn = get_db_connection()
         try:
-            from app.core.database import get_db_connection
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT rola FROM uzytkownicy WHERE LOWER(TRIM(login)) = %s LIMIT 1", (str(user_login).strip().lower(),))
-            row = cur.fetchone()
+            cursor = conn.cursor()
+            cursor.execute("SELECT rola FROM uzytkownicy WHERE LOWER(TRIM(login)) = %s LIMIT 1",
+                           (str(user_login).strip().lower(),))
+            row = cursor.fetchone()
+        finally:
             conn.close()
-            if row:
-                r_clean = str(row[0] or '').strip().lower().replace(' ', '').replace('_', '')
-                if r_clean == 'masteradmin':
-                    return True
-        except Exception:
-            pass
-    return False
+    except Exception:
+        return False
+    return bool(row) and _normalize_role(row[0]) == 'masteradmin'
 
 
 def is_centrala_location(location_code):

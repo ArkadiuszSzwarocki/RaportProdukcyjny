@@ -124,3 +124,18 @@ def test_reset_etap_returns_success_when_stage_already_cleared(mock_get_conn):
 
     assert ok is True
     assert 'już był zresetowany' in msg
+
+def test_dashboard_skips_zasyp_productivity_without_connection():
+    from app.services.dashboard_context_service import DashboardContextService
+
+    plan = (1, None, None, 'oczekuje', None, None, None, 100)
+    logger = MagicMock()
+    with patch('app.services.dashboard_context_service.get_db_connection', side_effect=RuntimeError), \
+            patch.object(ZasypEtapyService, 'get_dashboard_sessions', return_value=({}, {})):
+        context = DashboardContextService.build_zasyp_etapy_context(
+            [plan], datetime(2026, 11, 10).date(), 'Zasyp', 'AGRO', logger=logger,
+        )
+
+    assert context['kgph_stats_mapa'] == {}
+    logger.warning.assert_called_once()
+    assert 'DB connection failed' in logger.warning.call_args.args[0]

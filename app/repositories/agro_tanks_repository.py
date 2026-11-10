@@ -373,14 +373,14 @@ class AgroTanksRepository:
                             f"GROUP BY ruch_zrodlowy_id, typ_ruchu",
                             chunk
                         )
-                        for zrow in cursor.fetchall() or []:
-                            zid = zrow.get('ruch_zrodlowy_id')
-                            ztyp = zrow.get('typ_ruchu')
-                            zsum = float(zrow.get('suma') or 0.0)
-                            if ztyp == 'ZWROT':
-                                zwrot_map[zid] = zwrot_map.get(zid, 0.0) + zsum
-                            elif ztyp == 'INWENTARYZACJA_PROD':
-                                korekta_map[zid] = korekta_map.get(zid, 0.0) + zsum
+                        for adjustment_row in cursor.fetchall() or []:
+                            source_id = adjustment_row.get('ruch_zrodlowy_id')
+                            movement_type = adjustment_row.get('typ_ruchu')
+                            adjustment_total = float(adjustment_row.get('suma') or 0.0)
+                            if movement_type == 'ZWROT':
+                                zwrot_map[source_id] = zwrot_map.get(source_id, 0.0) + adjustment_total
+                            elif movement_type == 'INWENTARYZACJA_PROD':
+                                korekta_map[source_id] = korekta_map.get(source_id, 0.0) + adjustment_total
                 for r in rows:
                     rid = r.get('ruch_id')
                     r['ilosc_zwrocona'] = zwrot_map.get(rid, 0.0)
@@ -462,14 +462,14 @@ class AgroTanksRepository:
                                 f"GROUP BY ruch_zrodlowy_id, typ_ruchu",
                                 chunk
                             )
-                            for zrow in cursor.fetchall() or []:
-                                zid = zrow.get('ruch_zrodlowy_id')
-                                ztyp = zrow.get('typ_ruchu')
-                                zsum = float(zrow.get('suma') or 0.0)
-                                if ztyp == 'ZWROT':
-                                    zwrot_map[zid] = zwrot_map.get(zid, 0.0) + zsum
-                                elif ztyp == 'INWENTARYZACJA_PROD':
-                                    korekta_map[zid] = korekta_map.get(zid, 0.0) + zsum
+                            for adjustment_row in cursor.fetchall() or []:
+                                source_id = adjustment_row.get('ruch_zrodlowy_id')
+                                movement_type = adjustment_row.get('typ_ruchu')
+                                adjustment_total = float(adjustment_row.get('suma') or 0.0)
+                                if movement_type == 'ZWROT':
+                                    zwrot_map[source_id] = zwrot_map.get(source_id, 0.0) + adjustment_total
+                                elif movement_type == 'INWENTARYZACJA_PROD':
+                                    korekta_map[source_id] = korekta_map.get(source_id, 0.0) + adjustment_total
 
                     for r in base_rows:
                         rid = r.get('ruch_id')

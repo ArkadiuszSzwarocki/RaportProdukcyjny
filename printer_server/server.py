@@ -1,5 +1,7 @@
 """Authenticated local print bridge for ZPL and office PDF jobs."""
 
+# cspell:words dotenv
+
 import hmac
 import ipaddress
 import json

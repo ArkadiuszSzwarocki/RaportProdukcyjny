@@ -252,78 +252,78 @@ class DashboardContextService:
                     brutto_min, start_str, end_str = ShiftTimeService.get_shift_time_range(str(dzisiaj), conn=conn)
                     czas_netto_min = max(1, brutto_min - awarie_zasyp_min)
 
-                for plan_id in plan_ids:
-                    meta = plan_meta.get(plan_id) or {}
-                    tonaz_plan = float(meta.get('tonaz_rzeczywisty') or 0.0)
-                    tonaz_realized = float(plan_realized_kg.get(plan_id) or 0.0)
-                    parametry = etapy_parametry.get(plan_id) or {}
+                    for plan_id in plan_ids:
+                        meta = plan_meta.get(plan_id) or {}
+                        tonaz_plan = float(meta.get('tonaz_rzeczywisty') or 0.0)
+                        tonaz_realized = float(plan_realized_kg.get(plan_id) or 0.0)
+                        parametry = etapy_parametry.get(plan_id) or {}
 
-                    tonaz = tonaz_realized if tonaz_realized > 0 else tonaz_plan
-                    batch_tonaz = float(parametry.get('wielkosc_szarzy_kg') or 0.0)
+                        tonaz = tonaz_realized if tonaz_realized > 0 else tonaz_plan
+                        batch_tonaz = float(parametry.get('wielkosc_szarzy_kg') or 0.0)
 
-                    # Dynamiczne wyliczenie od startu do zamknięcia/teraz
-                    prod_metrics = ShiftTimeService.calculate_productivity(
-                        mass_kg=tonaz,
-                        awarie_min=awarie_zasyp_min,
-                        date_str=str(dzisiaj),
-                        shift_range=(brutto_min, start_str, end_str),
-                    )
-                    wydajnosc_efektywna = prod_metrics['wydajnosc_efektywna'] if tonaz > 0 else None
-                    wydajnosc_rzeczywista = prod_metrics['wydajnosc_rzeczywista'] if tonaz > 0 else None
+                        # Dynamiczne wyliczenie od startu do zamknięcia/teraz
+                        prod_metrics = ShiftTimeService.calculate_productivity(
+                            mass_kg=tonaz,
+                            awarie_min=awarie_zasyp_min,
+                            date_str=str(dzisiaj),
+                            shift_range=(brutto_min, start_str, end_str),
+                        )
+                        wydajnosc_efektywna = prod_metrics['wydajnosc_efektywna'] if tonaz > 0 else None
+                        wydajnosc_rzeczywista = prod_metrics['wydajnosc_rzeczywista'] if tonaz > 0 else None
 
-                    sessions_for_plan = etapy_sesje_mapa.get(plan_id) or []
+                        sessions_for_plan = etapy_sesje_mapa.get(plan_id) or []
 
-                    def _session_etapy_breakdown(session_payload):
-                        etapy_out = []
-                        for etap in (session_payload.get('etapy') or []):
-                            try:
-                                duration_seconds = int(etap.get('duration_s') or 0)
-                            except Exception:
-                                duration_seconds = 0
-                            if duration_seconds <= 0:
-                                continue
-                            try:
-                                etap_nr = int(etap.get('etap'))
-                            except Exception:
-                                etap_nr = etap.get('etap')
-                            etapy_out.append(
+                        def _session_etapy_breakdown(session_payload):
+                            etapy_out = []
+                            for etap in (session_payload.get('etapy') or []):
+                                try:
+                                    duration_seconds = int(etap.get('duration_s') or 0)
+                                except Exception:
+                                    duration_seconds = 0
+                                if duration_seconds <= 0:
+                                    continue
+                                try:
+                                    etap_nr = int(etap.get('etap'))
+                                except Exception:
+                                    etap_nr = etap.get('etap')
+                                etapy_out.append(
+                                    {
+                                        'etap': etap_nr,
+                                        'duration_s': duration_seconds,
+                                        'duration_str': etap.get('duration_str') or '',
+                                    }
+                                )
+                            return etapy_out
+
+                        closed_sessions = [
+                            session_payload
+                            for session_payload in sessions_for_plan
+                            if int(session_payload.get('total_duration_s') or 0) > 0 and not bool(session_payload.get('has_running'))
+                        ]
+
+                        timeline_sources = []
+                        for session_payload in closed_sessions:
+                            timeline_sources.append(
                                 {
-                                    'etap': etap_nr,
-                                    'duration_s': duration_seconds,
-                                    'duration_str': etap.get('duration_str') or '',
+                                    'szarza_nr': int(session_payload.get('szarza_nr') or session_payload.get('curr_szarza_nr') or 0),
+                                    'total_duration_s': int(session_payload.get('total_duration_s') or 0),
+                                    'total_duration_str': session_payload.get('total_duration_str') or '',
+                                    'etapy': _session_etapy_breakdown(session_payload),
                                 }
                             )
-                        return etapy_out
 
-                    closed_sessions = [
-                        session_payload
-                        for session_payload in sessions_for_plan
-                        if int(session_payload.get('total_duration_s') or 0) > 0 and not bool(session_payload.get('has_running'))
-                    ]
-
-                    timeline_sources = []
-                    for session_payload in closed_sessions:
-                        timeline_sources.append(
-                            {
-                                'szarza_nr': int(session_payload.get('szarza_nr') or session_payload.get('curr_szarza_nr') or 0),
-                                'total_duration_s': int(session_payload.get('total_duration_s') or 0),
-                                'total_duration_str': session_payload.get('total_duration_str') or '',
-                                'etapy': _session_etapy_breakdown(session_payload),
-                            }
-                        )
-
-                    kgph_stats_mapa[plan_id] = {
-                        'real_work': wydajnosc_rzeczywista,
-                        'timeline': wydajnosc_efektywna,
-                        'real_mass_kg': tonaz,
-                        'real_seconds': brutto_min * 60,
-                        'timeline_mass_kg': tonaz,
-                        'timeline_batch_mass_kg': batch_tonaz if batch_tonaz > 0 else None,
-                        'timeline_seconds': czas_netto_min * 60,
-                        'timeline_closed_sessions': len(closed_sessions),
-                        'timeline_mode': f"Wydajność efektywna ({start_str}–{end_str}, netto: {czas_netto_min} min [{brutto_min} min - {awarie_zasyp_min} min awarie])",
-                        'timeline_sources': timeline_sources,
-                    }
+                        kgph_stats_mapa[plan_id] = {
+                            'real_work': wydajnosc_rzeczywista,
+                            'timeline': wydajnosc_efektywna,
+                            'real_mass_kg': tonaz,
+                            'real_seconds': brutto_min * 60,
+                            'timeline_mass_kg': tonaz,
+                            'timeline_batch_mass_kg': batch_tonaz if batch_tonaz > 0 else None,
+                            'timeline_seconds': czas_netto_min * 60,
+                            'timeline_closed_sessions': len(closed_sessions),
+                            'timeline_mode': f"Wydajność efektywna ({start_str}–{end_str}, netto: {czas_netto_min} min [{brutto_min} min - {awarie_zasyp_min} min awarie])",
+                            'timeline_sources': timeline_sources,
+                        }
 
             except Exception as error:
                 log.warning('kgph stats load failed: %s', error)

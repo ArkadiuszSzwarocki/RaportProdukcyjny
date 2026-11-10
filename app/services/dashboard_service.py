@@ -592,19 +592,19 @@ class DashboardService:
                         fallback_loc_by_name[w_name] = w_loc
 
                 for item in packaging_items:
-                    nazwa_itemu = item.get('nazwa') or ''
+                    nazwa_surowca = item.get('nazwa') or ''
                     suggested_loc = ''
-                    if nazwa_itemu:
+                    if nazwa_surowca:
                         opak_id = item.get('opakowanie_id')
                         if opak_id and opak_id in ruch_loc_by_id:
                             suggested_loc = ruch_loc_by_id[opak_id]
-                        elif nazwa_itemu in fallback_loc_by_name:
-                            suggested_loc = fallback_loc_by_name[nazwa_itemu]
+                        elif nazwa_surowca in fallback_loc_by_name:
+                            suggested_loc = fallback_loc_by_name[nazwa_surowca]
                             
                     p_item = {
                         'link_id': item.get('link_id'),
                         'opakowanie_id': item.get('opakowanie_id'),
-                        'nazwa': nazwa_itemu,
+                        'nazwa': nazwa_surowca,
                         'stan_poczatkowy': float(item.get('stan_poczatkowy') or 0),
                         'stan_koncowy': float(item.get('stan_koncowy') or 0) if item.get('stan_koncowy') is not None else None,
                         'is_active': bool(item.get('is_active')),

@@ -1,3 +1,4 @@
+# cspell:words bigbagi notif
 import logging
 import threading
 from datetime import date, datetime
