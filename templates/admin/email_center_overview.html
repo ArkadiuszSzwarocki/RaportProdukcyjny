@@ -1,0 +1,18 @@
+{% extends 'admin/email_center_layout.html' %}
+{% block email_content %}
+{% set mail_role = session.get('rola','')|lower|replace(' ','')|replace('_','')|replace('-','') %}
+<style>
+.mail-overview{border:1px solid #e2e8f0;border-radius:10px;background:white;overflow:hidden}.mail-overview a{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;color:#203449;text-decoration:none;border-bottom:1px solid #e2e8f0;font-weight:600}.mail-overview a:last-child{border-bottom:0}.mail-overview a:hover{background:#eff6ff}.mail-overview span{color:#2563eb}
+</style>
+<div class="mail-overview" aria-label="Obszary poczty i powiadomień">
+  {% if mail_role in ['admin','masteradmin'] %}<a href="{{ url_for('admin.email_center',tab='mapa') }}">Konta, odbiorcy i rodzaje wysyłek — zarządzanie<span aria-hidden="true">→</span></a>{% endif %}
+  {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}<a href="{{ url_for('admin.email_center',tab='dzienne') }}">Raporty dzienne — podgląd, PDF i wysyłka<span aria-hidden="true">→</span></a>{% endif %}
+  {% if mail_role in ['admin','masteradmin'] %}<a href="{{ url_for('admin.email_center',tab='konta') }}">Globalne konto SMTP i odbiorcy raportów<span aria-hidden="true">→</span></a>{% endif %}
+  {% if mail_role in ['admin','masteradmin','zarzad','lider'] %}<a href="{{ url_for('admin.email_center',tab='stany') }}">Stany minimalne opakowań i powiadomienia<span aria-hidden="true">→</span></a>{% endif %}
+  {% if role_has_access('ustawienia') %}<a href="{{ url_for('admin.email_center',tab='magazyn') }}">Powiadomienia magazynowe i OSIP<span aria-hidden="true">→</span></a>{% endif %}
+  {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}
+  <a href="{{ url_for('admin.email_center',tab='historia') }}">Historia wysłanych e-maili<span aria-hidden="true">→</span></a>
+  <a href="{{ url_for('admin.email_center',tab='raporty') }}">Wysyłki raportów<span aria-hidden="true">→</span></a>
+  {% endif %}
+</div>
+{% endblock %}

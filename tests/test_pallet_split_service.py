@@ -191,3 +191,20 @@ class TestBuildLabelUrl:
             'linia': 'PSD',
         })
         assert url == '/magazyn-dostawy/podglad-etykiety-system/55?linia=PSD'
+
+
+def test_raw_material_search_does_not_attempt_osip_production_table():
+    from app.db_tables import resolve_table_name
+    connection=MagicMock()
+    cursor=connection.cursor.return_value
+    def result():
+        query,params=cursor.execute.call_args.args
+        if 'FROM magazyn_surowce ' in query:
+            return {'id':4551,'nr_palety':'SUR000001793255469651','source':'surowiec','linia':'AGRO','waga':1020}
+        return None
+    cursor.fetchone.side_effect=result
+    with patch('app.services.magazyn_dostawy.pallet_split_service.get_db_connection',return_value=connection), patch(
+        'app.services.magazyn_dostawy.pallet_split_service.get_table_name',side_effect=resolve_table_name):
+        pallet=PalletSplitService.find_by_sscc('SUR000001793255469651')
+    assert pallet['id']==4551
+    assert pallet['source']=='surowiec'

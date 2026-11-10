@@ -44,6 +44,7 @@ SSCC_SEARCH_SPECS: tuple[dict[str, Any], ...] = (
     {
         'source': 'produkcja',
         'table_base': 'palety_workowanie',
+        'linie': ('AGRO', 'PSD'),
         'select': (
             "pw.id, pw.nr_palety, pw.waga, p.produkt, 'MGW01' AS lokalizacja, "
             "pw.plan_id, 'produkcja' AS source, %s AS linia, p.data_planu AS data_planu"
@@ -156,6 +157,9 @@ class PalletSplitService:
     @staticmethod
     def find_by_id(mother_id: int, source: str, requested_linia: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
         source = str(source or '').strip().lower()
+        requested_linia = str(requested_linia or '').strip().upper() or None
+        if requested_linia in ('ALL', 'WSZYSTKO'):
+            requested_linia = None
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
@@ -176,7 +180,10 @@ class PalletSplitService:
                 return None, None
 
             table_base = 'magazyn_palety' if source == 'magazyn' else 'palety_workowanie'
-            linie_do_sprawdzenia = [requested_linia] if requested_linia else LINIE
+            supported_lines = ('AGRO', 'PSD') if source == 'produkcja' else LINIE
+            if requested_linia and requested_linia not in supported_lines:
+                return None, None
+            linie_do_sprawdzenia = [requested_linia] if requested_linia else supported_lines
             for linia in linie_do_sprawdzenia:
                 table = get_table_name(table_base, linia)
                 cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (mother_id,))

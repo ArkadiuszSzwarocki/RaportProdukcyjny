@@ -1,5 +1,7 @@
   (function () {
     const globalOpakowania = window.PlanistaBulkConfig.data.opakowania;
+    const tapeOptions = globalOpakowania.filter(item =>
+      ['taśma', 'tasma'].includes(String(item.typ_opakowania || '').trim().toLowerCase()));
     const globalEtykiety = window.PlanistaBulkConfig.data.etykiety;
 
     // Ensure report modal is closed on page load
@@ -58,7 +60,6 @@
     const agroFieldsContainer = document.getElementById('agroFieldsContainer');
     const packagingTypeRow = document.getElementById('packagingTypeRow');
     const inpTypOpakowania = document.getElementById('inpTypOpakowania');
-    const inpTypOpakowaniaMagazyn = document.getElementById('inpTypOpakowaniaMagazyn');
     const inpTermin = document.getElementById('inpTermin');
     const customTerminContainer = document.getElementById('customTerminContainer');
 
@@ -235,7 +236,7 @@
           document.getElementById('inpTyp').value = selectedProduct.typ_produkcji || 'worki_zgrzewane_25';
 
           // Auto-fill AGRO packaging and label if they exist
-          if (selectedProduct.opakowanie_id && window.setSearchableSelectValue && window.setSearchableSelectValue['inpOpakowanie']) {
+          if (tapeOptions.some(item => String(item.id) === String(selectedProduct.opakowanie_id)) && window.setSearchableSelectValue && window.setSearchableSelectValue['inpOpakowanie']) {
             window.setSearchableSelectValue['inpOpakowanie'](selectedProduct.opakowanie_id);
           } else if (window.clearSearchableSelects && window.clearSearchableSelects['inpOpakowanie']) {
             window.clearSearchableSelects['inpOpakowanie']();
@@ -438,16 +439,7 @@
       const isCzyszczenie = selectProdukt && (selectProdukt.value || '').toLowerCase().includes('czyszczenie');
       const typOpakowania = inpTypOpakowania ? inpTypOpakowania.value : 'worki';
       
-      // Dla big bag ukrywamy pola opakowanie i etykieta
-      // Dla wszystkiego innego (worki i puste) pokazujemy
-      if (typOpakowania === 'bigbag') {
-        agroFieldsContainer.style.display = 'none';
-      } else if (isAgro && !isCzyszczenie) {
-        // Pokazuj dla AGRO jeśli nie big bag
-        agroFieldsContainer.style.display = 'block';
-      } else {
-        agroFieldsContainer.style.display = 'none';
-      }
+      agroFieldsContainer.style.display = isAgro && !isCzyszczenie && typOpakowania === 'worki' ? 'block' : 'none';
     }
 
     function toggleAgroFields() {
@@ -477,7 +469,7 @@
           if (selectProdukt.value) {
             const selectedProduct = produktyList.find(p => p.nazwa_produktu === selectProdukt.value);
             if (selectedProduct) {
-              if (selectedProduct.opakowanie_id && window.setSearchableSelectValue && window.setSearchableSelectValue['inpOpakowanie']) {
+              if (tapeOptions.some(item => String(item.id) === String(selectedProduct.opakowanie_id)) && window.setSearchableSelectValue && window.setSearchableSelectValue['inpOpakowanie']) {
                 window.setSearchableSelectValue['inpOpakowanie'](selectedProduct.opakowanie_id);
               }
               if (selectedProduct.etykieta_id && window.setSearchableSelectValue && window.setSearchableSelectValue['inpEtykieta']) {
@@ -510,7 +502,7 @@
 
     // Initialize searchable selects for packaging & labels
     setTimeout(function() {
-      initSearchableSelect('inpOpakowanie', 'inpOpakowanie_search', 'inpOpakowanie_dropdown', 'inpOpakowanie_indicator', globalOpakowania, false);
+      initSearchableSelect('inpOpakowanie', 'inpOpakowanie_search', 'inpOpakowanie_dropdown', 'inpOpakowanie_indicator', tapeOptions, false);
       initSearchableSelect('inpEtykieta', 'inpEtykieta_search', 'inpEtykieta_dropdown', 'inpEtykieta_indicator', globalEtykiety, true);
     }, 100);
 
@@ -521,16 +513,6 @@
     
     if (inpTypOpakowania) {
       inpTypOpakowania.addEventListener('change', togglePackagingFields);
-    }
-
-    if (inpTypOpakowaniaMagazyn) {
-      inpTypOpakowaniaMagazyn.addEventListener('change', function() {
-        const selectedType = this.value;
-        const filteredOpakowania = selectedType
-          ? globalOpakowania.filter(o => o.typ_opakowania === selectedType)
-          : globalOpakowania;
-        initSearchableSelect('inpOpakowanie', 'inpOpakowanie_search', 'inpOpakowanie_dropdown', 'inpOpakowanie_indicator', filteredOpakowania, false);
-      });
     }
 
     const addRow = () => {

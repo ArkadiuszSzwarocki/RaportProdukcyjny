@@ -264,7 +264,8 @@ def login():
                 if normalized_role in ['admin', 'zarzad', 'masteradmin', 'lider']:
                     session['grupa'] = 'ALL'
                 else:
-                    session['grupa'] = (grupa or '').strip()
+                    from app.core.hall_roles import hall_for_role
+                    session['grupa'] = hall_for_role(normalized_role, (grupa or '').strip())
 
                 session['login'] = login_field
                 session['pracownik_id'] = int(pracownik_id) if pracownik_id is not None else None

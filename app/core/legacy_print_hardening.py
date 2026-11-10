@@ -259,6 +259,8 @@ def secure_accept_item(
     printer_name=None,
     expected_status=None,
     strict_putaway=False,
+    accepted_quantity=None,
+    quantity_reason=None,
 ):
     """Run acceptance and then queue labels through the authenticated client."""
     if _ORIGINAL_ACCEPT_ITEM is None:
@@ -276,6 +278,8 @@ def secure_accept_item(
         None,
         expected_status=expected_status,
         strict_putaway=strict_putaway,
+        **({"accepted_quantity": accepted_quantity, "quantity_reason": quantity_reason}
+           if accepted_quantity is not None else {}),
     )
     try:
         success = bool(result and result[0])

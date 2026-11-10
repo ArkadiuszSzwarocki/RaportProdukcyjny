@@ -102,3 +102,32 @@ def test_tank_history_endpoint_redirects_for_invalid_tank(client):
 
     assert response.status_code == 302
     assert '/agro/magazyn/inwentaryzacja-produkcji?linia=AGRO' in response.headers['Location']
+
+
+def test_production_materials_include_every_ko_station():
+    from flask import Flask
+    from app.blueprints.agro_warehouse.views import surowce_w_produkcji
+    snapshot = [{'zbiornik': f'KO{i:02d}', 'stan_systemowy': 0} for i in range(1, 41)]
+    application = Flask(__name__)
+    view = surowce_w_produkcji
+    while hasattr(view, '__wrapped__'):
+        view = view.__wrapped__
+    with application.test_request_context('/?linia=AGRO'), patch(
+        'app.blueprints.agro_warehouse.views.AgroTanksService.get_production_inventory_snapshot', return_value=snapshot
+    ), patch('app.blueprints.agro_warehouse.views.render_template', return_value='OK') as render:
+        assert view() == 'OK'
+    groups = render.call_args.kwargs['grouped_entries']
+    assert [item['zbiornik'] for items in groups.values() for item in items] == [f'KO{i:02d}' for i in range(1, 41)]
+
+
+def test_nonexistent_k_stations_are_not_offered_or_accepted():
+    from app.repositories.agro_tanks_repository import AgroTanksRepository
+    from app.utils.location_validator import validate_production_tank
+    from app.services.tank_validation_service import TankValidationService
+    codes = AgroTanksRepository.get_production_tanks()['ALL']
+    assert all(f'KO{i:02d}' in codes for i in range(1, 41))
+    assert not any(code.startswith('K') and not code.startswith('KO') for code in codes)
+    assert not validate_production_tank('K001')[0]
+    with patch('app.services.tank_validation_service.TankValidationRepository.upsert_rule') as write:
+        assert not TankValidationService.save_tank_rule('K001', 'Mąka')[0]
+        write.assert_not_called()

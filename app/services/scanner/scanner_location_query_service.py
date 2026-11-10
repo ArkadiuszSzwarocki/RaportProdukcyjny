@@ -209,6 +209,14 @@ class ScannerLocationQueryService:
             finally:
                 conn.close()
 
+        rack_code = f'R{location_code}' if re.fullmatch(r'0[0-9]{5}', location_code) else location_code
+        explicit_location = bool(re.fullmatch(
+            r'R[0-9]{2,6}|(?:MOP|MP|MDM|MDO|MGW|MS)[0-9]{2}|RAMPA[0-9]*',
+            rack_code,
+        ))
+        if explicit_location:
+            location_code = rack_code
+
         prefixed_type, prefixed_id = ScannerCodeNormalizer.extract_prefixed_id(location_code)
         is_sscc = ScannerCodeNormalizer.is_sscc_code(location_code)
         is_partial_sscc = location_code.isdigit() and len(location_code) >= 5
@@ -373,7 +381,7 @@ class ScannerLocationQueryService:
                     qty_col=qty_col,
                     location_code=location_code,
                 )
-                if row:
+                if row and (not explicit_location or str(row.get('lokalizacja') or '').strip().upper() == location_code):
                     val = ScannerItemNormalizer.normalize_lookup_item(
                         row,
                         inventory_type=inv_type,
@@ -402,6 +410,9 @@ class ScannerLocationQueryService:
                 results.append(val)
                 if not is_sscc:
                     return results
+
+            if explicit_location:
+                return [{'is_station': True, 'station_code': location_code, 'items': []}]
 
             if prefixed_type is None:
                 row = _lookup_finished_goods(cur, linia, pallet_no=location_code)

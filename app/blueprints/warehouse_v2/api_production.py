@@ -65,6 +65,8 @@ def get_production_stations():
 def get_station_history():
     from app.services.warehouse_history_service import WarehouseHistoryService
     linia = (request.args.get('linia') or 'ALL').upper()
+    if linia not in ('ALL', 'AGRO', 'PSD'):
+        linia = 'ALL'
     data_od = request.args.get('dataOd')
     data_do = request.args.get('dataDo')
     surowiec = request.args.get('surowiec')

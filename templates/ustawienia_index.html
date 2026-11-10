@@ -5,264 +5,39 @@
 {% set session_login = (session.get('login') or '')|lower|trim %}
 {% set has_master_section_access = session_role in ['admin', 'masteradmin'] or session_login in ['admin', 'masteradmin'] %}
 <style>
-    .settings-view {
-        display: grid;
-        gap: 24px;
-    }
-
-    .settings-shell {
-        display: grid;
-        gap: 24px;
-    }
-
-    .settings-hero {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 24px;
-        padding: 28px 30px;
-        border-radius: 22px;
-        border: 1px solid rgba(44, 62, 80, 0.08);
-        background: linear-gradient(135deg, #ffffff 0%, #f4f8fc 55%, #eef6ff 100%);
-        box-shadow: 0 16px 40px rgba(25, 40, 56, 0.08);
-    }
-
-    .settings-eyebrow {
-        margin-bottom: 10px;
-        color: #2f7dd1;
-        font-size: 0.78rem;
-        font-weight: 800;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-    }
-
-    .settings-title {
-        margin: 0;
-        color: #203449;
-        font-size: 2.15rem;
-        line-height: 1.05;
-    }
-
-    .settings-description {
-        max-width: 760px;
-        margin: 14px 0 0;
-        color: #5e7184;
-        font-size: 1rem;
-        line-height: 1.65;
-    }
-
-    .settings-hero-actions {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        min-width: 180px;
-    }
-
-    .settings-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 20px;
-        align-items: stretch;
-    }
-
-    .settings-card {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-        min-height: 260px;
-        padding: 24px;
-        overflow: visible;
-        background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
-        border: 1px solid rgba(32, 52, 73, 0.08);
-        box-shadow: 0 18px 42px rgba(28, 44, 60, 0.08);
-        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-        box-sizing: border-box;
-        border-radius: 22px;
-    }
-
-    .settings-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 24px 48px rgba(28, 44, 60, 0.12);
-        border-color: rgba(47, 125, 209, 0.2);
-    }
-
-    .settings-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 6px;
-        border-radius: 22px 22px 0 0;
-    }
-
-    .settings-card::after {
-        content: '';
-        position: absolute;
-        right: -28px;
-        bottom: -36px;
-        width: 140px;
-        height: 140px;
-        border-radius: 50%;
-        background: rgba(47, 125, 209, 0.07);
-        pointer-events: none;
-    }
-
-    .settings-card-admin::before {
-        background: linear-gradient(90deg, #2f7dd1, #69b7ff);
-    }
-
-    .settings-card-shared::before {
-        background: linear-gradient(90deg, #1e9e67, #55d59f);
-    }
-
-    .settings-card-accent::before {
-        background: linear-gradient(90deg, #7e57c2, #c6a7ff);
-    }
-
-    .settings-card-muted::before {
-        background: linear-gradient(90deg, #7f8c8d, #c7d0d1);
-    }
-
-    .settings-card-icon {
-        width: 60px;
-        height: 60px;
-        display: grid;
-        place-items: center;
-        border-radius: 18px;
-        margin-bottom: 18px;
-        font-size: 1.8rem;
-        background: rgba(47, 125, 209, 0.1);
-        box-shadow: inset 0 0 0 1px rgba(47, 125, 209, 0.08);
-        position: relative;
-        z-index: 1;
-    }
-
-    .settings-card-body {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        position: relative;
-        z-index: 1;
-        flex: 1 1 auto;
-    }
-
-    .settings-card-body h3 {
-        margin: 0;
-        color: #203449;
-        font-size: 1.2rem;
-        line-height: 1.3;
-    }
-
-    .settings-card-body p {
-        margin: 0;
-        color: #425466;
-        line-height: 1.6;
-    }
-
-    .settings-card-meta {
-        color: #6b7c8d;
-        font-size: 0.92rem;
-        line-height: 1.5;
-    }
-
-    .settings-card-actions {
-        margin-top: auto;
-        padding-top: 20px;
-        position: relative;
-        z-index: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        gap: 8px;
-        min-height: 116px;
-        height: 116px;
-        box-sizing: border-box;
-    }
-
-    .settings-card-actions .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: unset;
-        width: 100%;
-        padding: 12px 18px;
-        border-radius: 12px;
-        font-weight: 700;
-        text-decoration: none;
-    }
-
-    .settings-hero-actions .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 210px;
-        padding: 12px 18px;
-        border-radius: 12px;
-        font-weight: 700;
-        text-decoration: none;
-    }
-
-    @media (max-width: 900px) {
-        .settings-hero {
-            flex-direction: column;
-            padding: 24px 22px;
-        }
-
-        .settings-title {
-            font-size: 1.8rem;
-        }
-
-        .settings-hero-actions,
-        .settings-hero-actions .btn {
-            min-width: unset;
-            width: 100%;
-        }
-    }
-
-    @media (max-width: 640px) {
-        .settings-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .settings-card {
-            min-height: 220px;
-            padding: 20px;
-            height: auto;
-        }
-
-        .settings-card-actions {
-            min-height: unset;
-            height: auto;
-        }
-    }
-
-    .settings-version-bar {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
-        padding: 14px 30px;
-        margin-top: 8px;
-        border-top: 1px solid rgba(44, 62, 80, 0.08);
-        color: #8a9bae;
-        font-size: 0.82rem;
-    }
-
-    .settings-version-label {
-        font-weight: 500;
-    }
-
-    .settings-version-value {
-        font-family: monospace;
-        font-size: 0.88rem;
-        font-weight: 700;
-        color: #2f7dd1;
-        background: rgba(47, 125, 209, 0.08);
-        padding: 2px 10px;
-        border-radius: 20px;
-        border: 1px solid rgba(47, 125, 209, 0.15);
+    .settings-view { width:100%; min-width:0; }
+    .settings-shell { display:block; }
+    .settings-hero { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; padding:4px 0 16px; border-bottom:1px solid #e2e8f0; }
+    .settings-title { margin:0; color:#203449; font-size:25px; line-height:1.3; }
+    .settings-grid { display:block; border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#fff; }
+    .settings-view .settings-card { display:grid; grid-template-columns:32px minmax(0,1fr) auto; align-items:center; gap:14px; position:relative; margin:0; padding:14px 18px; min-height:64px; height:auto; border:0; border-bottom:1px solid #e2e8f0; border-radius:0; background:#fff; box-shadow:none; transform:none; box-sizing:border-box; overflow:visible; }
+    .settings-view .settings-card:last-child { border-bottom:0; }
+    .settings-view .settings-card:hover { background:#f8fafc; transform:none; box-shadow:none; }
+    .settings-view .settings-card::before,.settings-view .settings-card::after { display:none; }
+    .settings-view .settings-card-icon { width:32px; height:32px; display:grid; place-items:center; margin:0; border-radius:7px; font-size:19px; background:#f1f5f9; box-shadow:none; }
+    .settings-view .settings-card-body { display:block; min-width:0; }
+    .settings-view .settings-card-body h3 { margin:0; color:#203449; font-size:14px; font-weight:600; line-height:1.5; }
+    .settings-view .settings-card-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:7px; margin:0; padding:0; min-height:0; height:auto; }
+    .settings-view .settings-card-actions .btn,.settings-view .settings-hero-actions .btn { display:inline-flex; align-items:center; justify-content:center; width:auto!important; min-width:0!important; min-height:32px; height:auto; padding:6px 11px; border-radius:6px; font-size:12px; line-height:1.4; font-weight:600; text-transform:none; letter-spacing:normal; white-space:normal; text-decoration:none; box-sizing:border-box; box-shadow:none; }
+    .settings-view .settings-card-actions .btn[style*="display: none"] { display:none; }
+    .settings-view .settings-hero-actions .btn { background:#f1f5f9; color:#475569; }
+    .settings-view .settings-row-link { color:inherit; text-decoration:none; }
+    .settings-view .settings-row-link::after { content:""; position:absolute; inset:0; z-index:1; cursor:pointer; }
+    .settings-view .settings-row-link:focus-visible { outline:none; }
+    .settings-view .settings-row-link:focus-visible::after { outline:2px solid #2563eb; outline-offset:-3px; border-radius:6px; }
+    .settings-view .settings-card-actions { position:relative; z-index:2; }
+    .settings-view details { margin-top:8px; }
+    .settings-view summary { width:fit-content; cursor:pointer; color:#2563eb; font-size:12px; padding:4px 0; }
+    .settings-view .settings-field-group { max-width:440px; }
+    .settings-view input { box-sizing:border-box; min-width:0; }
+    .settings-version-bar { display:flex; justify-content:flex-end; align-items:center; gap:8px; padding:14px 0; color:#64748b; font-size:12px; }
+    .settings-version-value { font-family:monospace; }
+    @media(max-width:640px) {
+        .settings-view .settings-card { grid-template-columns:28px minmax(0,1fr); gap:8px 10px; padding:12px; }
+        .settings-view .settings-card-actions { grid-column:2; justify-content:flex-start; }
+        .settings-view .settings-card-icon { width:28px; height:28px; font-size:17px; align-self:start; }
+        .settings-hero { gap:10px; }
+        .settings-title { font-size:22px; }
     }
 </style>
 <div class="section-box">
@@ -270,11 +45,7 @@
     <div class="settings-shell">
         <div class="settings-hero">
             <div>
-                <div class="settings-eyebrow">Panel konfiguracji</div>
                 <h2 class="settings-title">{{ _('ustawienia') }}</h2>
-                <p class="settings-description">
-                    Zarządzaj kontami, pracownikami, uprawnieniami, czasami workowania i testami raportów z jednego miejsca.
-                </p>
             </div>
             <div class="settings-hero-actions">
                 <a href="/admin" class="btn">{{ _('powrot_do_panelu') }}</a>
@@ -285,48 +56,28 @@
             <article class="settings-card settings-card-admin">
                 <div class="settings-card-icon">👥</div>
                 <div class="settings-card-body">
-                    <h3>Użytkownicy i uprawnienia</h3>
-                    <p>Pracownicy i konta, hasła, role, indywidualny dostęp, struktura organizacyjna oraz aktywne sesje.</p>
-                    <div class="settings-card-meta">Wszystkie funkcje zarządzania użytkownikami w jednym panelu</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="{{ url_for('admin.users_center') }}" class="btn btn-primary">Zarządzaj użytkownikami</a>
+                    <h3><a class="settings-row-link" href="{{ url_for('admin.users_center') }}">Użytkownicy i uprawnienia</a></h3>
                 </div>
             </article>
 
             <article class="settings-card settings-card-admin">
                 <div class="settings-card-icon">⏱️</div>
                 <div class="settings-card-body">
-                    <h3>Czasy Workowania</h3>
-                    <p>Definiuj czasy przetwarzania na 1000 kg dla różnych typów opakowań.</p>
-                    <div class="settings-card-meta">Planowanie, wydajność i normy sekcji Workowanie</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/workowanie_times" class="btn btn-primary">Konfiguruj czasy</a>
+                    <h3><a class="settings-row-link" href="/admin/ustawienia/workowanie_times">Czasy Workowania</a></h3>
                 </div>
             </article>
 
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon">🏭</div>
                 <div class="settings-card-body">
-                    <h3>Zarządzanie Produkcją</h3>
-                    <p>Przeglądaj i filtruj zlecenia oraz archiwalne dane produkcyjne.</p>
-                    <div class="settings-card-meta">Podgląd wszystkich sekcji, statusów i historii planu</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/produkcja" class="btn btn-primary">Przejdź do Produkcji</a>
+                    <h3><a class="settings-row-link" href="/admin/ustawienia/produkcja">Zarządzanie Produkcją</a></h3>
                 </div>
             </article>
 
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon">🛡️</div>
                 <div class="settings-card-body">
-                    <h3>Zbiorniki & Walidacja Surowców</h3>
-                    <p>Przypisuj dozwolone surowce do stacji BB, MZ, KO i blokuj błędne wydania.</p>
-                    <div class="settings-card-meta">Konfiguracja reguł walidacji dla stacji produkcyjnych</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/zbiorniki" class="btn btn-primary">Konfiguruj Zbiorniki</a>
+                    <h3><a class="settings-row-link" href="/admin/ustawienia/zbiorniki">Zbiorniki & Walidacja Surowców</a></h3>
                 </div>
             </article>
 
@@ -334,12 +85,7 @@
             <article class="settings-card settings-card-muted">
                 <div class="settings-card-icon">🕵️</div>
                 <div class="settings-card-body">
-                    <h3>Tajemnicza Strefa DB</h3>
-                    <p>Szybkie przełączanie źródła danych między bazą główną i testową.</p>
-                    <div class="settings-card-meta">Narzędzie serwisowe dla administratora</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="{{ url_for('admin.admin_secret_db') }}" class="btn btn-primary">Otwórz przełącznik baz</a>
+                    <h3><a class="settings-row-link" href="{{ url_for('admin.admin_secret_db') }}">Tajemnicza Strefa DB</a></h3>
                 </div>
             </article>
             {% endif %}
@@ -348,8 +94,8 @@
                 <div class="settings-card-icon">🖨️</div>
                 <div class="settings-card-body">
                     <h3>Most Drukarki & Maszyna</h3>
-                    <p>Zarządzaj serwerem wydruku oraz połączeniem z maszyną pakującą.</p>
-                    
+
+                    <details><summary>Połączenie z maszyną</summary>
                     <div class="settings-field-group" style="margin-top: 15px; padding: 12px; background: rgba(47, 125, 209, 0.04); border: 1px solid rgba(47, 125, 209, 0.1); border-radius: 12px;">
                         <label style="font-size: 0.85em; font-weight: 700; color: #203449; display: block; margin-bottom: 8px;">IP / Hostname & Port Maszyny (API)</label>
                         <div style="display: grid; grid-template-columns: 1fr 80px; gap: 8px; margin-bottom: 8px;">
@@ -364,6 +110,7 @@
                         </div>
                     </div>
 
+                    </details>
                     <div id="printer-status-box" style="margin-top: 15px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 10px;">
                         <span class="badge badge-secondary" id="printer-status-badge">Drukarka: Sprawdzanie...</span>
                     </div>
@@ -377,24 +124,17 @@
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon">📧</div>
                 <div class="settings-card-body">
-                    <h3>E-mail i powiadomienia</h3>
-                    <p>Konta SMTP systemu i użytkowników, odbiorcy, poczta magazynowa i OSIP oraz historia wysyłek.</p>
-                    <div class="settings-card-meta">Testy połączenia, harmonogram raportów i błędy wysyłki w jednym panelu</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="{{ url_for('admin.email_center') }}" class="btn btn-primary">Ustawienia poczty</a>
+                    <h3><a class="settings-row-link" href="{{ url_for('admin.email_center') }}">E-mail i powiadomienia</a></h3>
                 </div>
             </article>
 
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon">🖨️</div>
                 <div class="settings-card-body">
-                    <h3>Zarządzanie Drukarkami (Zebra)</h3>
-                    <p>Konfiguruj drukarki etykiet i urządzenia ZPL.</p>
-                    <div class="settings-card-meta">Dodawaj i edytuj adresy IP fizycznych drukarek, które są dostępne w magazynie</div>
+                    <h3><a class="settings-row-link" href="/admin/ustawienia/drukarki">Zarządzanie Drukarkami (Zebra)</a></h3>
                 </div>
                 <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/drukarki" class="btn btn-primary">Drukarki Etykiet (Zebra)</a>
+
                     {% if has_master_section_access %}
                     <a href="{{ url_for('admin.admin_zpl_test') }}" class="btn btn-outline-primary" style="border: 1px solid #2f7dd1; color: #2f7dd1;">Test Drukarki (ZPL)</a>
                     {% endif %}
@@ -405,12 +145,7 @@
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon">🖨️</div>
                 <div class="settings-card-body">
-                    <h3>Historia druku przesunięć</h3>
-                    <p>Sprawdź, kto i kiedy wywołał druk przesunięcia oraz jaki jest status zadania drukowania.</p>
-                    <div class="settings-card-meta">Ostatnie 30 dni oraz archiwum starszych wpisów</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="{{ url_for('magazyn_dostawy.movement_print_history') }}" class="btn btn-primary">Otwórz historię druku</a>
+                    <h3><a class="settings-row-link" href="{{ url_for('magazyn_dostawy.movement_print_history') }}">Historia druku przesunięć</a></h3>
                 </div>
             </article>
             {% endif %}
@@ -418,49 +153,32 @@
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon" style="background: rgba(47, 125, 209, 0.12); color: #2f7dd1;">📋</div>
                 <div class="settings-card-body">
-                    <h3>Logi Drukarek (48h)</h3>
-                    <p>Dziennik prób drukowania z ostatnich 48 godzin oraz czujniki fizyczne Zebra (~HS).</p>
-                    <div class="settings-card-meta">Podgląd błędów, brak papieru/pauza, ponawianie wydruków</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/logi-drukowania" class="btn btn-primary">Otwórz Logi Drukarek</a>
+                    <h3><a class="settings-row-link" href="/admin/ustawienia/logi-drukowania">Logi Drukarek (48h)</a></h3>
                 </div>
             </article>
 
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon">📄</div>
                 <div class="settings-card-body">
-                    <h3>Drukarki Biurowe (Raporty A4)</h3>
-                    <p>Przypisz systemowe drukarki Windows do automatycznych raportów A4.</p>
-                    <div class="settings-card-meta">Decyduj, która drukarka z serwera ma odbierać dany typ raportu (np. zakończenia palety)</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="/admin/ustawienia/drukarki-biurowe" class="btn btn-primary">Drukarki Biurowe</a>
+                    <h3><a class="settings-row-link" href="/admin/ustawienia/drukarki-biurowe">Drukarki Biurowe (Raporty A4)</a></h3>
                 </div>
             </article>
 
             <article class="settings-card">
                 <div class="settings-card-icon">🏗️</div>
                 <div class="settings-card-body">
-                    <h3>Pojemności Magazynów</h3>
-                    <p>Zarządzaj maksymalną pojemnością (w sztukach) dla różnych stref magazynowych.</p>
-                    <div class="settings-card-meta">Skonfiguruj limity dla regałów, sekcji lub stref podłogowych.</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="{{ url_for('admin.pojemnosci_magazynu') }}" class="btn btn-primary">Zarządzaj Pojemnościami</a>
+                    <h3><a class="settings-row-link" href="{{ url_for('admin.pojemnosci_magazynu') }}">Pojemności Magazynów</a></h3>
                 </div>
             </article>
 
             <article class="settings-card">
                 <div class="settings-card-icon">🗺️</div>
                 <div class="settings-card-body">
-                    <h3>Ustawienia Lokalizacji</h3>
-                    <p>Zarządzaj listą aktywnych lokalizacji magazynowych dla danej linii.</p>
-                    <div class="settings-card-meta">Dodawaj lub ukrywaj lokalizacje docelowe na magazynie.</div>
+                    <h3><a class="settings-row-link" href="{{ url_for('magazyn_dostawy.ustawienia_lokalizacji') }}">Ustawienia Lokalizacji</a></h3>
                 </div>
                 <div class="settings-card-actions">
                     {% if (session.get('rola') or '')|lower|trim in ['admin', 'masteradmin', 'zarzad', 'lider'] %}
-                    <a href="{{ url_for('magazyn_dostawy.ustawienia_lokalizacji') }}" class="btn btn-primary">Ustawienia Lokalizacji</a>
+
                     {% endif %}
                 </div>
             </article>
@@ -468,36 +186,21 @@
             <article class="settings-card settings-card-shared">
                 <div class="settings-card-icon">📚</div>
                 <div class="settings-card-body">
-                    <h3>Słownik Surowców</h3>
-                    <p>Zarządzaj symbolami i jednostkami dla surowców oraz opakowań.</p>
-                    <div class="settings-card-meta">Konfiguracja symboli drukowanych na etykietach ZPL.</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="{{ url_for('admin.raw_materials_index') }}" class="btn btn-primary">Zarządzaj Słownikiem</a>
+                    <h3><a class="settings-row-link" href="{{ url_for('admin.raw_materials_index') }}">Słownik Surowców</a></h3>
                 </div>
             </article>
 
             <article class="settings-card settings-card-shared">
                 <div class="settings-card-icon" style="background: rgba(102, 126, 234, 0.12); color: #667eea;">📍</div>
                 <div class="settings-card-body">
-                    <h3>Generator Kodów QR (Lokalizacje 80×80 mm & Tekst)</h3>
-                    <p>Twórz i drukuj etykiety z kodami QR dla wszystkich lokalizacji magazynowych (regały, strefy, OSIP) oraz dowolnego tekstu w formacie 80×80 mm.</p>
-                    <div class="settings-card-meta">Druk na drukarkach Zebra ZPL i w przeglądarce, katalog lokalizacji oraz presety rozmiarów.</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="{{ url_for('admin.admin_qr_generator') }}" class="btn btn-primary">Otwórz Generator</a>
+                    <h3><a class="settings-row-link" href="{{ url_for('admin.admin_qr_generator') }}">Generator Kodów QR (Lokalizacje 80×80 mm & Tekst)</a></h3>
                 </div>
             </article>
 
             <article class="settings-card settings-card-accent">
                 <div class="settings-card-icon" style="background: rgba(220, 53, 69, 0.12); color: #dc3545;">🐞</div>
                 <div class="settings-card-body">
-                    <h3>Zgłoszenia Błędów</h3>
-                    <p>Przeglądaj zgłoszenia o nazwie "robaczek" przesłane przez użytkowników.</p>
-                    <div class="settings-card-meta">Podgląd, odpowiedź i zarządzanie zgłoszonymi błędami systemowymi.</div>
-                </div>
-                <div class="settings-card-actions">
-                    <a href="{{ url_for('admin.admin_ustawienia_bugs') }}" class="btn btn-primary">Zarządzaj Zgłoszeniami</a>
+                    <h3><a class="settings-row-link" href="{{ url_for('admin.admin_ustawienia_bugs') }}">Zgłoszenia Błędów</a></h3>
                 </div>
             </article>
 
@@ -506,9 +209,7 @@
                 <div class="settings-card-icon" style="background: rgba(255, 193, 7, 0.12); color: #d97706;">⚡</div>
                 <div class="settings-card-body">
                     <h3>Weryfikacja MasterAdmin</h3>
-                    <p>Dynamiczny test integralności kodu, poprawności składni i certyfikatów SSL.</p>
-                    <div class="settings-card-meta">Narzędzie diagnostyczne integracji systemowych</div>
-                    
+
                     <!-- Terminal results will open in modal -->
                 </div>
                 <div class="settings-card-actions">
@@ -521,9 +222,7 @@
                 <div class="settings-card-icon" style="background: rgba(56, 189, 248, 0.12); color: #0284c7;">💾</div>
                 <div class="settings-card-body">
                     <h3>Statystyki Bazy Danych</h3>
-                    <p>Rozmiar tabel i wolumen rekordów bazy produkcyjnej w czasie rzeczywistym.</p>
-                    <div class="settings-card-meta">Podgląd zajętości dysku oraz rekordów tabel</div>
-                    
+
                     <!-- DB Stats results will open in modal -->
                 </div>
                 <div class="settings-card-actions">
@@ -549,13 +248,13 @@
         function saveMachineConfig() {
             const host = document.getElementById('machine-api-host').value.trim();
             const port = document.getElementById('machine-api-port').value.trim();
-            
+
             if (host) localStorage.setItem('machine_api_host', host);
             else localStorage.removeItem('machine_api_host');
-            
+
             if (port) localStorage.setItem('machine_api_port', port);
             else localStorage.removeItem('machine_api_port');
-            
+
             showToast('Zapisano konfigurację maszyny. Odśwież stronę, aby zastosować zmiany.', 'success');
         }
 
@@ -563,11 +262,11 @@
             const badge = document.getElementById('printer-status-badge');
             const btnStart = document.getElementById('btn-start-printer');
             const btnOk = document.getElementById('btn-printer-ok');
-            
+
             try {
                 const resp = await fetch('/admin/api/printer-server/status');
                 const data = await resp.json();
-                
+
                 if (data.running) {
                     badge.className = 'badge badge-success';
                     badge.textContent = '● AKTYWNY';
@@ -590,7 +289,7 @@
             const originalText = btn.textContent;
             btn.textContent = 'Uruchamianie...';
             btn.disabled = true;
-            
+
             try {
                 const resp = await fetch('/admin/api/printer-server/start', { method: 'POST' });
                 const data = await resp.json();
@@ -618,7 +317,7 @@
             modalTitle.innerHTML = '<span class="material-icons">health_and_safety</span> Weryfikacja systemu (Error Trap)';
             modalBody.innerHTML = '<div style="background: #0f172a; color: #38bdf8; padding: 20px; font-family: monospace; border-radius: 8px; min-height: 100%; font-size: 1.1rem;"><div id="verify-modal-lines" style="color: #888;">> Inicjalizacja testów integralności...</div></div>';
             modal.style.display = 'flex';
-            
+
             btn.disabled = true;
             btn.textContent = 'Testowanie...';
 
@@ -638,13 +337,13 @@
                             let color = '#ffc107';
                             if (line.includes('[OK]') || line.includes('[SUCCESS]')) color = '#32cd32';
                             if (line.includes('[SYNTAX ERROR]') || line.includes('[CRITICAL ERROR]') || line.includes('[FAILED]')) color = '#ef4444';
-                            
+
                             const div = document.createElement('div');
                             div.style.color = color;
                             div.style.marginBottom = '4px';
                             div.textContent = line;
                             linesContainer.appendChild(div);
-                            
+
                             // auto scroll
                             modalBody.scrollTop = modalBody.scrollHeight;
                         }
@@ -758,15 +457,11 @@
     </script>
 
 
-        </div>
-    </div>
-    </div>
-
     <div class="settings-version-bar">
         <span class="settings-version-label">Wersja aplikacji</span>
         <span class="settings-version-value">v{{ app_version }}</span>
     </div>
-
+</div>
 
 <!-- Master Admin Large Modal -->
 <div id="master-large-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px);">

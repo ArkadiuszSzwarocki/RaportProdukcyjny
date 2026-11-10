@@ -1,5 +1,9 @@
-function highlightAndOpenSlot(locId) {
+function highlightAndOpenSlot(locId, scannedPallet = null) {
     locId = normalizeLocationCode(locId);
+    if (!currentRackPrefix || !isSlotOnInventoryRack(locId, currentRackPrefix)) {
+        safeToast('Nie ma takiego gniazda na tym regale: ' + locId, 'error');
+        return;
+    }
     // Remove highlight from all
     document.querySelectorAll('#rackGrid > div').forEach(d => {
         d.style.outline = 'none';
@@ -14,11 +18,11 @@ function highlightAndOpenSlot(locId) {
     }
     
     lastLocation = locId;
-    openSlotDetail(locId);
+    openSlotDetail(locId, scannedPallet);
 }
 
 
-function openSlotDetail(locId) {
+function openSlotDetail(locId, scannedPallet = null) {
     locId = normalizeLocationCode(locId);
     const detail = document.getElementById('slotDetail');
     const title = document.getElementById('detailLocTitle');
@@ -29,6 +33,11 @@ function openSlotDetail(locId) {
     
     const items = rackData[locId] || [];
     const isExplicitlyEmpty = items.length === 1 && items[0].nazwa === 'PUSTE GNIAZDO';
+    const detailScanRow = document.getElementById('detailPalletScanRow');
+    if (detailScanRow) detailScanRow.hidden = Boolean(scannedPallet) || !items.length || isExplicitlyEmpty;
+    const rackScanGroup = document.getElementById('rackLocationScanRow');
+    if (rackScanGroup) rackScanGroup.hidden = true;
+    const pending = items.filter(item => item.nazwa !== 'PUSTE GNIAZDO' && !item.counted).length;
 
     if(items.length === 0 || isExplicitlyEmpty) {
         let statusHtml = '';
@@ -76,7 +85,7 @@ function openSlotDetail(locId) {
             document.getElementById('btnConfirmEmpty').onclick = () => markEmpty(locId);
         } else {
             // Sprawdź czy wszystkie palety są już policzne (re-skan korekcyjny)
-            const allCounted = visibleItems.length > 0 && visibleItems.every(p => p.counted);
+            const allCounted = pending === 0 && visibleItems.every(p => p.counted);
             if (allCounted) {
                 // Baner informacyjny o re-skanie
                 const reScanBanner = document.createElement('div');
@@ -90,9 +99,15 @@ function openSlotDetail(locId) {
                 content.appendChild(reScanBanner);
             }
             
+            if (pending && !scannedPallet) {
+                const hint = document.createElement('p');
+                hint.textContent = `Pozostało palet do zeskanowania: ${pending}. Zeskanuj kolejną paletę.`;
+                content.appendChild(hint);
+            }
             visibleItems.forEach(p => {
             const card = document.createElement('div');
             card.className = 'pallet-card';
+            if (p === scannedPallet) card.dataset.scannedPallet = '1';
             card.style.transition = 'all 0.2s';
             card.style.position = 'relative';
             
@@ -108,10 +123,10 @@ function openSlotDetail(locId) {
                     </div>
                     <div style="text-align: right; font-size: 11px; color: #64748b; font-weight: 700; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
                         <div style="display: none;">SYS: <span style="font-size: 13px; font-weight: 800; color: #334155;">${systemQty} ${p.jednostka || 'kg'}</span></div>
-                        ${p.id ? `<button class="move-pallet-btn" style="background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 10px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; font-weight: 800;" title="Przenieś paletę w inne miejsce">
+                        ${p.id && window.INVENTORY_CONFIG.canMovePallet ? `<button class="move-pallet-btn" style="background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 10px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; font-weight: 800;" title="Przenieś paletę w inne miejsce">
                             <span class="material-icons" style="font-size: 12px; color: #3b82f6;">place</span> Przenieś
-                        </button>
-                        <button onclick="openPrinterModal('${p.id}', '${p.typ_palety}')" style="background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 10px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; font-weight: 800; margin-top: 4px;" title="Drukuj podwójną etykietę">
+                        </button>` : ''}
+                        ${p.id ? `<button onclick="openPrinterModal('${p.id}', '${p.typ_palety}')" style="background: white; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 8px; font-size: 10px; cursor: pointer; color: #475569; display: flex; align-items: center; gap: 4px; font-weight: 800; margin-top: 4px;" title="Drukuj podwójną etykietę">
                             <span class="material-icons" style="font-size: 12px; color: #64748b;">print</span> Drukuj x2
                         </button>` : ''}
                     </div>
@@ -119,13 +134,13 @@ function openSlotDetail(locId) {
                 <div class="slot-change-indicator" style="display:none; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-bottom:8px;"></div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <div style="display: flex; flex-1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
-                        <input type="number" step="0.1" inputmode="decimal" class="weight-input slot-weight-input" placeholder="Wpisz wagę..." value="${displayWeight}" style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
+                        <input type="number" step="0.1" inputmode="decimal" class="weight-input slot-weight-input" placeholder="Wpisz wagę..." value="${displayWeight}" ${p === scannedPallet ? '' : 'disabled'} style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
                         <select class="slot-unit-select" style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: pointer;">
                             <option value="kg" ${(p.jednostka || 'kg') === 'kg' ? 'selected' : ''}>kg</option>
                             <option value="szt" ${(p.jednostka || 'kg') === 'szt' ? 'selected' : ''}>szt</option>
                         </select>
                     </div>
-                    <button class="save-btn" style="background: ${p.counted ? '#059669' : '#10b981'}" title="Zapisz">
+                    <button class="save-btn" ${p === scannedPallet ? '' : 'disabled'} style="background: ${p.counted ? '#059669' : '#10b981'}" title="Zapisz">
 
                         <span class="material-icons">${p.counted ? 'done_all' : 'save'}</span>
                     </button>
@@ -232,11 +247,25 @@ function openSlotDetail(locId) {
                         saveBtn.innerHTML = '<span class="material-icons">done_all</span>';
                         saveBtn.style.background = '#059669';
                         safeToast('✅ Zapisano wagę ' + weight + ' ' + unit, 'success');
-                        markCellDone(locId, false);
-                        
-                        closeDetail();
+                        p.counted = true;
+                        p.waga_faktyczna = weight;
+                        p._unhidden = false;
                         if (typeof refreshRackData === 'function') {
-                            await refreshRackData(currentRackPrefix);
+                            try {
+                                await refreshRackData(currentRackPrefix);
+                            } catch (error) {
+                                renderRackGrid(currentRackPrefix);
+                            }
+                        }
+                        const detail = document.getElementById('slotDetail');
+                        if (detail.style.display === 'none' ||
+                            document.getElementById('detailLocTitle').textContent !== locId) return;
+                        const stillPending = (rackData[locId] || []).some(
+                            item => item.nazwa !== 'PUSTE GNIAZDO' && !item.counted);
+                        if (stillPending) {
+                            openSlotDetail(locId);
+                        } else {
+                            closeDetail();
                         }
                     } else {
                         saveBtn.innerHTML = '<span class="material-icons">error</span>';
@@ -304,13 +333,14 @@ function openSlotDetail(locId) {
     // Autofocus weight input if pallet exists, or detail scanner if empty
     setTimeout(() => {
         if (typeof initInventoryScannerListeners === 'function') initInventoryScannerListeners();
-        const weightInput = content.querySelector('.slot-weight-input');
+        const weightInput = content.querySelector('[data-scanned-pallet] .slot-weight-input');
         if (weightInput) {
             weightInput.focus();
             weightInput.select();
         } else {
             const ssccInput = document.getElementById('ssccVerifierInputDetail');
-            if(ssccInput) ssccInput.focus();
+            if (ssccInput && !detailScanRow?.hidden) ssccInput.focus();
+            else content.querySelector('button')?.focus();
         }
     }, 100);
 }
@@ -320,7 +350,10 @@ function openSlotDetail(locId) {
 
 function closeDetail() {
     document.getElementById('slotDetail').style.display = 'none';
+    const rackScanGroup = document.getElementById('rackLocationScanRow');
+    if (rackScanGroup) rackScanGroup.hidden = false;
     refocusRackScanner();
+    if (typeof refreshInventoryAfterWarehouseChange === 'function') void refreshInventoryAfterWarehouseChange();
 }
 
 // Close modal when clicking on the backdrop

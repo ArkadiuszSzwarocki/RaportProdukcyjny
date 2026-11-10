@@ -244,9 +244,11 @@ function selectPalletFromResult(p) {
     }
     document.getElementById('newPalletWeight').value = p.stan_magazynowy || '0';
     document.getElementById('newPalletBatch').value = p.nr_partii || '';
-    document.getElementById('newPalletDateProd').value = p.data_produkcji || '';
-    document.getElementById('newPalletDateExp').value = p.data_przydatnosci || '';
-    document.getElementById('newPalletPackaging').value = p.typ_opakowania || 'brak';
+    document.getElementById('newPalletProdDate').value = p.data_produkcji || '';
+    document.getElementById('newPalletExpDate').value = p.data_przydatnosci || '';
+    const packagingInput = document.getElementById('newPalletPackaging');
+    if (packagingInput) packagingInput.value = p.typ_opakowania || 'brak';
+    document.getElementById('newPalletLoc').dataset.palletLine = p.linia || 'PSD';
     document.getElementById('newPalletUnit').value = p.jednostka || 'kg';
 }
 
@@ -263,30 +265,69 @@ function generateLocalSSCC(type) {
 }
 
 
-function addNewPallet(loc) {
-    const detailModal = document.getElementById('slotDetail');
-    if (detailModal) detailModal.style.display = 'none';
+let addingScannedPallet = false;
 
-    const pendingLocInput = document.getElementById('pendingNewPalletLoc');
-    if(pendingLocInput) pendingLocInput.value = loc || '';
-    
-    const catSelect = document.getElementById('modalCategorySelect');
-    if(catSelect) catSelect.value = 'surowiec';
-    
-    const modal = document.getElementById('categorySelectionModal');
-    if(modal) modal.style.display = 'flex';
-    else openNewPalletModal(loc, 'surowiec'); // Fallback if modal not found
+function addNewPallet(loc) {
+    document.getElementById('slotDetail').style.display = 'none';
+    document.getElementById('pendingNewPalletLoc').value = loc;
+    const input = document.getElementById('addPalletScanCode');
+    input.value = '';
+    document.getElementById('addPalletScanStatus').textContent = '';
+    document.getElementById('addPalletScanModal').style.display = 'flex';
+    input.focus();
 }
+
+function addPalletWithoutLabel() {
+    if (addingScannedPallet) return;
+    document.getElementById('addPalletScanModal').style.display = 'none';
+    document.getElementById('modalCategorySelect').value = 'surowiec';
+    document.getElementById('categorySelectionModal').style.display = 'flex';
+}
+
+async function addPalletFromLabel(event) {
+    event.preventDefault();
+    if (addingScannedPallet) return;
+    const input = document.getElementById('addPalletScanCode');
+    const status = document.getElementById('addPalletScanStatus');
+    const code = input.value.trim().replace(/^\]C1/, '').replace(/^\(00\)/, '');
+    if (!code) return;
+    addingScannedPallet = true;
+    status.textContent = 'Sprawdzam paletę…';
+    try {
+        const response = await fetch('/magazyn/inwentaryzacja/api/lookup-pallet?code=' + encodeURIComponent(code));
+        const result = await response.json();
+        const pallet = result.pallet;
+        if (!response.ok || !result.success || !pallet?.nr_palety || Number(pallet.stan_magazynowy) <= 0) {
+            status.textContent = 'Nie znaleziono aktywnej palety. Sprawdź etykietę lub wpisz dane ręcznie.';
+            input.select();
+            return;
+        }
+        const loc = document.getElementById('pendingNewPalletLoc').value;
+        status.textContent = '';
+        openNewPalletModal(loc, pallet.typ_palety, false);
+        selectPalletFromResult(pallet);
+        document.getElementById('newPalletWeight').focus();
+        document.getElementById('newPalletWeight').select();
+        document.getElementById('addPalletScanModal').style.display = 'none';
+    } catch (error) {
+        status.textContent = 'Nie udało się odczytać palety.';
+    } finally {
+        addingScannedPallet = false;
+    }
+}
+
 
 function confirmCategorySelection() {
     const loc = document.getElementById('pendingNewPalletLoc').value;
     const cat = document.getElementById('modalCategorySelect').value;
     document.getElementById('categorySelectionModal').style.display = 'none';
-    openNewPalletModal(loc, cat);
+    openNewPalletModal(loc, cat, false);
+    document.getElementById('newPalletSSCC').value = generateLocalSSCC(cat);
+    document.getElementById('newPalletName').focus();
 }
 
 
-function openNewPalletModal(loc, selectedType) {
+function openNewPalletModal(loc, selectedType, focusScan = true) {
     const detailModal = document.getElementById('slotDetail');
     if (detailModal) detailModal.style.display = 'none';
 
@@ -305,7 +346,10 @@ function openNewPalletModal(loc, selectedType) {
     }
     
     const locInput = document.getElementById('newPalletLoc');
-    if (locInput) locInput.value = loc || lastLocation || '';
+    if (locInput) {
+        locInput.value = loc || lastLocation || '';
+        delete locInput.dataset.palletLine;
+    }
     
     const ssccInput = document.getElementById('newPalletSSCC');
     if (ssccInput) ssccInput.value = '';
@@ -336,7 +380,7 @@ function openNewPalletModal(loc, selectedType) {
     const modal = document.getElementById('newPalletModal');
     if (modal) modal.style.display = 'flex';
     
-    if (ssccInput) {
+    if (ssccInput && focusScan) {
         setTimeout(() => {
             ssccInput.focus();
             ssccInput.select();
@@ -385,7 +429,7 @@ function saveNewPallet() {
             waga_faktyczna: weight,
             data_produkcji: dProd,
             data_przydatnosci: dExp,
-            linia: 'PSD',
+            linia: document.getElementById('newPalletLoc').dataset.palletLine || 'PSD',
             typ_opakowania: packaging,
             jednostka: unit
         })
@@ -413,6 +457,7 @@ function saveNewPallet() {
 
 
 function promptMoveLocationScanner(p, locId) {
+    if (!window.INVENTORY_CONFIG.canMovePallet) return;
     currentMovePallet = p;
     currentMoveOriginalLoc = locId;
     
@@ -446,6 +491,7 @@ function promptMoveLocationScanner(p, locId) {
 
 
 function submitMoveLocation() {
+    if (!window.INVENTORY_CONFIG.canMovePallet) return;
     if(!currentMovePallet) return;
     
     const inputLoc = document.getElementById('newLocationInput');
@@ -480,7 +526,7 @@ function submitMoveLocation() {
     let capitalType = pt.charAt(0).toUpperCase() + pt.slice(1);
     if(pt === 'wyrób gotowy') capitalType = 'Wyrób Gotowy';
     
-    smartFetch('/warehouse-v2/api/pallet/move', {
+    smartFetch(window.INVENTORY_CONFIG.url_move_pallet, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
@@ -560,7 +606,7 @@ function verifyPalletSSCC(sscc, context) {
         if (p) {
             foundLocally = true;
             p._unhidden = true;
-            openSlotDetail(targetLoc);
+            openSlotDetail(targetLoc, p);
             safeToast('✅ Odczytano paletę: ' + p.nazwa, 'success');
         }
     }
@@ -569,37 +615,6 @@ function verifyPalletSSCC(sscc, context) {
         globalSearchAndPrompt(sscc, context, targetLoc);
     }
 }
-
-
-function verifyPalletSSCCRack(sscc) {
-    if(!sscc) return;
-    sscc = sscc.trim().toUpperCase();
-    
-    let foundLocId = null;
-    let foundItem = null;
-    
-    if (rackData) {
-        for (const [loc, items] of Object.entries(rackData)) {
-            for (const item of items) {
-                if (isPalletMatch(item, sscc)) {
-                    foundLocId = loc;
-                    foundItem = item;
-                    break;
-                }
-            }
-            if (foundLocId) break;
-        }
-    }
-    
-    if (foundLocId) {
-        foundItem._unhidden = true;
-        safeToast('✅ Paleta w gnieździe ' + foundLocId + ': ' + foundItem.nazwa, 'success');
-        highlightAndOpenSlot(foundLocId);
-    } else {
-        globalSearchAndPrompt(sscc, 'rack', null);
-    }
-}
-
 
 
 function globalSearchAndPrompt(sscc, context, targetLoc) {

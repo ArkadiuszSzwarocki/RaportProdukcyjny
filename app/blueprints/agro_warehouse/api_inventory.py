@@ -20,7 +20,8 @@ def production_inventory_page():
     linia = request.args.get('linia', 'AGRO').upper()
     active_sessions = ProductionInventoryService.get_active_sessions(linia=linia)
     sessions = ProductionInventoryService.get_all_sessions(linia=linia, limit=100)
-    return render_template('agro_warehouse/production_inventory_sessions.html', linia=linia, rola=session.get('rola'), active_sessions=active_sessions, sessions=sessions)
+    return render_template('agro_warehouse/production_inventory_sessions.html', linia=linia, rola=session.get('rola'), active_sessions=active_sessions, sessions=sessions,
+                           available_locations=ProductionInventoryService.available_start_locations(linia))
 
 @agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji/start', methods=['POST'])
 @login_required

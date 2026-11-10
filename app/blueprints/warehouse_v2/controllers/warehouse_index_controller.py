@@ -267,6 +267,11 @@ class WarehouseIndexController:
                     return (1, loc, '', '')
             return (1, loc, '', '')
 
+        from app.core.navigation_group_permissions import group_allowed
+        from app.utils.location_validator import is_osip_location
+        show_osip = group_allowed('osip')
+        if not show_osip:
+            items = [item for item in items if not is_osip_location(item.get('location'))]
         items.sort(key=get_sort_key)
 
         magazyny_zakladki = [
@@ -282,6 +287,8 @@ class WarehouseIndexController:
             {'id': 'BF_MS01', 'name': 'BUFOR MS01'},
             {'id': 'BF_MP01', 'name': 'BUFOR MP01'}
         ]
+        if not show_osip:
+            magazyny_zakladki = [tab for tab in magazyny_zakladki if tab['id'] != 'OSIP']
 
         # Calculate occupancy stats
         stats = {}
@@ -331,6 +338,8 @@ class WarehouseIndexController:
             return jsonify(success=False, message='Nie udało się pobrać pełnego stanu magazynu.'), 503
         fefo_pallets = DashboardService.get_expiring_pallets(date.today(), linia, days_threshold=30)
         fefo_pallets = [p for p in fefo_pallets if is_warehouse_location(p.get('lokalizacja') or 'OCZEKUJĄCE')]
+        if not show_osip:
+            fefo_pallets = [p for p in fefo_pallets if not is_osip_location(p.get('lokalizacja'))]
         if as_json:
             fefo = [dict(p, data_przydatnosci=format_date_val(p.get('data_przydatnosci'))) for p in fefo_pallets]
             return jsonify(success=True, items=items, stats=stats, fefo=fefo)

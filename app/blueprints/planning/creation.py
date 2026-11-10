@@ -2,6 +2,7 @@ import logging
 from datetime import date
 from flask import current_app, flash, jsonify, redirect, request, session, url_for
 
+from app.core.hall_roles import worker_role
 from app.db import get_db_connection, get_table_name, refresh_bufor_queue, get_plan_notification_context
 from app.core.audit import audit_log
 from app.decorators import hall_restricted, roles_required
@@ -80,7 +81,7 @@ def register_planning_creation_routes(planning_bp, *, return_url_builder):
 
         role = (session.get('rola') or '').lower().strip()
         is_admin_role = role in ['admin', 'planista', 'zarzad', 'masteradmin', 'master admin', 'master_admin']
-        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
+        is_ops_role = worker_role(role) in ['operator', 'pracownik', 'lider', 'stepnpio']
         
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania planów lub zasypów.', 'warning')

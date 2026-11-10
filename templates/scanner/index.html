@@ -73,13 +73,20 @@
         <span class="material-icons" id="scanTitleIcon" style="color:var(--primary-color);">barcode_reader</span>
         <span id="scanTitleText">Skanuj kod regału lub palety</span>
       </div>
-      <button type="button" id="btnResetScannerHeader" onclick="resetScanner()" title="Zresetuj skaner / Skanuj inną paletę"
+      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+        <button type="button" id="btnResetScannerHeader" onclick="resetScanner()" title="Zresetuj skaner / Skanuj inną paletę"
               style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; transition: all 0.2s;"
               onmouseover="this.style.background='#e0f2fe'; this.style.color='#0284c7'; this.style.borderColor='#7dd3fc';"
               onmouseout="this.style.background='#f1f5f9'; this.style.color='#334155'; this.style.borderColor='#cbd5e1';">
-        <span class="material-icons" style="font-size: 16px; color: #2563eb;">refresh</span>
-        <span>Nowy skan</span>
-      </button>
+          <span class="material-icons" style="font-size: 16px; color: #2563eb;">refresh</span>
+          <span>Nowy skan</span>
+        </button>
+        <button type="button" id="camera-scan-btn" onclick="openHighBayCameraScanner()"
+                aria-label="Skaner na żywo w telefonie (Zoom 7m)" title="Skaner na żywo w telefonie (Zoom 7m)"
+                style="display: inline-grid; place-items: center; width: 36px; min-height: 36px; padding: 0; background: #2563eb; color: #fff; border: 0; border-radius: 8px; cursor: pointer;">
+          <span class="material-icons" aria-hidden="true" style="font-size: 20px;">photo_camera</span>
+        </button>
+      </div>
     </div>
     
     <!-- Pole tekstowe - pełna szerokość z wbudowaną ikoną usuwania i klawiatury -->
@@ -105,13 +112,6 @@
         <span>Zatwierdź kod</span>
       </button>
 
-      <!-- Niebieski przycisk skanera na żywo -->
-      <button type="button" id="camera-scan-btn" onclick="openHighBayCameraScanner()" 
-              style="width: 100%; box-sizing: border-box; min-height: 48px; padding: 13px 16px; background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #ffffff !important; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25); text-align: center;">
-        <span class="material-icons" style="font-size: 22px;">photo_camera</span>
-        <span>Skaner na żywo w telefonie (Zoom 7m)</span>
-      </button>
-      
       <!-- Native camera capture fallback -->
       <input type="file" id="highBayNativeCameraInput" accept="image/*" capture="environment" style="display: none;" onchange="handleHighBayNativePhotoCapture(this)">
     </div>
@@ -176,11 +176,13 @@
           <span class="material-icons" style="font-size:22px;">restore</span> Przywróć paletę ze stanu zużycia
         </button>
       </div>
+      {% if navigation_group_allowed('entry_split') %}
       <div id="scannerSplitBtnContainer" style="margin-top: 8px; width: 100%; display: none;">
         <button type="button" class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="openScannerSplitModal()" style="background: #0284c7; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px; font-weight: 800; border: none; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3); cursor: pointer;">
           <span class="material-icons" style="font-size:22px;">call_split</span> Podziel paletę (odcięcie z nową etykietą)
         </button>
       </div>
+      {% endif %}
       <div style="margin-top: 8px; width: 100%;">
         <button class="btn btn-outline btn-sm row items-center justify-center gap-4" onclick="printLabel('pallet')" style="background:#1e293b; color:#fff; padding:12px 16px; border-radius:8px; width: 100%; font-size: 15px;">
           <span class="material-icons" style="font-size:22px;">print</span> Drukuj etykietę ZPL
@@ -227,7 +229,7 @@
     <div id="stationItemsList" class="station-items-list">
       <!-- Items will be injected here by JS -->
     </div>
-    <div id="nostationMsg" class="text-muted small italic" style="display:none;">Brak zarejestrowanego zasypu w tej stacji.</div>
+    <div id="nostationMsg" class="text-muted small italic" style="display:none;">Lokalizacja jest pusta.</div>
 
     <!-- ROZWIJANA OPCJA: DOSTĘPNE SUROWCE NA MAGAZYNIE (MP01, REGAŁY, BUFORY) -->
     <div id="stationWarehouseStockWrap" class="station-wh-stock-wrap" style="display:none;">
@@ -685,9 +687,9 @@
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js', v=scanner_ui_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js', v=scanner_ui_version) }}"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js', v=scanner_ui_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ scanner_ui_version }}&bucket=20261014-wxx"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_suggestions.js', v=scanner_ui_version) }}"></script>
-<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v={{ scanner_ui_version }}&bucket=20261003-wxx"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ scanner_ui_version }}&bucket=20261014-wxx&empty_location=2"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_suggestions.js', v=scanner_ui_version, location_first=1) }}"></script>
+<script src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v={{ scanner_ui_version }}&bucket=20261003-wxx&location_first=3"></script>
 <script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js', v=scanner_ui_version) }}"></script>
 <script src="{{ url_for('static', filename='js/lp01_film.js') }}?v={{ scanner_ui_version }}"></script>
 {% endblock %}

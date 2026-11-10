@@ -1,54 +1,94 @@
-{% extends "layout.html" %}
+{% extends "includes/scanner_layout.html" %}
 
-{% block content %}
-<div class="inventory-scanner p-20" data-no-autorefresh="true" style="max-width: 800px; margin: 0 auto; font-family: 'Inter', sans-serif;">
+{% block scanner_header_back %}
+<a href="{{ url_for('agro_warehouse.production_inventory_page', linia=linia) }}" class="scanner-header-back">
+    <span class="material-icons">arrow_back</span> Powrót
+</a>
+{% endblock %}
+{% block scanner_title %}Inwentaryzacja produkcyjna{% endblock %}
+{% block scanner_subtitle %}Sesja #{{ sesja_id }} · {{ sesja.lokalizacja }}{% endblock %}
+{% block scanner_header_actions %}
+<button type="button" class="inventory-stop" onclick="finishSession()">
+    <span class="material-icons">stop_circle</span> Zakończ
+</button>
+{% endblock %}
+
+{% block scanner_css %}
+<style>
+    :root { --scanner-mode-color: #f97316; }
+    .production-inventory { max-width: 1000px; margin: auto; }
+    .inventory-scan-card {
+        max-width: 500px; margin: 0 auto 16px; padding: 16px;
+        background: white; border: 1px solid #e2e8f0; border-radius: 16px;
+    }
+    .inventory-scan-card label { display: block; margin-bottom: 8px; font-weight: 800; }
+    .inventory-scan-row { display: flex; align-items: center; gap: 8px; }
+    .inventory-scan-input {
+        flex: 1; min-width: 0; width: 100%; padding: 12px;
+        border: 2px solid #10b981; border-radius: 12px; font-size: 18px; font-weight: 800;
+    }
+    .inventory-scan-submit, .inventory-stop {
+        display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+        padding: 10px; border: 0; border-radius: 10px; color: white; font-weight: 800; cursor: pointer;
+    }
+    .inventory-scan-submit { background: #047857; min-height: 48px; min-width: 48px; }
+    .inventory-stop { background: #b91c1c; }
+    .inventory-scan-progress { display: block; margin-top: 8px; }
+    .inventory-tank-group { padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+    .inventory-tank-group h3 { margin: 0 0 10px; font-size: 0.95rem; }
+    .inventory-tank-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(116px, 1fr)); gap: 8px; }
+    .inventory-tank-card {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+        width: 100%; min-height: 76px; padding: 8px; border: 1px solid #cbd5e1;
+        border-radius: 8px; background: white; color: #0f172a; cursor: pointer;
+    }
+    .inventory-tank-card[data-checked="1"] { background: #dcfce7; border-color: #22c55e; }
+    .inventory-tank-card small { line-height: 1.2; }
+</style>
+{% endblock %}
+
+{% block scanner_content %}
+{% set combined = sesja.lokalizacja == 'BB+MZ' %}
+<div class="production-inventory">
     
-    <!-- HEADER -->
-    <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 16px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
-        <a href="{{ url_for('agro_warehouse.production_inventory_page', linia=linia) }}" style="color: #64748b; text-decoration: none; display: flex; align-items: center; gap: 5px; font-weight: 700;">
-            <span class="material-icons">arrow_back</span> Powrót do listy sesji
-        </a>
-        <div style="text-align: right;">
-            <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Sesja #{{ sesja_id }} • {{ sesja.lokalizacja }}</div>
-            <div style="font-size: 13px; color: #3b82f6; font-weight: 800;">W TOKU</div>
+    {% if combined %}
+    <form id="tank-scan-form" class="inventory-scan-card">
+        <label for="tank-scan-code">Zeskanuj stację BB lub MZ</label>
+        <div class="inventory-scan-row">
+            <span class="material-icons" aria-hidden="true">qr_code_scanner</span>
+            <input id="tank-scan-code" class="inventory-scan-input" type="text" autocomplete="off" placeholder="np. BB01 lub MZ07" autofocus>
+            <button type="submit" class="inventory-scan-submit" aria-label="Otwórz stację"><span class="material-icons">search</span></button>
         </div>
-    </div>
-
-    <h2 style="font-size: 24px; font-weight: 800; color: #0f172a; margin-bottom: 5px;">Skaner / Wpisywanie Stanów</h2>
-    <p style="color: #64748b; margin-bottom: 20px; font-size: 14px;">Wprowadź faktyczną wagę dla wszystkich zbiorników w wybranym obszarze.</p>
+        <strong id="tank-scan-progress" class="inventory-scan-progress" aria-live="polite"></strong>
+        <span id="tank-scan-message" role="status"></span>
+    </form>
+    {% endif %}
 
     <!-- LISTA ZBIORNIKÓW I SUROWCÓW (POGRUPOWANA) -->
     <div id="entriesList" style="display: flex; flex-direction: column; gap: 30px; margin-bottom: 30px;">
         {% if grouped_entries %}
             {% for group_name, group_entries in grouped_entries.items() %}
-            <div class="tank-group" style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
-                <h3 style="margin: 0 0 15px 0; font-size: 18px; font-weight: 800; color: #1e293b; padding-bottom: 10px; border-bottom: 2px solid #f1f5f9;">
-                    <span class="material-icons" style="vertical-align: middle; color: #3b82f6; font-size: 20px;">view_module</span> {{ group_name }}
-                </h3>
-                
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px;">
+            <section class="inventory-tank-group">
+                <h3>{{ group_name }}</h3>
+                <div class="inventory-tank-grid">
                     {% for entry in group_entries %}
-                    <div class="pallet-card" id="card-{{ entry.id }}" 
-                         onclick="openTankDetailModal({{ entry.id }}, '{{ entry.zbiornik }}', '{{ entry.surowiec_nazwa or '' }}', '{{ entry.nr_palety or '' }}', '{{ entry.nr_partii or '' }}', {{ entry.waga_systemowa }}, {{ entry.waga_faktyczna }})"
-                         style="background: {% if entry.waga_faktyczna > 0 or entry.surowiec_nazwa == 'PUSTY ZBIORNIK' %}#f0fdf4{% else %}#f8fafc{% endif %}; 
-                                border-radius: 12px; border: 1px solid {% if entry.waga_faktyczna > 0 or entry.surowiec_nazwa == 'PUSTY ZBIORNIK' %}#10b981{% else %}#e2e8f0{% endif %}; 
-                                padding: 15px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; min-height: 100px; transition: all 0.2s;">
-                        
-                        <div style="font-size: 20px; font-weight: 900; color: #0f172a; margin-bottom: 5px;">{{ entry.zbiornik }}</div>
-                        
-                        {% if entry.surowiec_nazwa and entry.surowiec_nazwa != 'PUSTY ZBIORNIK' %}
-                            <div style="font-size: 11px; font-weight: 800; color: #3b82f6; text-align: center; line-height: 1.2;">{{ entry.surowiec_nazwa | truncate(25) }}</div>
-                            <div style="font-size: 14px; font-weight: 900; color: #166534; margin-top: 8px;" id="lbl-weight-{{ entry.id }}">{{ entry.waga_faktyczna }} kg</div>
-                        {% else %}
-                            <div style="font-size: 11px; font-weight: 800; color: #94a3b8; margin-top: 5px;">PUSTY ZBIORNIK</div>
+                    {% set checked = entry.data_wpisu and entry.created_at and entry.data_wpisu > entry.created_at %}
+                    <button type="button" class="inventory-tank-card" id="card-{{ entry.id }}" data-tank="{{ entry.zbiornik }}"
+                            data-checked="{{ '1' if checked else '0' }}"
+                            data-material="{{ entry.surowiec_nazwa or '' }}" data-pallet="{{ entry.nr_palety or '' }}"
+                            data-batch="{{ entry.nr_partii or '' }}" data-system-weight="{{ entry.waga_systemowa or 0 }}"
+                            onclick="openTankCard(this)">
+                        <strong>{{ entry.zbiornik }}</strong>
+                        <small>{{ (entry.surowiec_nazwa or 'Pusty zbiornik') | truncate(30) }}</small>
+                        <strong id="lbl-weight-{{ entry.id }}">{{ entry.waga_faktyczna or 0 }} kg</strong>
+                        {% if combined %}
+                        <small class="tank-check-status">{{ '✓ Policzona' if checked else 'Do sprawdzenia' }}</small>
                         {% endif %}
-                        
-                        <!-- Hidden input for global save -->
-                        <input type="hidden" class="weight-input" data-id="{{ entry.id }}" id="hidden-winput-{{ entry.id }}" value="{{ entry.waga_faktyczna }}">
-                    </div>
+                    </button>
+                    <input type="hidden" class="weight-input" data-id="{{ entry.id }}" id="hidden-winput-{{ entry.id }}" value="{{ entry.waga_faktyczna or 0 }}">
                     {% endfor %}
                 </div>
-            </div>
+            </section>
             {% endfor %}
         {% else %}
             <div style="text-align: center; padding: 40px; background: white; border-radius: 16px; border: 1px dashed #cbd5e1;">
@@ -62,10 +102,12 @@
     <!-- ACTIONS -->
     <div style="position: sticky; bottom: 20px; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 -10px 40px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; display: flex; gap: 15px; flex-direction: column;">
         
+        {% if not combined %}
         <button id="saveAllBtn" onclick="saveEntries()" class="btn-primary" style="background: #10b981; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 16px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;">
             <span class="material-icons">save</span> ZAPISZ POSTĘP
         </button>
         
+        {% endif %}
         <div style="display: flex; gap: 10px;">
             <a href="{{ url_for('agro_warehouse.raport_production_inventory', sesja_id=sesja_id, linia=linia) }}" style="flex: 1; padding: 14px; border: 2px solid #e2e8f0; border-radius: 12px; background: white; color: #475569; font-weight: 800; text-align: center; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 6px;">
                 <span class="material-icons" style="font-size: 18px;">summarize</span> ZOBACZ RAPORT
@@ -78,8 +120,49 @@
     </div>
 
 </div>
+{% endblock %}
 
+{% block scanner_scripts %}
+{% set combined = sesja.lokalizacja == 'BB+MZ' %}
 <script>
+const combinedInventory = {{ combined | tojson }};
+
+function openTankCard(card) {
+    const entryId = Number(card.id.slice(5));
+    const weight = document.getElementById(`hidden-winput-${entryId}`).value;
+    openTankDetailModal(entryId, card.dataset.tank, card.dataset.material, card.dataset.pallet,
+        card.dataset.batch, card.dataset.systemWeight, weight);
+}
+
+function refreshTankProgress() {
+    const progress = document.getElementById('tank-scan-progress');
+    if (!progress) return;
+    const cards = [...document.querySelectorAll('#entriesList [data-tank]')];
+    progress.textContent = `Policzone stacje: ${cards.filter(card => card.dataset.checked === '1').length} / ${cards.length}`;
+}
+
+const tankScan = document.getElementById('tank-scan-code');
+if (tankScan) {
+    refreshTankProgress();
+    tankScan.form.addEventListener('submit', event => {
+        event.preventDefault();
+        const code = tankScan.value.trim().toUpperCase().replace(/[\s_-]/g, '');
+        const match = /^(BB|MZ)([0-9]{1,2})$/.exec(code);
+        const normalized = match ? match[1] + match[2].padStart(2, '0') : '';
+        const card = [...document.querySelectorAll('#entriesList [data-tank]')].find(
+            item => item.dataset.tank.replace(/[\s_-]/g, '').toUpperCase() === normalized);
+        const message = document.getElementById('tank-scan-message');
+        if (!card) {
+            message.textContent = 'Nie znaleziono tej stacji w sesji BB + MZ.';
+            tankScan.select();
+            return;
+        }
+        message.textContent = '';
+        tankScan.value = '';
+        openTankCard(card);
+    });
+}
+
 function saveEntries() {
     const btn = document.getElementById('saveAllBtn');
     const originalText = btn.innerHTML;
@@ -131,7 +214,18 @@ function saveEntries() {
 }
 
 function finishSession() {
-    if(!confirm("Czy na pewno chcesz zapisać postęp i zamknąć sesję inwentaryzacji?")) return;
+    if(!confirm("Czy na pewno chcesz zamknąć sesję inwentaryzacji?")) return;
+    if (combinedInventory) {
+        fetch('/agro/api/inwentaryzacja-produkcji/zamknij', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ sesja_id: {{ sesja_id }} })
+        }).then(r => r.json()).then(data => {
+            if (data.success) window.location.href = {{ url_for('agro_warehouse.raport_production_inventory', sesja_id=sesja_id, linia=linia)|tojson }};
+            else alert(data.message || 'Nie udało się zamknąć sesji.');
+        }).catch(() => alert('Błąd połączenia podczas zamykania sesji.'));
+        return;
+    }
     
     // First save, then close
     const updates = [];
@@ -207,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 let currentEntryId = null;
+let verifiedPalletCode = "";
 let lookupTimeout = null;
 let lookedUpPalletId = null;
 
@@ -259,11 +354,22 @@ function openTankDetailModal(entryId, tank, surowiec, sscc, partia, wSystemowa, 
     
     const wInput = document.getElementById('td-weightInput');
     wInput.value = wFaktyczna;
+    verifiedPalletCode = '';
+    const palletInput = document.getElementById('td-pallet-code');
+    const requiresPallet = Boolean(palletInput && surowiec && surowiec !== 'PUSTY ZBIORNIK');
+    if (palletInput) {
+        palletInput.value = '';
+        document.getElementById('td-pallet-verification').textContent = '';
+        palletInput.closest('.tank-pallet-scan').hidden = !requiresPallet;
+        wInput.disabled = requiresPallet;
+    }
+
     
     document.getElementById('tankDetailModal').style.display = 'flex';
     setTimeout(() => {
-        wInput.focus();
-        wInput.select();
+        const nextInput = requiresPallet ? palletInput : wInput;
+        nextInput.focus();
+        nextInput.select();
     }, 100);
 }
 
@@ -282,60 +388,88 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function closeTankDetailModal() {
     document.getElementById('tankDetailModal').style.display = 'none';
+    if (tankScan) tankScan.focus();
 }
 
 
-function saveWeightFromDetail() {
-    if (!currentEntryId) return;
-    const rawInput = (document.getElementById('td-weightInput').value || '').replace(',', '.').trim();
-    const val = parseFloat(rawInput) || 0;
-    
-    // Update hidden input on card
-    const hiddenInput = document.getElementById(`hidden-winput-${currentEntryId}`);
-    if(hiddenInput) hiddenInput.value = val;
-    
-    // Update visual label on card
-    const lbl = document.getElementById(`lbl-weight-${currentEntryId}`);
-    if(lbl) lbl.textContent = val + ' kg';
-    
-    const card = document.getElementById(`card-${currentEntryId}`);
-    if(card) {
-        card.style.background = '#f0fdf4';
-        card.style.borderColor = '#10b981';
+async function verifyTankPallet() {
+    const input = document.getElementById('td-pallet-code');
+    const status = document.getElementById('td-pallet-verification');
+    const weight = document.getElementById('td-weightInput');
+    const entry = currentEntryId;
+    const code = input.value.trim();
+    if (!code) return;
+    verifiedPalletCode = '';
+    weight.disabled = true;
+    status.textContent = 'Sprawdzam paletę…';
+    try {
+        const response = await fetch({{ url_for('inwentaryzacja.lookup_pallet')|tojson }} + '?code=' + encodeURIComponent(code));
+        const data = await response.json();
+        if (entry !== currentEntryId || code !== input.value.trim()) return;
+        const name = data.pallet?.nazwa;
+        if (!response.ok || !data.success || data.pallet?.typ_palety !== 'surowiec' || !name) {
+            status.textContent = 'Nie znaleziono palety surowca.';
+            return;
+        }
+        const expected = document.getElementById('td-surowiec').textContent;
+        const normalize = value => value.trim().toLowerCase().replace(/\s+/g, ' ');
+        if (normalize(name) !== normalize(expected)) {
+            status.textContent = `Niezgodny surowiec: paleta zawiera ${name}, stacja ma ${expected}.`;
+            return;
+        }
+        verifiedPalletCode = code;
+        status.textContent = `✓ Surowiec zgodny: ${name}`;
+        weight.disabled = false;
+        weight.focus();
+        weight.select();
+    } catch (error) {
+        if (entry === currentEntryId && code === input.value.trim()) status.textContent = 'Nie udało się sprawdzić palety.';
     }
-    
-    // Close modal immediately for smooth UX
-    closeTankDetailModal();
-    
-    // Save to server
-    const updates = [{
-        id: currentEntryId,
-        waga_faktyczna: val
-    }];
-    
-    fetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ sesja_id: {{ sesja_id }}, updates: updates })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if(data.success) {
-            if (typeof showToast === 'function') {
-                showToast(`✅ Zapisano stan: ${val} kg`, 'success');
-            }
-        } else {
-            alert("Błąd zapisu: " + (data.message || 'Nieznany błąd'));
-        }
-    })
-    .catch(err => {
-        console.error('saveWeightFromDetail error:', err);
-        if (typeof showToast === 'function') {
-            showToast('Błąd połączenia podczas zapisu', 'error');
-        }
-    });
 }
 
+let savingTank = false;
+
+async function saveWeightFromDetail() {
+    if (!currentEntryId || savingTank) return;
+    const id = currentEntryId;
+    if (document.getElementById('td-weightInput').disabled) {
+        alert('Najpierw zeskanuj i sprawdź paletę.');
+        return;
+    }
+    const raw = document.getElementById('td-weightInput').value.trim().replace(',', '.');
+    const weight = Number(raw);
+    if (!raw || !Number.isFinite(weight) || weight < 0) {
+        alert('Wpisz poprawną ilość w kg. Dla pustej stacji wpisz 0.');
+        return;
+    }
+
+    savingTank = true;
+    try {
+        const response = await fetch('/agro/api/inwentaryzacja-produkcji/zapisz', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({sesja_id: {{ sesja_id }}, updates: [{id, waga_faktyczna: weight, kod_palety: verifiedPalletCode}]})
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            alert(data.message || 'Nie udało się zapisać stanu.');
+            return;
+        }
+        document.getElementById(`hidden-winput-${id}`).value = weight;
+        const label = document.getElementById(`lbl-weight-${id}`);
+        if (label) label.textContent = `${weight} kg`;
+        const card = document.getElementById(`card-${id}`);
+        card.dataset.checked = '1';
+        const status = card.querySelector('.tank-check-status');
+        if (status) status.textContent = '✓ Policzona';
+        refreshTankProgress();
+        if (currentEntryId === id) closeTankDetailModal();
+    } catch (error) {
+        alert('Błąd połączenia podczas zapisu stanu.');
+    } finally {
+        savingTank = false;
+    }
+}
 
 function openChangeMaterialModalFromDetail() {
     const tankName = document.getElementById('td-tankName').textContent;
@@ -437,7 +571,9 @@ function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd,
 }
 
 </script>
+{% endblock %}
 
+{% block scanner_modals %}
 <!-- MODAL: Szczegóły Zbiornika (Tank Detail) -->
 <div id="tankDetailModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; padding: 20px;">
     <div style="background: white; width: 100%; max-width: 400px; border-radius: 24px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
@@ -455,17 +591,29 @@ function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd,
             <div><strong>Stan Systemowy:</strong> <span id="td-wSystemowa" style="font-weight:800; color:#0f172a;"></span></div>
         </div>
         
+        {% if sesja.lokalizacja == 'BB+MZ' %}
+        <div class="tank-pallet-scan" style="margin-bottom:12px;">
+            <label for="td-pallet-code"><strong>Zeskanuj kod palety</strong></label>
+            <div class="inventory-scan-row">
+                <input id="td-pallet-code" class="inventory-scan-input" autocomplete="off"
+                       oninput="verifiedPalletCode=''; document.getElementById('td-weightInput').disabled=true; document.getElementById('td-pallet-verification').textContent='';"
+                       onkeydown="if(event.key==='Enter'){event.preventDefault();verifyTankPallet();}">
+                <button type="button" class="inventory-scan-submit" onclick="verifyTankPallet()">Sprawdź</button>
+            </div>
+            <span id="td-pallet-verification" role="status"></span>
+        </div>
+        {% endif %}
         <div style="margin-bottom: 20px;">
             <div style="display:flex; gap:10px; align-items:center;">
                 <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
                     <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" id="td-weightInput" placeholder="STAN FAKTYCZNY" autocomplete="off"
                            style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;"
-                           onkeydown="if(event.key==='Enter'){event.preventDefault();saveWeightFromDetail();}">
+                          >
                     <select disabled style="border: none; background: #f1f5f9; padding: 12px; font-weight: 800; font-size: 13px; color: #475569; outline: none; border-left: 1px solid #e2e8f0; height: 100%; cursor: default; appearance: none;">
                         <option>kg</option>
                     </select>
                 </div>
-                <button type="button" onclick="saveWeightFromDetail()" title="Zapisz"
+                <button type="button" onclick="saveWeightFromDetail()" title="Potwierdź surowiec i ilość" aria-label="Potwierdź surowiec i ilość"
                         style="background:#10b981; color: white; border: none; padding: 12px 16px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                     <span class="material-icons">save</span>
                 </button>

@@ -224,12 +224,27 @@ function acceptItemClick(itemId, idx, productName, qty, pType) {
         return;
     }
 
+    const receivedEl = document.getElementById(`received_qty_${idx}`);
+    const reasonEl = document.getElementById(`quantity_reason_${idx}`);
+    const receivedQuantity = receivedEl ? Number(receivedEl.value.replace(',', '.')) : Number(qty);
+    const quantityReason = reasonEl ? reasonEl.value.trim() : '';
+    if (!Number.isFinite(receivedQuantity) || receivedQuantity <= 0 || receivedQuantity > Number(qty)) {
+        safeToast('Podaj ilość większą od 0 i nie większą niż wydana.', 'warning');
+        return;
+    }
+    if (receivedQuantity < Number(qty) && !quantityReason) {
+        safeToast('Wpisz powód różnicy przy przyjęciu.', 'warning');
+        reasonEl?.focus();
+        return;
+    }
+
     pendingAcceptItem = {
         itemId,
         idx,
         location,
         productName,
-        qty: Number(qty || 0),
+        qty: receivedQuantity,
+        quantityReason,
         pType: String(pType || 'surowiec'),
         nrPartii,
         dataProdukcji,
@@ -248,7 +263,7 @@ function closePrinterModal() {
 async function confirmAcceptWithPrinter() {
     if (!pendingAcceptItem) return;
     const config = getConfig();
-    const { itemId, idx, location, productName, qty, pType, nrPartii, dataProdukcji, dataPrzydatnosci } = pendingAcceptItem;
+    const { itemId, idx, location, productName, qty, pType, nrPartii, dataProdukcji, dataPrzydatnosci, quantityReason } = pendingAcceptItem;
 
     closePrinterModal();
 
@@ -269,6 +284,8 @@ async function confirmAcceptWithPrinter() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
                 item_id: itemId,
+                accepted_quantity: qty,
+                quantity_reason: quantityReason,
                 lokalizacja: location,
                 nr_partii: nrPartii,
                 data_produkcji: dataProdukcji,
@@ -287,7 +304,9 @@ async function confirmAcceptWithPrinter() {
             return;
         }
 
-        safeToast('Pozycja przyjęta.', 'success');
+        safeToast(data.return_document_id
+            ? `Przyjęto ${qty}. Różnica ${data.unaccepted_quantity} oczekuje na zatwierdzenie zwrotu przez wydającego.`
+            : 'Pozycja przyjęta.', 'success');
         updateProgressIndicators(data);
         markRowAsProcessed(idx, 'accepted');
 
@@ -434,6 +453,15 @@ async function reprintLabel(btnElement, idx, nrPalety, productName, batch, dateP
 }
 
 async function preprintLabel(btnElement, idx, nrPalety, productName, qty, pType) {
+    const receivedEl = document.getElementById(`received_qty_${idx}`);
+    if (receivedEl) {
+        const actual = Number(receivedEl.value.replace(',', '.'));
+        if (!Number.isFinite(actual) || actual <= 0 || actual > Number(qty)) {
+            safeToast('Nieprawidłowa ilość do wydruku.', 'warning');
+            return;
+        }
+        qty = actual;
+    }
     const config = getConfig();
     const printerSelect = document.getElementById(`preprint_printer_${idx}`);
     let printerId = printerSelect ? printerSelect.value : '';

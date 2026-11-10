@@ -1,0 +1,7 @@
+{% extends 'layout.html' %}
+{% block content %}
+<section style="max-width:1200px;margin:0 auto;">
+  <header style="margin-bottom:20px;"><p style="color:#64748b;">Ustawienia osobiste</p><h1>Konto e-mail — {{ edit_user_login or current_user_login }}</h1><p>Konfiguracja Twojej skrzynki nadawczej. Zmiany zapisujesz przyciskiem w formularzu.</p></header>
+  {% block email_content %}{% endblock %}
+</section>
+{% endblock %}

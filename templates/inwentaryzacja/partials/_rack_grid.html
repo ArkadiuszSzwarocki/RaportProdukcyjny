@@ -11,7 +11,7 @@
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px;">
                 <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
                     <span class="material-icons" style="font-size: 14px; color: #10b981;">qr_code_scanner</span>
-                    <span>① Skanuj <span style="color: #3b82f6;">lok</span> → ② Skanuj <span style="color: #10b981;">paletę</span></span>
+                    <span>① Lokalizacja → ② Paleta → ③ Ilość</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <button onclick="clearSkaner()" style="font-size: 11px; font-weight: 700; color: #3b82f6; background: none; border: none; cursor: pointer; text-decoration: underline;" title="Zmień regał">ZMIEŃ</button>
@@ -21,13 +21,13 @@
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <div id="rackLocationScanRow" style="display: flex; gap: 10px; margin-bottom: 15px;">
 
                 <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
                     <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
-                    <input type="text" id="ssccVerifierInputRack" inputmode="none" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę...">
+                    <input type="text" id="ssccVerifierInputRack" inputmode="text" autocapitalize="characters" autocomplete="off" spellcheck="false" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Zeskanuj kod gniazda...">
                 </div>
-                <button onclick="let inp=document.getElementById('ssccVerifierInputRack'); handleRackScan(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
+                <button onclick="submitInventorySlotInput()" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
                     <span class="material-icons" style="font-size: 24px;">search</span>
                 </button>
             </div>
@@ -52,10 +52,10 @@
                          <span class="material-icons" style="font-size: 20px; color: #64748b;">close</span>
                     </button>
                 </div>
-                <div style="display: flex; gap: 10px; margin-bottom: 15px; width: 100%;">
+                <div id="detailPalletScanRow" style="display: flex; gap: 10px; margin-bottom: 15px; width: 100%;">
                     <div class="input-group" style="flex: 1; min-width: 0; width: auto;">
                         <span class="material-icons input-icon" style="color: #10b981;">qr_code_scanner</span>
-                        <input type="text" id="ssccVerifierInputDetail" inputmode="none" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Skanuj lokalizację lub paletę...">
+                        <input type="text" id="ssccVerifierInputDetail" inputmode="none" class="scanner-input" style="border-color: #10b981; width: 100%; padding-left: 42px;" placeholder="Zeskanuj kod palety...">
                     </div>
                     <button onclick="let inp=document.getElementById('ssccVerifierInputDetail'); handleDetailScan(inp.value); inp.value='';" style="width: 50px; height: 50px; flex-shrink: 0; border-radius: 12px; border: none; background: #10b981; color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 6px rgba(16,185,129,0.2);" title="Szukaj">
                         <span class="material-icons" style="font-size: 24px;">search</span>

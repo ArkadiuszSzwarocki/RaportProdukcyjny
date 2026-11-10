@@ -9,6 +9,7 @@ from flask import jsonify, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.core.database import get_db_connection
+from app.core.hall_roles import hall_for_role
 from app.core.temporary_admin import apply_temporary_role
 from app.decorators import _normalize_role
 
@@ -139,7 +140,7 @@ def _authoritative_role_sync(app, *, force=False):
             return False
 
         db_role = _normalize_role(row[0])
-        db_group = str(row[1] or '').strip()
+        db_group = hall_for_role(db_role, str(row[1] or '').strip())
         if not db_role:
             session.clear()
             return False

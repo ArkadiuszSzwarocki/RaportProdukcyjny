@@ -59,6 +59,10 @@ class EmailService:
             return False, "❌ Błąd autoryzacji SMTP: Nieprawidłowy login lub hasło skrzynki e-mail."
         except smtplib.SMTPConnectError:
             return False, "❌ Nie można połączyć się ze skonfigurowanym serwerem SMTP."
+        except ssl.SSLCertVerificationError as error:
+            if error.verify_code == 62:
+                return False, "❌ Certyfikat TLS nie pasuje do adresu serwera SMTP. Wpisz nazwę serwera pocztowego podaną przez dostawcę skrzynki, zgodną z jego certyfikatem. Login i hasło nie zostały jeszcze sprawdzone."
+            return False, "❌ Nie można zweryfikować certyfikatu TLS serwera SMTP. Sprawdź jego ważność i konfigurację u dostawcy poczty."
         except Exception:
             return False, "❌ Nie udało się bezpiecznie przetestować połączenia SMTP."
         finally:
@@ -122,23 +126,49 @@ class EmailService:
         subject: str,
         body_html: str,
         attachments: Optional[List[str]] = None,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        cc_emails: Optional[List[str]] = None,
+        log_connection=None,
+        log_source: Optional[str] = None
     ) -> Tuple[bool, str]:
         """Wysyła wiadomość e-mail z raportem i załącznikami."""
+        config = {}
+        to_emails = list(dict.fromkeys(to_emails or []))
+        to_keys = {address.lower() for address in to_emails}
+        cc_emails = list(dict.fromkeys(address for address in (cc_emails or []) if address.lower() not in to_keys))
+        envelope_recipients = to_emails + cc_emails
+
+        def record(success, error=None):
+            try:
+                from app.services.email_log_service import EmailLogService
+                EmailLogService.log_email_attempt(
+                    sender=config.get('username') or 'Konto systemowe',
+                    recipients=envelope_recipients, subject=subject,
+                    source=log_source or ('Auto-Raport' if 'Auto' in subject else ('Raport Zmianowy' if 'Raport' in subject else 'Inne')),
+                    linia='AGRO' if 'AGRO' in subject else ('PSD' if 'PSD' in subject else None),
+                    success=success, error_message=error, attachments=attachments,
+                    connection=log_connection,
+                )
+                return True
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception('Could not persist email attempt history')
+                return False
+
         if not to_emails:
-            return False, "Brak podanych adresów e-mail odbiorców."
-
-        config = self.get_smtp_config_for_user(user_id)
+            message = 'Brak podanych adresów e-mail odbiorców.'
+            record(False, message)
+            return False, message
+        config = self.get_smtp_config_for_user(user_id) or {}
         if not config or not config.get('configured'):
-            return False, "❌ Brak skonfigurowanego konta e-mail użytkownika. Skonfiguruj skrzynkę SMTP w panelu Ustawienia E-mail."
-
-        allowed, reason = smtp_target_allowed(
-            config.get('server'),
-            config.get('port'),
-            config.get('security'),
-        )
+            message = 'Brak skonfigurowanego konta SMTP nadawcy.'
+            record(False, message)
+            return False, message
+        allowed, reason = smtp_target_allowed(config.get('server'), config.get('port'), config.get('security'))
         if not allowed:
-            return False, f"❌ Wysyłka zablokowana przez politykę bezpieczeństwa SMTP: {reason}"
+            message = f'Wysyłka zablokowana przez politykę bezpieczeństwa SMTP: {reason}'
+            record(False, message)
+            return False, message
 
         server = None
         try:
@@ -148,6 +178,8 @@ class EmailService:
             else:
                 msg['From'] = config['username']
             msg['To'] = ", ".join(to_emails)
+            if cc_emails:
+                msg['Cc'] = ", ".join(cc_emails)
             msg['Subject'] = Header(subject, 'utf-8')
             msg.attach(MIMEText(body_html, 'html', 'utf-8'))
 
@@ -163,7 +195,9 @@ class EmailService:
                         part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
                         msg.attach(part)
                     else:
-                        return False, "Brak wybranego załącznika raportu. Wygeneruj raport ponownie."
+                        message = "Brak wybranego załącznika raportu. Wygeneruj raport ponownie."
+                        record(False, message)
+                        return False, message
 
             if config['security'] == 'SSL' or config['port'] == 465:
                 server = secure_smtp_connection(config['server'], config['port'], 'SSL', timeout=15, context=ssl.create_default_context())
@@ -171,53 +205,30 @@ class EmailService:
                 server = secure_smtp_connection(config['server'], config['port'], config['security'], timeout=15)
 
             server.login(config['username'], config['password'])
-            refused = server.sendmail(config['username'], to_emails, msg.as_string())
+            refused = server.sendmail(config['username'], envelope_recipients, msg.as_string())
             if refused:
                 raise smtplib.SMTPRecipientsRefused(refused)
             # QUIT failure after SMTP acceptance must not trigger a duplicate resend.
 
             sender_info = f"konto własne ({config.get('username')})" if config.get('is_custom') else f"konto systemowe ({config.get('username')})"
-            msg_res = f"✅ E-mail wysłany pomyślnie do {len(to_emails)} odbiorcy/odbiorców ({sender_info})."
+            msg_res = f"✅ E-mail wysłany pomyślnie do {len(envelope_recipients)} odbiorcy/odbiorców ({sender_info})."
 
-            try:
-                from app.services.email_log_service import EmailLogService
-                source_label = 'Auto-Raport' if 'Auto' in subject else ('Raport Zmianowy' if 'Raport' in subject else 'Inne')
-                linia_val = 'AGRO' if 'AGRO' in subject else ('PSD' if 'PSD' in subject else None)
-                EmailLogService.log_email_attempt(
-                    sender=config.get('username', 'system') if config else 'system',
-                    recipients=to_emails,
-                    subject=subject,
-                    source=source_label,
-                    linia=linia_val,
-                    success=True,
-                    error_message=None,
-                    attachments=attachments
-                )
-            except Exception:
-                pass
-
+            if not record(True):
+                msg_res += ' Uwaga: nie udało się zapisać historii wysyłki.'
             return True, msg_res
         except Exception as exc:
-            try:
-                from app.services.email_log_service import EmailLogService
-                source_label = 'Auto-Raport' if 'Auto' in subject else ('Raport Zmianowy' if 'Raport' in subject else 'Inne')
-                linia_val = 'AGRO' if 'AGRO' in subject else ('PSD' if 'PSD' in subject else None)
-                EmailLogService.log_email_attempt(
-                    sender=config.get('username', 'system') if config else 'system',
-                    recipients=to_emails,
-                    subject=subject,
-                    source=source_label,
-                    linia=linia_val,
-                    success=False,
-                    error_message='SMTP transport failure',
-                    attachments=attachments
-                )
-            except Exception:
-                pass
-
             if isinstance(exc, smtplib.SMTPRecipientsRefused):
-                return False, "Serwer odrzucił co najmniej jednego odbiorcę. Część odbiorców mogła otrzymać raport; sprawdź adresy przed ponowieniem wysyłki."
-            return False, "❌ Nie udało się wysłać wiadomości przez skonfigurowany serwer SMTP."
+                message = 'Serwer odrzucił co najmniej jednego odbiorcę. Część odbiorców mogła otrzymać wiadomość; sprawdź adresy przed ponowieniem.'
+            elif isinstance(exc, smtplib.SMTPAuthenticationError):
+                message = 'Serwer SMTP odrzucił login lub hasło nadawcy.'
+            elif isinstance(exc, ssl.SSLCertVerificationError):
+                message = 'Nieprawidłowy certyfikat TLS serwera SMTP.'
+            elif isinstance(exc, TimeoutError):
+                message = 'Przekroczono czas oczekiwania na serwer SMTP.'
+            else:
+                message = 'Nie udało się wysłać wiadomości przez skonfigurowany serwer SMTP.'
+            record(False, message)
+            return False, message
         finally:
             if server is not None:
                 try:

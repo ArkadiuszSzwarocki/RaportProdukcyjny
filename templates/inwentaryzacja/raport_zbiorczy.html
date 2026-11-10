@@ -22,7 +22,7 @@
         </div>
     </div>
 
-    {% if not report_items %}
+    {% if not report_items and not production_entries %}
     <div style="background: white; padding: 30px; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; color: #64748b;">Brak sesji w wybranym okresie.</div>
     {% endif %}
 
@@ -149,6 +149,35 @@
         </div>
     </div>
     {% endfor %}
+
+    {% if production_entries %}
+    <h2>Inwentaryzacja produkcyjna</h2>
+    {% for session_group in production_entries | groupby('sesja_id') %}
+    {% set session = session_group.list[0] %}
+    <section style="background:white; margin-bottom:20px; padding:16px 20px; border:1px solid #e2e8f0; border-radius:16px;">
+        <h3 style="margin:0 0 12px;">Sesja #{{ session.sesja_id }} · {{ session.linia }} · {{ session.obszar }}</h3>
+        <table class="modern-table no-mobile-cards report-table" style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th>Stacja</th><th>Surowiec / partia</th><th>Paleta</th>
+                    <th>Stan faktyczny (kg)</th><th>Operator / czas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in session_group.list %}
+                <tr>
+                    <td><strong>{{ entry.lokalizacja }}</strong></td>
+                    <td>{{ entry.nazwa or 'Pusty zbiornik' }}{% if entry.nr_partii %}<br>Partia: {{ entry.nr_partii }}{% endif %}</td>
+                    <td>{{ entry.nr_palety or entry.paleta_id or '-' }}</td>
+                    <td>{{ entry.waga_faktyczna if entry.policzona else 'Do sprawdzenia' }}</td>
+                    <td>{% if entry.policzona %}{{ entry.user_login or '-' }}<br>{{ entry.data_wpisu.strftime('%Y-%m-%d %H:%M:%S') if entry.data_wpisu else '-' }}{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endfor %}
+    {% endif %}
 </div>
 
 <style>

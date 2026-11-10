@@ -38,9 +38,10 @@
                 Wróć do Skanera
             </a>
             {% endif %}
+            {% set actual_only = (sesja.lokalizacja or '')|upper in ['BB', 'MZ', 'BB+MZ'] %}
             {% if sesja.status == 'CLOSED' %}
             <button onclick="applyInventory()" class="btn-success" style="padding: 12px 20px; border-radius: 12px; font-weight: 700; background: #10b981; color: white; border: none; cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                <span class="material-icons">done_all</span> ZATWIERDŹ RÓŻNICE
+                <span class="material-icons">done_all</span> {{ 'ZATWIERDŹ STANY' if actual_only else 'ZATWIERDŹ RÓŻNICE' }}
             </button>
             {% endif %}
             <button onclick="window.print()" class="btn-outline" style="padding: 12px; border-radius: 12px; font-weight: 700; border: 2px solid #e2e8f0; color: #475569; background: white; cursor: pointer;" title="Drukuj Raport">
@@ -56,14 +57,14 @@
                     <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Zbiornik</th>
                     <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Surowiec</th>
                     <th style="padding: 15px; text-align: left; font-size: 12px; color: #64748b; text-transform: uppercase;">Tracking (SSCC / Partia)</th>
-                    <th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Stan Systemowy</th>
+                    {% if not actual_only %}<th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Stan Systemowy</th>{% endif %}
                     <th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Stan Faktyczny</th>
-                    <th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Różnica</th>
+                    {% if not actual_only %}<th style="padding: 15px; text-align: right; font-size: 12px; color: #64748b; text-transform: uppercase;">Różnica</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for entry in entries %}
-                {% set diff = entry.waga_faktyczna - entry.waga_systemowa %}
+                {% if not actual_only %}{% set diff = entry.waga_faktyczna - entry.waga_systemowa %}{% endif %}
                 <tr style="border-bottom: 1px solid #f1f5f9;">
                     <td style="padding: 15px; font-weight: 800; color: #0f172a;">{{ entry.zbiornik }}</td>
                     <td style="padding: 15px;">{{ entry.surowiec_nazwa or '-' }}</td>
@@ -75,11 +76,13 @@
                             <span style="color: #cbd5e1;">-</span>
                         {% endif %}
                     </td>
-                    <td style="padding: 15px; text-align: right; font-weight: 600; color: #64748b;">{{ entry.waga_systemowa }} kg</td>
+                    {% if not actual_only %}<td style="padding: 15px; text-align: right; font-weight: 600; color: #64748b;">{{ entry.waga_systemowa }} kg</td>{% endif %}
                     <td style="padding: 15px; text-align: right; font-weight: 800; color: #0f172a;">{{ entry.waga_faktyczna }} kg</td>
+                    {% if not actual_only %}
                     <td style="padding: 15px; text-align: right; font-weight: 800; color: {% if diff > 0 %}#10b981{% elif diff < 0 %}#ef4444{% else %}#94a3b8{% endif %};">
                         {% if diff > 0 %}+{% endif %}{{ diff|round(2) }} kg
                     </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>

@@ -4,6 +4,7 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 from werkzeug.security import generate_password_hash
 
 from app.core.audit import audit_log
+from app.core.hall_roles import hall_for_role
 from app.db import get_db_connection
 from app.decorators import dynamic_role_required, masteradmin_required
 
@@ -150,6 +151,7 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         login = request.form.get('login')
         haslo = request.form.get('haslo')
         rola = request.form.get('rola', 'pracownik')
+        grupa = hall_for_role(rola, grupa)
 
         if not name:
             flash('Nazwisko jest wymagane', 'danger')
@@ -328,6 +330,7 @@ def register_admin_team_routes(admin_bp, *, load_roles):
                 flash(str(error), 'danger')
                 conn.close()
                 return redirect(url_for('admin.admin_ustawienia_zespol'))
+            grupa = hall_for_role(rola_field, grupa)
             cursor.execute("INSERT INTO uzytkownicy (login, haslo, rola, grupa) VALUES (%s, %s, %s, %s)", (login, hashed, rola_field, grupa))
             try:
                 import re
@@ -428,7 +431,7 @@ def register_admin_team_routes(admin_bp, *, load_roles):
         user_id = request.form.get('id')
         login = request.form.get('login')
         rola = request.form.get('rola')
-        grupa = request.form.get('grupa', '').strip()
+        grupa = hall_for_role(rola, request.form.get('grupa', '').strip())
         haslo = request.form.get('haslo', '').strip()
         try:
             if haslo:

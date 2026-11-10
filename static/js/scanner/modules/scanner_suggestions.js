@@ -9,16 +9,20 @@ function clearPalletSuggestions() {
   if (list) { list.replaceChildren(); list.hidden = true; }
 }
 
+function isPalletSuffixSearch(code) {
+  return /^[0-9]{6}$/.test(code) && !/^0[1-9][0-9]{4}$/.test(code);
+}
+
 function schedulePalletSuggestions(code) {
   clearPalletSuggestions();
-  if (/^[0-9]{6}$/.test(code)) {
+  if (isPalletSuffixSearch(code)) {
     palletSuggestionTimer = setTimeout(() => requestPalletSuggestions(code), 250);
   }
 }
 
 async function requestPalletSuggestions(code) {
   clearPalletSuggestions();
-  if (!/^[0-9]{6}$/.test(code)) return;
+  if (!isPalletSuffixSearch(code)) return;
   const version = palletSuggestionVersion;
   const input = document.getElementById('scanInput');
   if (!input) return;

@@ -164,7 +164,8 @@ def roles_required(*roles, groups=None):
                 return f(*args, **kwargs)
 
             roles_lower = [str(item).lower() for item in roles] if roles else []
-            if roles and user_role not in roles_lower:
+            from app.core.hall_roles import worker_role
+            if roles and user_role not in roles_lower and worker_role(user_role) not in roles_lower:
                 current_app.logger.warning(
                     '[roles_required] Access denied: role=%s required=%s path=%s',
                     user_role,

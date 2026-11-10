@@ -3,6 +3,7 @@ import glob
 import logging
 import os
 from flask import current_app, flash, g, jsonify, redirect, render_template, request, send_file, session, url_for
+from app.core.hall_roles import worker_role
 from app.core.audit import audit_log
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required
@@ -85,6 +86,10 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 else:
                     produkt, tonaz, sekcja, data_planu, typ, status_obecny, tonaz_rzeczywisty_zasyp = z[:7]
                     typ_opakowania = ''
+
+                from app.services.planning.status import COMPLETED_ORDER_RESTORE_ROLES, COMPLETED_ORDER_STATUSES
+                if status_obecny in COMPLETED_ORDER_STATUSES and role_lc not in COMPLETED_ORDER_RESTORE_ROLES:
+                    return jsonify(success=False, message='Brak uprawnień do przywrócenia zakończonego zlecenia.'), 403
 
                 is_czyszczenie = (sekcja == 'Czyszczenie') or (produkt and 'czyszczenie' in produkt.lower())
                 if override_start_rule and sekcja not in ('Zasyp', 'Workowanie'):
@@ -861,7 +866,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
         linia = str(linia_input).upper()
         role = (session.get('rola') or '').lower().strip()
         is_admin_role = role in ['admin', 'zarzad', 'planista', 'masteradmin', 'master admin', 'master_admin']
-        is_ops_role = role in ['operator', 'pracownik', 'lider', 'stepnpio']
+        is_ops_role = worker_role(role) in ['operator', 'pracownik', 'lider', 'stepnpio']
         if not is_admin_role and not is_ops_role:
             flash('Brak uprawnień do dodawania zasypów.', 'warning')
             return redirect('/')

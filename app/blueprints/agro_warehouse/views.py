@@ -93,6 +93,8 @@ def surowce_w_produkcji():
                 return 'KO - Rząd 1 (KO01-KO12)'
             if 13 <= num <= 24:
                 return 'KO - Rząd 2 (KO13-KO24)'
+            if 25 <= num <= 40:
+                return 'KO - Rząd 3 (KO25-KO40)'
             return None
         return None
     grouped_entries = {}
@@ -107,7 +109,7 @@ def surowce_w_produkcji():
         return [int(text) if text.isdigit() else text.lower() for text in re.split('([0-9]+)', s.get('zbiornik', ''))]
     for g in grouped_entries:
         grouped_entries[g].sort(key=natural_sort_key)
-    order = ['Waga01 (BB01-BB06)', 'Waga02 (BB11-BB14)', 'Waga03 (BB15-BB22)', 'Waga02 (MZ07-MZ10)', 'Waga03 (MZ23-MZ24)', 'KO - Rząd 1 (KO01-KO12)', 'KO - Rząd 2 (KO13-KO24)']
+    order = ['Waga01 (BB01-BB06)', 'Waga02 (BB11-BB14)', 'Waga03 (BB15-BB22)', 'Waga02 (MZ07-MZ10)', 'Waga03 (MZ23-MZ24)', 'KO - Rząd 1 (KO01-KO12)', 'KO - Rząd 2 (KO13-KO24)', 'KO - Rząd 3 (KO25-KO40)']
     sorted_grouped_entries = {k: grouped_entries[k] for k in order if k in grouped_entries}
     return render_template('agro_warehouse/surowce_w_produkcji.html', grouped_entries=sorted_grouped_entries, linia=linia)
 

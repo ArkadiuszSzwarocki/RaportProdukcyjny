@@ -378,6 +378,12 @@ class WarehouseV2Service:
                     ))
             except Exception as e:
                 print("Błąd zapisu ruchu:", e)
+            from app.services.inwentaryzacja_service import InwentaryzacjaService
+            InwentaryzacjaService.sync_pallet_relocation(
+                cursor, actual_pallet_id, pallet_type, linia, old_loc, new_location,
+                nr_palety, target_pallet_sscc, split=is_split,
+            )
+
             # --- AUTO-AKCEPTACJA DOSTAWY ZEWNĘTRZNEJ ---
             # Jeśli przenoszona paleta wisiała w "Oczekujące na Przyjęcie", zdejmujemy ją stamtąd.
             if nr_palety and not is_split:

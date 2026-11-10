@@ -64,3 +64,23 @@ test('offline location scan with selected pallet cannot call movement endpoint',
   assert.equal(s.queue[0].scan_action, 'LOOKUP');
   assert.equal(vm.runInContext('currentPallet', s.context), null);
 });
+
+test('rack scan moves the selected pallet and a failed move keeps the original error', async () => {
+  const s = setup();
+  s.context.navigator.onLine = true;
+  s.context.AbortController = AbortController;
+  s.context.scannerResponseMessage = data => data.error;
+  s.context.fetch = async (url, options) => {
+    s.requests.push([url, JSON.parse(options.body)]);
+    return {json: async () => ({success: false, error: 'Ruch odrzucony'})};
+  };
+  vm.runInContext("currentPallet = {id: 15, nr_palety: 'SUR000001793972350850', inventory_type: 'Surowiec', stan_magazynowy: 1000}", s.context);
+  s.input.value = 'R010502';
+  s.context.triggerScan();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(s.requests.length, 1);
+  assert.equal(s.requests[0][0], '/agro/scanner/move');
+  assert.equal(s.requests[0][1].lokalizacja, 'R010502');
+  assert.equal(s.requests[0][1].nr_palety, 'SUR000001793972350850');
+  assert.deepEqual(s.notices, [{message: 'Ruch odrzucony', level: 'danger'}]);
+});

@@ -14,18 +14,7 @@ logger = logging.getLogger(__name__)
 class EmailLogRepository:
     """Repository handling email logs persistence in database."""
 
-    _ensured: bool = False
-
-    @classmethod
-    def ensure_table(cls) -> None:
-        """Ensures the email_logs table exists and is populated with past history."""
-        if cls._ensured:
-            return
-
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
+    TABLE_SQL = """
                 CREATE TABLE IF NOT EXISTS email_logs (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     sender VARCHAR(255) NOT NULL,
@@ -42,7 +31,20 @@ class EmailLogRepository:
                     INDEX idx_source (source),
                     INDEX idx_linia (linia)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            """)
+            """
+
+    _ensured: bool = False
+
+    @classmethod
+    def ensure_table(cls) -> None:
+        """Ensures the email_logs table exists and is populated with past history."""
+        if cls._ensured:
+            return
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(cls.TABLE_SQL)
             conn.commit()
 
             # Bezpieczna synchronizacja wcześniejszych wpisów z auto_report_history
@@ -89,13 +91,17 @@ class EmailLogRepository:
         linia: Optional[str] = None,
         status: str = 'SUCCESS',
         error_message: Optional[str] = None,
-        attachments: Optional[str] = None
+        attachments: Optional[str] = None,
+        connection=None
     ) -> int:
         """Inserts a new email log entry and returns its ID."""
-        cls.ensure_table()
-        conn = get_db_connection()
+        if connection is None:
+            cls.ensure_table()
+        conn = connection if connection is not None else get_db_connection()
         try:
             cursor = conn.cursor()
+            if connection is not None:
+                cursor.execute(cls.TABLE_SQL)
             cursor.execute("""
                 INSERT INTO email_logs 
                 (sender, recipients, subject, source, linia, status, error_message, attachments, created_at)
@@ -106,7 +112,8 @@ class EmailLogRepository:
             cursor.close()
             return log_id
         finally:
-            conn.close()
+            if connection is None:
+                conn.close()
 
     @classmethod
     def get_logs(

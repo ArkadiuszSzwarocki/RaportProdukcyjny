@@ -11,9 +11,8 @@ import re
 VALID_BB_TANK_CODES = [f"BB{i:02d}" for i in range(1, 25) if i not in (7, 8, 9, 10, 23, 24)]
 VALID_MZ_TANK_CODES = ["MZ07", "MZ08", "MZ09", "MZ10", "MZ23", "MZ24"]
 VALID_KO_TANK_CODES = [f"KO{i:02d}" for i in range(1, 41)]
-VALID_K_TANK_CODES = [f"K{i:03d}" for i in range(1, 51)]
 VALID_WZ_TANK_CODES = ["WZ04"]
-VALID_PRODUCTION_TANK_CODES = set(VALID_BB_TANK_CODES + VALID_MZ_TANK_CODES + VALID_KO_TANK_CODES + VALID_K_TANK_CODES + VALID_WZ_TANK_CODES)
+VALID_PRODUCTION_TANK_CODES = set(VALID_BB_TANK_CODES + VALID_MZ_TANK_CODES + VALID_KO_TANK_CODES + VALID_WZ_TANK_CODES)
 
 DELETED_STATION_CODES = {
     'BB07', 'BB08', 'BB09', 'BB10', 'BB23', 'BB24',
@@ -76,10 +75,10 @@ def validate_production_tank(location_code):
     
     norm = normalize_production_tank_code(location_code)
     if is_deleted_station_code(location_code) or is_deleted_station_code(norm):
-        return False, norm, f"❌ Stacja/zbiornik {norm} została wycofana/usunięta z systemu! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40, K001-K050."
+        return False, norm, f"❌ Stacja/zbiornik {norm} została wycofana/usunięta z systemu! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40."
     
     if norm not in VALID_PRODUCTION_TANK_CODES:
-        return False, norm, f"❌ Stacja/zbiornik '{norm}' nie istnieje! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40, K001-K050, WZ04."
+        return False, norm, f"❌ Stacja/zbiornik '{norm}' nie istnieje! Dozwolone: BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24, KO01-KO40, WZ04."
     
     return True, norm, None
 
@@ -414,12 +413,18 @@ def validate_centrala_osip_move(source_location, target_location, pallet_id=None
     Zezwala na bezpośrednie ruchy użytkownikowi MasterAdmin.
     Zwraca (is_valid: bool, error_msg: str | None).
     """
-    if not source_location or not target_location:
-        return True, None
-        
     src_osip = is_osip_location(source_location)
     tgt_osip = is_osip_location(target_location)
     
+    if src_osip or tgt_osip:
+        from flask import has_request_context, session
+        from app.core.navigation_group_permissions import group_allowed
+        if has_request_context() and session.get('zalogowany') and not group_allowed('osip'):
+            return False, 'Brak dostępu do grupy Magazyn OSIP.'
+
+    if not source_location or not target_location:
+        return True, None
+
     # Ruch wewnątrz Centrali lub wewnątrz OSIP jest dozwolony
     if src_osip == tgt_osip:
         return True, None

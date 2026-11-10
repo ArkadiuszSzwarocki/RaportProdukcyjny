@@ -1,3 +1,17 @@
+<div id="addPalletScanModal" class="modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,.65); z-index:3000; align-items:center; justify-content:center;">
+    <form onsubmit="addPalletFromLabel(event)" class="scanner-card" style="width:min(92%, 420px);">
+        <h3>Dodaj paletę do gniazda</h3>
+        <label for="addPalletScanCode">Zeskanuj etykietę palety</label>
+        <input id="addPalletScanCode" class="weight-input" autocomplete="off" placeholder="Numer palety / SSCC">
+        <p id="addPalletScanStatus" role="status"></p>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <button type="submit" class="btn-primary">Sprawdź paletę</button>
+            <button type="button" class="btn-outline" onclick="addPalletWithoutLabel()">Bez etykiety – wpisz ręcznie</button>
+            <button type="button" class="btn-outline" onclick="if (!addingScannedPallet) { document.getElementById('addPalletScanModal').style.display='none'; highlightAndOpenSlot(document.getElementById('pendingNewPalletLoc').value); }">Anuluj</button>
+        </div>
+    </form>
+</div>
+
 <div id="categorySelectionModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.8); backdrop-filter: blur(4px); z-index: 3000; align-items: center; justify-content: center;">
     <div style="background: white; width: 95%; max-width: 400px; border-radius: 20px; padding: 25px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); text-align: center;">
         <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800;">Wybierz kategorię / typ</h3>
@@ -23,7 +37,7 @@
     <div style="background: white; width: 95%; max-width: 450px; border-radius: 20px; padding: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); margin: auto;">
 
         <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800;">Dodaj Nową Paletę</h3>
-        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 13px;">Wpisz dane palety, której nie ma w systemie.</p>
+        <p style="margin: 0 0 20px 0; color: #64748b; font-size: 13px;">Sprawdź dane palety i podaj ilość faktyczną.</p>
         
         <div style="display: flex; flex-direction: column; gap: 15px;">
             <div style="position: relative;">

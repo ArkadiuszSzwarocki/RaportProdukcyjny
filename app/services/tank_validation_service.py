@@ -129,7 +129,7 @@ class TankValidationService:
         user_login: Optional[str] = None
     ) -> Tuple[bool, str]:
         """Save or update validation rule for a specific tank."""
-        norm_code = _normalize_tank_code(kod_zbiornika)
+        norm_code = AgroTanksRepository.normalize_production_tank(kod_zbiornika)
         if not norm_code:
             return False, "Nieprawidłowy kod zbiornika."
 
@@ -170,7 +170,7 @@ class TankValidationService:
         snapshot = AgroTanksService.get_production_inventory_snapshot(linia=linia, show_empty=False)
         count = 0
         for item in snapshot:
-            tank_code = _normalize_tank_code(item.get('zbiornik'))
+            tank_code = AgroTanksRepository.normalize_production_tank(item.get('zbiornik'))
             raw_material = item.get('surowiec_nazwa') or item.get('nazwa')
             if tank_code and raw_material and float(item.get('stan_systemowy') or 0) > 0:
                 TankValidationRepository.upsert_rule(

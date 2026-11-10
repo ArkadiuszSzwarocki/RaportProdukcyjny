@@ -1,3 +1,19 @@
+function isCompleteInventorySlot(code) {
+    return /^R[0-9]{6}$/i.test(String(code || '').trim());
+}
+
+function submitInventorySlotInput() {
+    const input = document.getElementById('ssccVerifierInputRack');
+    if (!isCompleteInventorySlot(input.value)) {
+        safeToast('Wpisz pełny kod gniazda, np. R010103.', 'error');
+        input.focus();
+        return;
+    }
+    const code = input.value;
+    input.value = '';
+    handleRackScan(code);
+}
+
 function handleRackScan(code) {
     if (!code) return;
     code = code.trim().toUpperCase();
@@ -37,8 +53,7 @@ function handleRackScan(code) {
         return;
     }
     
-    // 4. Otherwise → treat as pallet code, verify on rack
-    verifyPalletSSCCRack(code);
+    safeToast('Najpierw zeskanuj kod gniazda, np. R010103.', 'error');
 }
 
 /**
@@ -61,7 +76,6 @@ function handleDetailScan(code) {
     
     // 2. Different rack code (e.g. R05, R-05) → close detail, load new rack
     if (isRackCode(code)) {
-        closeDetail();
         const targetRack = normalizeRackPrefix(code);
         safeToast('📍 Przechodzę do regału ' + targetRack, 'info');
         loadRack(targetRack);
@@ -70,7 +84,6 @@ function handleDetailScan(code) {
     
     // 3. Location on a different rack → close detail, load rack + open slot
     if (isLocationCode(normalized)) {
-        closeDetail();
         const newPrefix = normalized.substring(0, 3);
         safeToast('📍 Przechodzę do gniazda ' + normalized, 'info');
         loadRack(newPrefix, normalized);
@@ -117,9 +130,7 @@ function initInventoryScannerListeners() {
         searchLocation(code);
     });
 
-    attachScannerAutoEnter('ssccVerifierInputRack', (code) => {
-        handleRackScan(code);
-    });
+    attachScannerAutoEnter('ssccVerifierInputRack', handleRackScan, {acceptCode: isCompleteInventorySlot});
 
     attachScannerAutoEnter('ssccVerifierInputDetail', (code) => {
         handleDetailScan(code);
@@ -134,7 +145,60 @@ function initInventoryScannerListeners() {
     });
 }
 
+let inventoryWarehouseRefreshPending = false;
+let inventoryWarehouseRefreshRunning = false;
+
+async function refreshInventoryAfterWarehouseChange() {
+    const rack = document.getElementById('rackContainer');
+    const detail = document.getElementById('slotDetail');
+    if (!inventoryWarehouseRefreshPending || inventoryWarehouseRefreshRunning ||
+        (detail && detail.style.display !== 'none')) return;
+
+    inventoryWarehouseRefreshPending = false;
+    const blind = document.getElementById('blindScanContainer');
+    if (!currentRackPrefix || !rack || rack.style.display === 'none') {
+        if (lastLocation && blind && blind.style.display !== 'none') loadCountedBlindItems(lastLocation);
+        return;
+    }
+
+    inventoryWarehouseRefreshRunning = true;
+    try {
+        await refreshRackData(currentRackPrefix);
+    } catch (error) {
+        console.error('Nie udało się odświeżyć stanu regału.', error);
+    } finally {
+        inventoryWarehouseRefreshRunning = false;
+        if (inventoryWarehouseRefreshPending) void refreshInventoryAfterWarehouseChange();
+    }
+}
+
+function connectInventoryWarehouseEvents() {
+    const url = window.INVENTORY_CONFIG.url_warehouse_events;
+    if (!url || !window.EventSource) return;
+    let events = null;
+    let lastRevision;
+    const connect = () => {
+        if (events || document.hidden) return;
+        events = new EventSource(url);
+        events.addEventListener('warehouse-change', event => {
+            if (event.data === lastRevision) return;
+            lastRevision = event.data;
+            inventoryWarehouseRefreshPending = true;
+            void refreshInventoryAfterWarehouseChange();
+        });
+    };
+    const disconnect = () => {
+        events?.close();
+        events = null;
+    };
+    document.addEventListener('visibilitychange', () => document.hidden ? disconnect() : connect());
+    window.addEventListener('pagehide', disconnect);
+    window.addEventListener('pageshow', connect);
+    connect();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    connectInventoryWarehouseEvents();
     initInventoryScannerListeners();
 
     const typeSelect = document.getElementById('newPalletType');

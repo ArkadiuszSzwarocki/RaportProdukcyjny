@@ -708,6 +708,38 @@
         return hh + ':' + mm + ':' + ss;
     }
 
+    function updateMixingNotice(timer, seconds) {
+        var notice = timer.parentElement.previousElementSibling;
+        if (!notice || !notice.dataset.mixingNotice) return;
+
+        var threshold = seconds >= 300 ? 300 : seconds >= 180 ? 180 : 0;
+        var key = 'dashboard-mixing-dismissed-' + notice.dataset.mixingNotice;
+        var dismissed = notice._dismissedThreshold || 0;
+        try {
+            dismissed = Math.max(dismissed, Number(sessionStorage.getItem(key) || 0));
+        } catch (error) {}
+
+        notice.hidden = threshold <= dismissed;
+        if (notice.hidden) return;
+
+        var message = notice.querySelector('[data-mixing-message]');
+        var ready = threshold === 300;
+        notice.dataset.mixingPhase = ready ? 'ready' : 'warning';
+        var label = ready ? '✓ Gotowe do zrzutu' : '⏳ 2 min do zrzutu';
+        if (message.textContent !== label) message.textContent = label;
+
+        var button = notice.querySelector('[data-mixing-dismiss]');
+        if (button) {
+            button.onclick = function () {
+                notice._dismissedThreshold = threshold;
+                notice.hidden = true;
+                try {
+                    sessionStorage.setItem(key, String(threshold));
+                } catch (error) {}
+            };
+        }
+    }
+
     function startEtapyTimers() {
         function tick() {
             var now = Date.now();
@@ -821,6 +853,7 @@
                     }
                 }
                 element.textContent = formatMmSs(currentSeconds);
+                updateMixingNotice(element, currentSeconds);
             });
 
             totalTimers.forEach(function (element) {

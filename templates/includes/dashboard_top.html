@@ -92,7 +92,7 @@
 
         <div class="d-flex align-center gap-12 header-stats">
             {% if sekcja == 'Zasyp' %}{% include 'dashboard/_agro_measurements.html' %}{% endif %}
-            {% if production_toolbar_visible and sekcja != 'Workowanie' and rola|lower not in ['laborant', 'laboratorium'] %}{% include 'dashboard/_cleaning_notifications.html' %}{% endif %}
+            {% if sekcja == 'Zasyp' and rola|lower not in ['laborant', 'laboratorium'] %}{% include 'dashboard/_cleaning_notifications.html' %}{% endif %}
             {% if sekcja == 'Magazyn' %}
                 <div class="stat-inline stat-magazyn"><span class="label">{{ _('palet_liczba') }}</span><strong class="value">{{ magazyn_palety|length }} szt.</strong></div>
                 <div class="stat-inline stat-przyjeto"><span class="label">{{ _('przyjeto') }}</span><strong class="value text-success">{{ suma_wykonanie|int }} kg</strong></div>

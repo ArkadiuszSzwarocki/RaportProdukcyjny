@@ -1063,5 +1063,7 @@ def start_daemon_threads(app, cleanup_enabled=False):
     # Report scheduling has its own explicit opt-in and startup checks.
     from app.core.report_daemon import start_report_scheduler
     start_report_scheduler(app)
+    from app.core.packaging_alert_daemon import start_packaging_alerts
+    start_packaging_alerts(app)
 
     _safe_log_info('Periodic refresh_bufor_queue thread disabled (event-driven mode)')

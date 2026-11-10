@@ -189,12 +189,34 @@ class InwentaryzacjaService:
         conn = get_db_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO magazyn_inwentaryzacja_sesje (linia, created_by, comment, lokalizacja) VALUES (%s, %s, %s, %s)",
-                ('GLOBAL', user_login, comment, lokalizacja)
-            )
-            conn.commit()
-            return True, cursor.lastrowid
+            cursor.execute("SELECT GET_LOCK(CONCAT('warehouse-inventory:', LEFT(SHA2(DATABASE(), 256), 32)), 10)")
+            if cursor.fetchone()[0] != 1:
+                return False, 'Trwa otwieranie inwentaryzacji. Spróbuj ponownie.'
+            try:
+                cursor.execute(
+                    "SELECT 1 FROM magazyn_dozwolone_lokalizacje WHERE UPPER(TRIM(nazwa)) = %s LIMIT 1",
+                    (lokalizacja,),
+                )
+                if not cursor.fetchone():
+                    return False, 'Wybierz lokalizację z listy.'
+                cursor.execute(
+                    "SELECT 1 FROM magazyn_inwentaryzacja_sesje "
+                    "WHERE status IN ('OPEN', 'CLOSED') AND UPPER(TRIM(lokalizacja)) = %s LIMIT 1",
+                    (lokalizacja,),
+                )
+                if cursor.fetchone():
+                    return False, 'Dla tej lokalizacji istnieje niezatwierdzona inwentaryzacja.'
+                cursor.execute(
+                    "INSERT INTO magazyn_inwentaryzacja_sesje (linia, created_by, comment, lokalizacja) VALUES (%s, %s, %s, %s)",
+                    ('GLOBAL', user_login, comment, lokalizacja),
+                )
+                session_id = cursor.lastrowid
+                conn.commit()
+                return True, session_id
+            finally:
+                conn.rollback()
+                cursor.execute("SELECT RELEASE_LOCK(CONCAT('warehouse-inventory:', LEFT(SHA2(DATABASE(), 256), 32)))")
+                cursor.fetchone()
         finally:
             conn.close()
 
@@ -711,6 +733,54 @@ class InwentaryzacjaService:
             conn.close()
 
     @staticmethod
+    def sync_pallet_relocation(cursor, pallet_id, pallet_type, line, old_location,
+                               new_location, old_sscc, new_sscc, *, split=False):
+        """Keep unapproved counts in the same transaction as the warehouse move."""
+        kind = pallet_type.strip().lower()
+        old_key = InwentaryzacjaService.normalize_loc_key(old_location)
+        new_key = InwentaryzacjaService.normalize_loc_key(new_location)
+        if old_key == new_key:
+            return
+        where = """
+            s.status IN ('OPEN', 'CLOSED') AND LOWER(w.typ_palety) = %s
+            AND ((%s <> '' AND w.nr_palety = %s) OR
+                 (w.paleta_id = %s AND (%s <> 'wyrób gotowy' OR UPPER(w.linia) = %s)))
+        """
+        old_code = old_sscc or ''
+        params = (kind, old_code, old_code, pallet_id, kind, line.upper())
+        if split:
+            cursor.execute(
+                "SELECT w.id FROM magazyn_inwentaryzacja_wpisy w "
+                "JOIN magazyn_inwentaryzacja_sesje s ON s.id = w.sesja_id WHERE " + where + " LIMIT 1 FOR UPDATE",
+                params,
+            )
+            if cursor.fetchone():
+                raise ValueError('Paleta jest już policzona. Przenieś ją w całości albo najpierw zatwierdź inwentaryzację.')
+        else:
+            cursor.execute(
+                "UPDATE magazyn_inwentaryzacja_wpisy w "
+                "JOIN magazyn_inwentaryzacja_sesje s ON s.id = w.sesja_id "
+                "SET w.lokalizacja = %s, w.nr_palety = COALESCE(NULLIF(%s, ''), w.nr_palety) WHERE " + where,
+                (new_location, new_sscc or '', *params),
+            )
+        cursor.execute(
+            "DELETE w FROM magazyn_inwentaryzacja_wpisy w "
+            "JOIN magazyn_inwentaryzacja_sesje s ON s.id = w.sesja_id "
+            "WHERE s.status = 'OPEN' AND w.nazwa = 'PUSTE GNIAZDO' "
+            "AND REPLACE(REPLACE(UPPER(TRIM(w.lokalizacja)), '-', ''), ' ', '') = %s",
+            (new_key,),
+        )
+
+    @staticmethod
+    def inventory_location_order(location):
+        normalized = InwentaryzacjaService.normalize_loc_key(location)
+        slot = re.fullmatch(r'R([0-9]{2})([0-9]{2})([0-9]{2})', normalized)
+        if slot:
+            rack, position, row = map(int, slot.groups())
+            return (0, rack, row, position)
+        return (1, normalized)
+
+    @staticmethod
     def get_report(sesja_id):
         conn = get_db_connection()
         try:
@@ -723,7 +793,10 @@ class InwentaryzacjaService:
                 e['roznica'] = e['waga_faktyczna'] - e['waga_systemowa']
                 e['alert'] = abs(e['roznica']) > 0.1 # Some threshold
             
-            return entries
+            return sorted(entries, key=lambda entry: (
+                InwentaryzacjaService.inventory_location_order(entry.get('lokalizacja')),
+                entry['id'],
+            ))
         finally:
             conn.close()
 

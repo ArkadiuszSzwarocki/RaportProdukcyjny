@@ -1,5 +1,5 @@
 {% set can_open_prod_inventory = role_has_access('magazyn.agro_total') and role_has_access('magazyn.inventory') %}
-{% if effective_hall != 'OSIP' %}
+{% if navigation_group_allowed('warehouse') and effective_hall != 'OSIP' %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0} %}
     {% set hall_key = 'CENTRALA' %}
@@ -70,20 +70,27 @@
         
         {% if role not in ['laborant', 'laboratorium'] %}
         {% set podzial_palety_endpoint = 'magazyn_dostawy.podzial_palety_view' if app.view_functions.get('magazyn_dostawy.podzial_palety_view') else ('magazyn_dostawy.lista_dostaw' if app.view_functions.get('magazyn_dostawy.lista_dostaw') else 'magazyn_dostawy.podglad_etykiety') %}
+        {% if navigation_group_allowed('entry_split') %}
         <a href="{{ url_for(podzial_palety_endpoint, linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' %}active{% elif request.endpoint == podzial_palety_endpoint and podzial_palety_endpoint != 'magazyn_dostawy.podzial_palety_view' %}active{% endif %}">Podział Palety</a>
+        {% endif %}
         {% endif %}
         
         {% if role in ['magazynier', 'lider', 'zarzad', 'admin', 'masteradmin'] %}
+        {% if navigation_group_allowed('entry_mix') %}
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' %}active{% endif %}">Mixowanie Palet</a>
+        {% endif %}
         {% endif %}
         
         {% if role not in ['laborant', 'laboratorium'] %}
+        {% if navigation_group_allowed('entry_consumption') %}
         <a href="{{ url_for('warehouse_v2.zuzycie_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zuzycie_view' %}active{% endif %}">
             Zużycie w Produkcji
         </a>
+        {% endif %}
         
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
+        {% if navigation_group_allowed('entry_orders') %}
         <a href="{{ url_for('warehouse_v2.zamowienia', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zamowienia' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Zamówienia</span>
@@ -92,9 +99,14 @@
                 </span>
             </span>
         </a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_dispatch') %}
         <a href="{{ url_for('warehouse_v2.zaladunki_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zaladunki_view' %}active{% endif %}">
             <span class="nav-sub-text">Załadunki / Wydania (ZZA/ZZL)</span>
         </a>
+        {% endif %}
+        {% if navigation_group_allowed('osip') %}
+        {% if navigation_group_allowed('entry_transfers') %}
         <a href="{{ url_for('warehouse_v2.transfers_osip_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.transfers_osip_view' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Transfery na OSIP</span>
@@ -105,11 +117,13 @@
             </span>
         </a>
         {% endif %}
+        {% endif %}
+        {% endif %}
     </div>
 </div>
 {% endif %}
 
-{% if role not in ['laborant', 'laboratorium'] %}
+{% if navigation_group_allowed('osip') and role not in ['laborant', 'laboratorium'] %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0} %}
     {% set pending_osip = pending_map.get('OSIP', 0)|int %}
@@ -126,7 +140,10 @@
         <span class="material-icons chevron">expand_more</span>
     </button>
     <div id="osip-sub" class="nav-sub {% if request.blueprint == 'osip' or (request.blueprint == 'magazyn_dostawy' and request.args.get('linia') == 'OSIP') %}open{% endif %}">
+        {% if navigation_group_allowed('entry_osip_layout') %}
         <a href="{{ url_for('osip.warehouse_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.warehouse_view' %}active{% endif %}">Stan i Układ Hali</a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_transfers') %}
         <a href="{{ url_for('osip.transfers_view') }}" class="nav-sub-item {% if request.endpoint in ['osip.transfers_view', 'osip.transfer_details_view'] %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Transfery do Centrali (MS01)</span>
@@ -135,13 +152,19 @@
                 {% endif %}
             </span>
         </a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_osip_reception') %}
         <a href="{{ url_for('magazyn_dostawy.reception_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.reception_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Przyjęcie dostawy</a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_osip_movements') %}
         <a href="{{ url_for('magazyn_dostawy.lista_dostaw', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.lista_dostaw' and request.args.get('linia') == 'OSIP' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Przesunięcia Palet</span>
                 <span class="nav-draft-badge" data-draft-hall="OSIP" title="Aktywny szkic otwartego formularza przesunięcia">SZKIC</span>
             </span>
         </a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_osip_pending') %}
         <a href="{{ url_for('magazyn_dostawy.oczekujace', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.oczekujace' and request.args.get('linia') == 'OSIP' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Oczekujące Przyjęcia</span>
@@ -161,22 +184,35 @@
                 {% endif %}
             </span>
         </a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_osip_stock') %}
         <a href="{{ url_for('osip.suma_surowcow_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.suma_surowcow_view' %}active{% endif %}">Suma surowców</a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_split') %}
         <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Podział Palety</a>
+        {% endif %}
         {% if role in ['magazynier', 'lider', 'zarzad', 'admin', 'masteradmin'] %}
+        {% if navigation_group_allowed('entry_mix') %}
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Mixowanie Palet</a>
         {% endif %}
+        {% endif %}
+        {% if navigation_group_allowed('entry_osip_expedition') %}
         <a href="{{ url_for('osip.expedition_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.expedition_view' %}active{% endif %}">Wydania Zewnętrzne</a>
+        {% endif %}
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         {% if not role_has_access('ustawienia') %}
+        {% if navigation_group_allowed('entry_printers') %}
         <a href="{{ url_for('admin.admin_ustawienia_drukarki') }}" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_printer_logs') %}
         <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukowania (48h)</a>
+        {% endif %}
         {% endif %}
     </div>
 </div>
 {% endif %}
 
-{% if (role_has_access('magazyn.inventory') or can_open_prod_inventory) and effective_hall != 'OSIP' %}
+{% if navigation_group_allowed('inventory') and (role_has_access('magazyn.inventory') or can_open_prod_inventory) and effective_hall != 'OSIP' %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span class="text-capitalize nav-main-label">INWENTARYZACJA</span>

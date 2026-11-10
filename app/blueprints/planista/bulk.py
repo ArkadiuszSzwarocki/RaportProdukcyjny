@@ -3,12 +3,13 @@ from datetime import date
 from flask import current_app, redirect, render_template, request, session, url_for, jsonify
 
 from app.db import get_db_connection, get_table_name
-from app.decorators import roles_required
+from app.decorators import dynamic_role_required, roles_required
 from app.services.notification_service import notify_workers_about_plan_change
 
 
 def register_planista_bulk_routes(planista_bp):
     @planista_bp.route('/planista/add_czyszczenie', methods=['POST'])
+    @dynamic_role_required('planista')
     @roles_required('planista', 'zarzad', 'admin')
     def add_czyszczenie():
         """Dodaj wpis Czyszczenie do planu produkcji."""
@@ -117,6 +118,7 @@ def register_planista_bulk_routes(planista_bp):
                 pass
 
     @planista_bp.route('/planista/bulk', methods=['GET'])
+    @dynamic_role_required('planista')
     @roles_required('planista', 'admin', 'zarzad')
     def planista_bulk_page():
         """Render page for bulk adding plans."""
@@ -159,6 +161,7 @@ def register_planista_bulk_routes(planista_bp):
         return render_template('planista_bulk.html', wybrana_data=wybrana_data, domyslna_sekcja=domyslna_sekcja, opakowania=opakowania, etykiety=etykiety)
 
     @planista_bp.route('/planista/api/raport_dnia', methods=['GET'])
+    @dynamic_role_required('planista')
     @roles_required('planista', 'admin', 'lider', 'zarzad', 'masteradmin')
     def api_raport_dnia():
         data_planu = request.args.get('data')

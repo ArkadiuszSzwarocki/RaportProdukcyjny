@@ -3,14 +3,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding-right: 15px;
+    gap: 8px;
+    padding-right: 8px;
 }
 .sidebar-logo-container {
     flex-grow: 1;
 }
 .bug-alert-icon {
-    position: relative;
     display: inline-flex;
+    flex-shrink: 0;
+    gap: 2px;
     align-items: center;
     justify-content: center;
     color: #ef4444;
@@ -26,16 +28,18 @@
     font-size: 24px;
 }
 .bug-badge {
-    position: absolute;
-    top: -5px;
-    right: -8px;
+    position: static;
+    min-width: 16px;
+    box-sizing: border-box;
+    text-align: center;
+    line-height: 1.2;
     background: #ef4444;
     color: white;
     font-size: 10px;
     font-weight: bold;
     padding: 2px 5px;
     border-radius: 10px;
-    border: 2px solid #1e293b; /* Match dark sidebar bg */
+    border: 1px solid #1e293b;
 }
 @keyframes pulse-red {
     0% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0.7)); }
@@ -50,14 +54,14 @@
 </style>
 <div class="sidebar-header-wrapper">
     <div class="sidebar-logo sidebar-logo-container">AGRO<span class="logo-accent">MES</span></div>
-    {% if session.get('zalogowany') %}
+    {% if session.get('zalogowany') and navigation_group_allowed('admin') and role_has_access('ustawienia') %}
     <a href="{{ url_for('admin.admin_ustawienia_bugs') }}" id="sidebarBugReportIndicator" class="bug-alert-icon" style="display: {{ 'inline-flex' if unread_bug_reports_count else 'none' }};" title="Masz {{ unread_bug_reports_count }} nieprzeczytanych zgłoszeń błędów">
         <span class="material-icons">bug_report</span>
         <span class="bug-badge">{{ unread_bug_reports_count }}</span>
     </a>
     {% endif %}
-    {% if role in ['admin', 'masteradmin'] %}
-    <a href="{{ url_for('admin.ustawienia_errors') }}" id="sidebarSystemErrorIndicator" class="bug-alert-icon" style="display: {{ 'inline-flex' if system_errors_count else 'none' }}; color: #f59e0b; margin-left: 10px; animation: pulse-amber 2s infinite;" title="Wykryto {{ system_errors_count }} błędów systemowych (Error Trap)">
+    {% if session.get('zalogowany') and navigation_group_allowed('diagnostics') and role_has_access('ustawienia.errors') %}
+    <a href="{{ url_for('admin.ustawienia_errors') }}" id="sidebarSystemErrorIndicator" class="bug-alert-icon" style="display: {{ 'inline-flex' if system_errors_count else 'none' }}; color: #f59e0b; animation: pulse-amber 2s infinite;" title="Wykryto {{ system_errors_count }} błędów systemowych (Error Trap)">
         <span class="material-icons">warning</span>
         <span class="bug-badge" style="background: #f59e0b;">{{ system_errors_count }}</span>
     </a>

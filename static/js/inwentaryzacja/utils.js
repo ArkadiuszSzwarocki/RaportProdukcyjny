@@ -131,7 +131,7 @@ function attachScannerAutoEnter(inputElementOrId, callback, options = {}) {
         if (now - lastSubmitTime < 150) return; // Prevent double trigger within 150ms
         
         const val = input.value.trim();
-        if (!val) return;
+        if (!val || (options.acceptCode && !options.acceptCode(val))) return;
         lastSubmitTime = now;
         input.value = '';
         callback(val);
@@ -162,7 +162,7 @@ function attachScannerAutoEnter(inputElementOrId, callback, options = {}) {
     input.addEventListener('input', () => {
         if (scanTimer) clearTimeout(scanTimer);
         const val = input.value.trim();
-        if (!val || val.length < minLength) return;
+        if (!val || val.length < minLength || (options.acceptCode && !options.acceptCode(val))) return;
 
         // Instant auto-enter when completed format is detected:
         // - Rack slot code: R010101 (7 chars) or R-01-01-01 (10 chars)

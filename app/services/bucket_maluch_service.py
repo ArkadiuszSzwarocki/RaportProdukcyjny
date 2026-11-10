@@ -483,19 +483,28 @@ class BucketMaluchService:
             if alt_buckets:
                 buckets = alt_buckets
 
-        try:
+        if any(str(bucket.get('linia') or linia).upper() == 'AGRO' for bucket in buckets):
             from app.services.production_service import ProductionService
-            ko_map = ProductionService.get_ko_station_pallet_map(linia=linia)
-            for b in buckets:
-                for pos in b.get('pozycje') or []:
-                    st = str(pos.get('stacja_kod') or '').strip().upper()
-                    sur = str(pos.get('surowiec_nazwa') or '').strip()
-                    ko_info = ko_map.get(st) or {}
-                    pos['is_premix'] = ProductionService.is_ko_premix(st, sur or ko_info.get('surowiec', ''))
-                    pos['nr_palety'] = ko_info.get('nr_palety') or ''
-                    pos['nr_partii'] = ko_info.get('nr_partii') or ''
-        except Exception:
-            pass
+
+            conn = get_db_connection()
+            try:
+                history = ProductionService.get_ko_fill_history(conn.cursor())
+            finally:
+                conn.close()
+            for bucket in buckets:
+                if str(bucket.get('linia') or linia).upper() != 'AGRO':
+                    continue
+                dumped_at = bucket.get('data_zasypania')
+                if isinstance(dumped_at, str):
+                    dumped_at = datetime.fromisoformat(dumped_at)
+                for position in bucket.get('pozycje') or []:
+                    station = str(position.get('stacja_kod') or '').strip().upper()
+                    used_at = position.get('data_nawazenia') or dumped_at
+                    fill = ProductionService.get_ko_fill_at(history, used_at, station=station)
+                    material = position.get('surowiec_nazwa') or fill.get('surowiec', '')
+                    position['is_premix'] = ProductionService.is_ko_premix(station, material)
+                    position['nr_palety'] = fill.get('nr_palety', '')
+                    position['nr_partii'] = fill.get('nr_partii', '')
 
         w_trakcie = [b for b in buckets if b['status'] == 'w_trakcie_nawazania']
         skompletowane = [b for b in buckets if b['status'] == 'skompletowane']

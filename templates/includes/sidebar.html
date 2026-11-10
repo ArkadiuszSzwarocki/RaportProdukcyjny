@@ -15,33 +15,39 @@
     {% include 'includes/sidebar/_sidebar_header.html' %}
 
     <nav class="sidebar-nav">
-        {% if role_has_access('magazyn.card') or user_group == 'OSIP' or effective_hall == 'OSIP' %}
+        {% set can_use_agro_scanner = session.get('zalogowany') and role in ['pracownik', 'agro'] and user_group == 'AGRO' and role_has_access('agro.zasyp') %}
+        {% if navigation_group_allowed('scanner') and (effective_hall != 'OSIP' or navigation_group_allowed('osip')) and (can_use_agro_scanner or role_has_access('magazyn.card') or user_group == 'OSIP' or effective_hall == 'OSIP') %}
         <a href="{{ url_for('scanner.scanner_ui', linia='OSIP' if effective_hall == 'OSIP' else 'AGRO') }}" class="nav-item {% if request.blueprint == 'scanner' %}active{% endif %}" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #1e40af; border-left: 4px solid #3b82f6; font-weight: bold; margin-bottom: 8px;">
             <span class="material-icons" style="margin-right: 12px; color: #2563eb;">qr_code_scanner</span>
             <span>Skaner & Drukarka</span>
         </a>
         {% endif %}
 
-        {% if role in ['planista', 'masteradmin'] %}
+        {% set can_open_plan = role_has_access('planista') %}
+        {% set can_open_plan_buffer_psd = navigation_group_allowed('psd') and role_has_access('psd.bufor') %}
+        {% set can_open_plan_buffer_agro = navigation_group_allowed('agro') and role_has_access('agro.bufor') %}
+        {% if navigation_group_allowed('planning') and (can_open_plan or (role == 'planista' and (can_open_plan_buffer_psd or can_open_plan_buffer_agro))) %}
             <div class="nav-item-group">
                 <button type="button" class="nav-item main-cat-btn">
                     <span>PLAN PRODUKCJI</span>
                     <span class="material-icons chevron">expand_more</span>
                 </button>
                 <div id="plan-sub" class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/bufor') %}open{% endif %}">
+                    {% if can_open_plan %}
                     <a href="/planista?tab=psd" class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab', 'psd') == 'psd' or request.args.get('linia') == 'PSD') %}active{% endif %}">
                         Plan PSD
                     </a>
                     <a href="/planista?tab=agro" class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab') == 'agro' or request.args.get('linia') == 'AGRO') %}active{% endif %}">
                         Plan AGRO
                     </a>
-                    {% if role == 'planista' or effective_hall not in ['PSD', 'ALL'] or not role_has_access('psd.bufor') %}
+                    {% endif %}
+                    {% if can_open_plan_buffer_psd and (role == 'planista' or effective_hall not in ['PSD', 'ALL']) %}
                     <a href="{{ url_for('planista.bufor_page', linia='PSD') }}"
                         class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
                         Bufor PSD
                     </a>
                     {% endif %}
-                    {% if role == 'planista' or effective_hall not in ['AGRO', 'ALL'] or not role_has_access('agro.bufor') %}
+                    {% if can_open_plan_buffer_agro and (role == 'planista' or effective_hall not in ['AGRO', 'ALL']) %}
                     <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
                         class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}">
                         Bufor Agro

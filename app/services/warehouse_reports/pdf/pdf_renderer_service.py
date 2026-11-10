@@ -1,5 +1,9 @@
+# cspell:words arialbd dejavu FONTNAME pdfbase pdfmetrics ttfonts WINDIR
 import contextlib
 import io
+import os
+from pathlib import Path
+from xml.sax.saxutils import escape
 import tempfile
 from typing import Optional, Dict, Any
 
@@ -45,6 +49,22 @@ class PdfRendererService:
             from reportlab.lib import colors
             from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+
+            fonts = (
+                (Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts', 'arial.ttf', 'arialbd.ttf'),
+                (Path('/usr/share/fonts/dejavu'), 'DejaVuSans.ttf', 'DejaVuSans-Bold.ttf'),
+                (Path('/usr/share/fonts/truetype/dejavu'), 'DejaVuSans.ttf', 'DejaVuSans-Bold.ttf'),
+                (Path('/usr/share/fonts/TTF'), 'DejaVuSans.ttf', 'DejaVuSans-Bold.ttf'),
+            )
+            regular, bold = next(
+                (folder / normal, folder / strong)
+                for folder, normal, strong in fonts
+                if (folder / normal).is_file() and (folder / strong).is_file()
+            )
+            pdfmetrics.registerFont(TTFont('WarehouseSans', str(regular)))
+            pdfmetrics.registerFont(TTFont('WarehouseSans-Bold', str(bold)))
 
             doc = SimpleDocTemplate(
                 tmp_pdf_path,
@@ -62,19 +82,20 @@ class PdfRendererService:
                 fontSize=16,
                 leading=20,
                 textColor=colors.HexColor('#0f172a'),
-                fontName='Helvetica-Bold'
+                fontName='WarehouseSans-Bold'
             )
             subtitle_style = ParagraphStyle(
                 'SubtitleStyle',
                 parent=styles['Normal'],
                 fontSize=10,
                 leading=14,
+                fontName='WarehouseSans',
                 textColor=colors.HexColor('#475569')
             )
 
             story = [
-                Paragraph(title, title_style),
-                Paragraph(subtitle, subtitle_style),
+                Paragraph(escape(title), title_style),
+                Paragraph(escape(subtitle), subtitle_style),
                 Spacer(1, 15)
             ]
 
@@ -87,7 +108,8 @@ class PdfRendererService:
                 t.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#e2e8f0')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#0f172a')),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTNAME', (0, 0), (-1, -1), 'WarehouseSans'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'WarehouseSans-Bold'),
                     ('FONTSIZE', (0, 0), (-1, -1), 8),
                     ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
                     ('TOPPADDING', (0, 0), (-1, -1), 4),

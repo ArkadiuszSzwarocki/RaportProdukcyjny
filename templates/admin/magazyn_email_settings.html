@@ -285,6 +285,10 @@
                 </div>
             </div>
             <div class="app-card-body">
+                <p class="notice-box notice-info">Faktyczny nadawca raportów magazynowych: <strong>{{ actual_sender or 'Brak skonfigurowanego konta systemowego' }}</strong>. Obowiązuje wspólne konto systemowe.</p>
+                <p><a href="{{ url_for('admin.email_center',tab='konta') }}">Przejdź do edycji globalnego konta SMTP</a> · <a href="{{ url_for('admin.email_center',tab='mapa') }}">Konta i rodzaje wysyłek</a></p>
+                <details><summary>Starsza konfiguracja SMTP modułu — nie jest używana do wysyłania</summary>
+                <fieldset disabled style="border:0;padding:12px 0;min-width:0;">
                 <!-- Szybkie presety serwerów -->
                 <div class="preset-buttons">
                     <span style="font-size: 0.82rem; font-weight: 700; color: #64748b; align-self: center; margin-right: 4px;">Szybkie szablony:</span>
@@ -304,7 +308,7 @@
 
                     <div class="form-group">
                         <label class="form-label" for="smtp_password">Hasło konta pocztowego / Hasło aplikacji *</label>
-                        <input type="password" class="form-input" id="smtp_password" name="smtp_password" value="{{ settings.smtp_password }}" placeholder="••••••••••••" required>
+                        <input type="password" class="form-input" id="smtp_password" name="smtp_password" value="" placeholder="••••••••••••" required>
                         <span class="form-help">Dla Gmail/WP/Onet zalecane jest wygenerowanie dedykowanego 'Hasła aplikacji'.</span>
                     </div>
                 </div>
@@ -346,6 +350,7 @@
                         <i class="fas fa-vial"></i> Testuj połączenie ze skrzynką SMTP
                     </button>
                 </div>
+                </fieldset></details>
             </div>
         </div>
 

@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/station_history.css') }}?v={{ static_version }}&station_history=2">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/station_history.css') }}?v={{ static_version }}&station_history=3">
 {% endblock %}
 {% block content %}
 <section class="station-history-page">
@@ -13,10 +13,10 @@
     </header>
     <form id="stationHistoryFilters" class="station-history-card station-history-filters">
         <div class="station-history-filter-grid">
-            <label>Hala
+            <label>Hala — opcjonalny filtr
                 <select id="historyFilterLinia" name="linia">
-                    {% for code,label in [('AGRO','AGRO'),('PSD','PSD'),('ALL','Wszystkie hale')] %}
-                    <option value="{{ code }}" {% if history_line|default('AGRO') == code %}selected{% endif %}>{{ label }}</option>
+                    {% for code,label in [('ALL','Wszystkie operacje'),('AGRO','AGRO'),('PSD','PSD')] %}
+                    <option value="{{ code }}" {% if history_line|default('ALL') == code %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </label>
@@ -46,7 +46,7 @@
             <button type="button" class="btn-action station-history-secondary" data-history-days="30">Ostatnie 30 dni</button>
             <button type="button" class="btn-action station-history-secondary" id="clearHistoryDates">Wyczyść daty</button>
         </div>
-        <p class="station-history-hint">Kod stacji jest dopasowywany dokładnie: BB14 nie obejmuje BB140. Wyszukiwanie działa też podczas wpisywania.</p>
+        <p class="station-history-hint">Domyślnie pokazujemy operacje ze wszystkich hal oraz wspólne operacje magazynowe. Hala zawęża wyniki wyłącznie po jej wybraniu. Kod stacji jest dopasowywany dokładnie: BB14 nie obejmuje BB140. Wyszukiwanie działa też podczas wpisywania.</p>
     </form>
     <div class="station-history-card">
         <div class="station-history-results-header">
@@ -64,5 +64,5 @@
 </section>
 {% endblock %}
 {% block footer_scripts %}
-<script src="{{ url_for('static', filename='js/agro_station_history.js') }}?v={{ static_version }}&station_history=2"></script>
+<script src="{{ url_for('static', filename='js/agro_station_history.js') }}?v={{ static_version }}&station_history=3"></script>
 {% endblock %}

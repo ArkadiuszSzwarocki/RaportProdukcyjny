@@ -3,12 +3,13 @@ from datetime import date
 from flask import current_app, jsonify, request
 
 from app.db import get_db_connection, get_table_name
-from app.decorators import roles_required
+from app.decorators import dynamic_role_required, roles_required
 from app.services.planning.buffer import PlanningBufferService
 
 
 def register_planista_rollover_routes(planista_bp):
     @planista_bp.route('/api/przenies_niezrealizowane', methods=['POST'])
+    @dynamic_role_required('planista')
     @roles_required('planista', 'admin', 'zarzad')
     def api_przenies_niezrealizowane():
         """Move incomplete plans to next day, creating new Zasyp and Workowanie plans."""
@@ -37,6 +38,7 @@ def register_planista_rollover_routes(planista_bp):
             return jsonify({'success': False, 'message': f'Błąd serwera: {str(error)}'}), 500
 
     @planista_bp.route('/api/check_niezrealizowane', methods=['POST', 'GET'])
+    @dynamic_role_required('planista')
     @roles_required('planista', 'admin', 'zarzad')
     def api_check_niezrealizowane():
         """Check what incomplete plans exist and would be moved."""
@@ -180,6 +182,7 @@ def register_planista_rollover_routes(planista_bp):
             return jsonify({'success': False, 'message': f'Błąd serwera: {str(error)}'}), 500
 
     @planista_bp.route('/api/check_zlecenie', methods=['POST', 'GET'])
+    @dynamic_role_required('planista')
     @roles_required('planista', 'admin', 'zarzad')
     def api_check_zlecenie():
         """Check given plan and report which parts are still active or not closed."""
@@ -294,6 +297,7 @@ def register_planista_rollover_routes(planista_bp):
             return jsonify({'success': False, 'message': f'Błąd serwera: {str(error)}'}), 500
 
     @planista_bp.route('/api/przenies_wybrane_zlecenia', methods=['POST'])
+    @dynamic_role_required('planista')
     @roles_required('planista', 'admin', 'zarzad')
     def api_przenies_wybrane_zlecenia():
         """Move selected incomplete plans to next day."""
