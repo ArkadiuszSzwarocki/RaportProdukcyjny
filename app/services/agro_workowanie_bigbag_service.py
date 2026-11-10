@@ -486,7 +486,7 @@ class AgroWorkowanieBigBagService:
             conn.close()
 
     @staticmethod
-    def get_plan_bigbag_settlement(plan_id: int, linia: str = 'AGRO') -> Dict[str, Any]:
+    def get_plan_bigbag_settlement(plan_id: int, linia: str = 'AGRO', conn=None) -> Dict[str, Any]:
         """Zwraca listę wskanowanych Big Bagów i pełny bilans wsadu vs spakowane palety."""
         if not plan_id:
             return {
@@ -499,7 +499,10 @@ class AgroWorkowanieBigBagService:
                 'has_bigbags': False
             }
 
-        conn = get_db_connection()
+        own_conn = conn is None
+        if own_conn:
+            conn = get_db_connection()
+        cursor = None
         try:
             cursor = conn.cursor(dictionary=True)
 
@@ -548,4 +551,7 @@ class AgroWorkowanieBigBagService:
                 'has_bigbags': len(bigbags) > 0
             }
         finally:
-            conn.close()
+            if cursor is not None:
+                cursor.close()
+            if own_conn:
+                conn.close()

@@ -42,12 +42,12 @@ class AgroTanksService:
         return AgroTanksRepository.get_current_running_plan(linia=linia)
 
     @staticmethod
-    def get_active_workowanie_plan(linia='Agro', target_date=None, plan_id=None):
-        return AgroTanksRepository.get_active_workowanie_plan(linia=linia, target_date=target_date, plan_id=plan_id)
+    def get_active_workowanie_plan(linia='Agro', target_date=None, plan_id=None, conn=None):
+        return AgroTanksRepository.get_active_workowanie_plan(linia=linia, target_date=target_date, plan_id=plan_id, conn=conn)
 
     @staticmethod
-    def get_finished_plans_of_day(linia='Agro', target_date=None):
-        return AgroTanksRepository.get_finished_plans_of_day(linia=linia, target_date=target_date)
+    def get_finished_plans_of_day(linia='Agro', target_date=None, conn=None):
+        return AgroTanksRepository.get_finished_plans_of_day(linia=linia, target_date=target_date, conn=conn)
 
     @staticmethod
     def auto_register_pallet(plan_id, linia='AGRO', source_instance=None):

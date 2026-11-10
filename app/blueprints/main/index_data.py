@@ -161,16 +161,16 @@ def build_dashboard_halls_context(dzisiaj, aktywna_sekcja, aktywna_linia, role, 
 
 
 
-def build_dosypki_maps(dzisiaj, aktywna_sekcja, aktywna_linia, logger):
-    return DashboardContextService.build_dosypki_maps(dzisiaj, aktywna_sekcja, aktywna_linia, logger)
+def build_dosypki_maps(dzisiaj, aktywna_sekcja, aktywna_linia, logger, conn=None):
+    return DashboardContextService.build_dosypki_maps(dzisiaj, aktywna_sekcja, aktywna_linia, logger, conn=conn)
 
 
-def build_zasyp_etapy_context(plan_dnia, dzisiaj, aktywna_sekcja, aktywna_linia, logger):
-    return DashboardContextService.build_zasyp_etapy_context(plan_dnia, dzisiaj, aktywna_sekcja, aktywna_linia, logger)
+def build_zasyp_etapy_context(plan_dnia, dzisiaj, aktywna_sekcja, aktywna_linia, logger, conn=None):
+    return DashboardContextService.build_zasyp_etapy_context(plan_dnia, dzisiaj, aktywna_sekcja, aktywna_linia, logger, conn=conn)
 
 
-def build_agro_mix_context(dzisiaj, aktywna_linia, logger):
-    return DashboardContextService.build_agro_mix_context(dzisiaj, aktywna_linia, logger)
+def build_agro_mix_context(dzisiaj, aktywna_linia, logger, conn=None):
+    return DashboardContextService.build_agro_mix_context(dzisiaj, aktywna_linia, logger, conn=conn)
 
 
 def build_production_overview_context(dzisiaj, linia, role, data_od=None, data_do=None):

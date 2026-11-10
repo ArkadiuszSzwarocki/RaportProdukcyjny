@@ -14,14 +14,15 @@ logger = logging.getLogger(__name__)
 
 class AutoReportScheduleService:
     @classmethod
-    def get_schedule(cls, linia: str = 'AGRO', date_str: Optional[str] = None) -> Dict[str, Any]:
+    def get_schedule(cls, linia: str = 'AGRO', date_str: Optional[str] = None, conn=None) -> Dict[str, Any]:
         """Pobiera aktualnie zaplanowany czas auto-raportu dla danej linii i daty."""
         if not date_str:
             date_str = str(date.today())
 
-        conn = None
+        own_conn = conn is None
         try:
-            conn = get_db_connection()
+            if own_conn:
+                conn = get_db_connection()
             # Read-only page requests must not run CREATE/ALTER/INSERT or commit.
             # Schema setup remains in initialization and schedule write paths.
             cursor = conn.cursor(dictionary=True)
@@ -93,7 +94,7 @@ class AutoReportScheduleService:
                 'is_custom': False
             }
         finally:
-            if conn:
+            if own_conn and conn is not None:
                 conn.close()
 
     @classmethod

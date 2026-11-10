@@ -380,8 +380,11 @@ class OsipTransferService:
         return self.repository.get_transfer_by_id(transfer.id)
 
     @staticmethod
-    def require_receiving(cursor, pallet_code, target_location=None):
+    def require_receiving(cursor, pallet_code, target_location=None, user_login=None):
         """Protect generic moves as well as the dedicated receiving API."""
+        from app.utils.location_validator import is_masteradmin_user
+        if is_masteradmin_user(user_login):
+            return False
         cursor.execute("SELECT t.id,t.transfer_code,t.status,t.destination_warehouse FROM osip_transfers t "
                        "JOIN osip_transfer_items ti ON ti.transfer_id=t.id "
                        "WHERE UPPER(TRIM(ti.nr_palety))=%s AND ti.status!='RECEIVED' "
@@ -503,7 +506,7 @@ class OsipTransferService:
             if len(candidates) != 1:
                 return False, 'Brak jednoznacznej pozycji transferu'
             service = OsipTransferService()
-            transfer = service._locked_transfer(conn, candidates[0]['transfer_id'], ('RECEIVING',))
+            transfer = service._locked_transfer(conn, candidates[0]['transfer_id'], ('PLANNED', 'IN_TRANSIT', 'RECEIVING'))
             item = service._match_item(transfer, code)
             table, qty_column, _ = service._stock_spec(item)
             cursor.execute(f"SELECT id,lokalizacja,{qty_column} AS quantity FROM {table} "

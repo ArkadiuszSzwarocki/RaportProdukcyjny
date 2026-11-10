@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import date, datetime
 
 from flask import current_app, jsonify, redirect, request, session, url_for
@@ -16,6 +17,79 @@ from app.services.mqtt_service import get_latest_data
 from app.decorators import login_required
 
 _system_state_cache = {}
+_system_state_locks = {}
+_system_state_locks_guard = threading.Lock()
+
+
+def _get_line_state_lock(linia: str) -> threading.Lock:
+    with _system_state_locks_guard:
+        lock = _system_state_locks.get(linia)
+        if lock is None:
+            lock = threading.Lock()
+            _system_state_locks[linia] = lock
+        return lock
+
+
+def _query_system_state_scalar(cursor, linia: str, table_ruch: str, table_plans: str):
+    """Fetch all system_state watermarks in one SQL round-trip, falling back per table on schema mismatch."""
+    station_sql = (
+        "COALESCE((SELECT MAX(UNIX_TIMESTAMP(updated_at)) FROM agro_stanowiska), 0)"
+        if linia == 'AGRO' else "0"
+    )
+    table_pal_psd = get_table_name('palety_workowanie', 'PSD')
+    table_szarze_psd = get_table_name('szarze', 'PSD')
+    table_szarze_agro = get_table_name('szarze', 'AGRO')
+    table_dosypki_psd = get_table_name('dosypki', 'PSD')
+    table_dosypki_agro = get_table_name('dosypki', 'AGRO')
+
+    try:
+        cursor.execute(f"""
+            SELECT
+                COALESCE((SELECT MAX(id) FROM {table_ruch}), 0),
+                COALESCE((SELECT MAX(id) FROM {table_plans}), 0),
+                COALESCE((SELECT MAX(id) FROM powiadomienia), 0),
+                {station_sql},
+                COALESCE((SELECT MAX(id) FROM {table_pal_psd}), 0),
+                COALESCE((SELECT COUNT(*) FROM {table_pal_psd}), 0),
+                GREATEST(
+                    COALESCE((SELECT MAX(id) FROM palety_agro), 0),
+                    COALESCE((SELECT MAX(id) FROM palety_workowanie_agro), 0)
+                ),
+                COALESCE((SELECT COUNT(*) FROM palety_agro), 0) + COALESCE((SELECT COUNT(*) FROM palety_workowanie_agro), 0),
+                COALESCE((SELECT MAX(id) FROM agro_workowanie_bigbagi), 0),
+                COALESCE((SELECT COUNT(*) FROM agro_workowanie_bigbagi), 0),
+                COALESCE((SELECT MAX(id) FROM agro_plan_opakowania), 0),
+                COALESCE((SELECT MAX(id) FROM {table_szarze_psd}), 0),
+                COALESCE((SELECT MAX(id) FROM {table_szarze_agro}), 0),
+                COALESCE((SELECT MAX(id) FROM dziennik_zmiany), 0),
+                COALESCE((SELECT MAX(id) FROM {table_dosypki_psd}), 0),
+                COALESCE((SELECT MAX(id) FROM {table_dosypki_agro}), 0),
+                COALESCE((SELECT SUM(potwierdzone + COALESCE(anulowana, 0)) FROM {table_dosypki_psd}), 0),
+                COALESCE((SELECT SUM(potwierdzone + COALESCE(anulowana, 0)) FROM {table_dosypki_agro}), 0)
+        """)
+        r = cursor.fetchone()
+        return {
+            'last_move': r[0] or 0,
+            'last_plan': r[1] or 0,
+            'last_notif': r[2] or 0,
+            'last_station_change': r[3] or 0,
+            'last_pallet_psd': r[4] or 0,
+            'count_pallet_psd': r[5] or 0,
+            'last_pallet_agro': r[6] or 0,
+            'count_pallet_agro': r[7] or 0,
+            'last_pallet': max(r[4] or 0, r[6] or 0),
+            'last_bigbag_agro': r[8] or 0,
+            'count_bigbag_agro': r[9] or 0,
+            'last_pkg_agro': r[10] or 0,
+            'last_zasyp_psd': r[11] or 0,
+            'last_zasyp_agro': r[12] or 0,
+            'last_awaria': r[13] or 0,
+            'last_dosypka_psd': r[14] or 0,
+            'last_dosypka_agro': r[15] or 0,
+            'state_dosypka': int(r[16] or 0) + int(r[17] or 0),
+        }
+    except Exception:
+        return None
 
 
 def register_api_runtime_routes(api_bp):
@@ -316,145 +390,146 @@ def register_api_runtime_routes(api_bp):
 
             now = time.time()
             cached = _system_state_cache.get(linia)
-            if cached and (now - cached['timestamp'] < 2.0):
+            if cached and (now - cached['timestamp'] < 3.0):
                 return jsonify(cached['data'])
 
-            from app.db import get_table_name, get_db_connection
+            line_lock = _get_line_state_lock(linia)
+            with line_lock:
+                now = time.time()
+                cached = _system_state_cache.get(linia)
+                if cached and (now - cached['timestamp'] < 3.0):
+                    return jsonify(cached['data'])
 
-            # Resolve table names based on line
-            table_ruch = get_table_name('magazyn_ruch', linia)
-            table_plans = get_table_name('plan_produkcji', linia)
+                from app.db import get_table_name, get_db_connection
 
-            conn = get_db_connection()
-            cursor = conn.cursor()
+                # Resolve table names based on line
+                table_ruch = get_table_name('magazyn_ruch', linia)
+                table_plans = get_table_name('plan_produkcji', linia)
 
-            # 1. Last warehouse movement ID
-            cursor.execute(f"SELECT MAX(id) FROM {table_ruch}")
-            last_move = cursor.fetchone()[0] or 0
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                try:
+                    state_payload = _query_system_state_scalar(cursor, linia, table_ruch, table_plans)
+                    if state_payload is None:
+                        # Fallback to isolated queries if any optional table is absent
+                        cursor.execute(f"SELECT MAX(id) FROM {table_ruch}")
+                        last_move = cursor.fetchone()[0] or 0
 
-            # 2. Last production plan entry ID
-            cursor.execute(f"SELECT MAX(id) FROM {table_plans}")
-            last_plan = cursor.fetchone()[0] or 0
+                        cursor.execute(f"SELECT MAX(id) FROM {table_plans}")
+                        last_plan = cursor.fetchone()[0] or 0
 
-            # 3. Last notification ID
-            cursor.execute("SELECT MAX(id) FROM powiadomienia")
-            last_notif = cursor.fetchone()[0] or 0
+                        cursor.execute("SELECT MAX(id) FROM powiadomienia")
+                        last_notif = cursor.fetchone()[0] or 0
 
-            # 4. Last change in user assignments (stanowiska) for AGRO
-            last_station_change = 0
-            if linia == 'AGRO':
-                cursor.execute("SELECT MAX(UNIX_TIMESTAMP(updated_at)) FROM agro_stanowiska")
-                last_station_change = cursor.fetchone()[0] or 0
-                
-            # Fetch last pallets and counts for BOTH halls
-            try:
-                cursor.execute(f"SELECT COALESCE(MAX(id), 0), COUNT(*) FROM {get_table_name('palety_workowanie', 'PSD')}")
-                row_psd = cursor.fetchone()
-                last_pallet_psd = row_psd[0] or 0
-                count_pallet_psd = row_psd[1] or 0
-            except Exception:
-                last_pallet_psd = 0
-                count_pallet_psd = 0
+                        last_station_change = 0
+                        if linia == 'AGRO':
+                            cursor.execute("SELECT MAX(UNIX_TIMESTAMP(updated_at)) FROM agro_stanowiska")
+                            last_station_change = cursor.fetchone()[0] or 0
 
-            try:
-                cursor.execute("""
-                    SELECT 
-                        GREATEST(COALESCE((SELECT MAX(id) FROM palety_agro), 0), COALESCE((SELECT MAX(id) FROM palety_workowanie_agro), 0)),
-                        (SELECT COUNT(*) FROM palety_agro) + (SELECT COUNT(*) FROM palety_workowanie_agro)
-                """)
-                row_agro = cursor.fetchone()
-                last_pallet_agro = row_agro[0] or 0
-                count_pallet_agro = row_agro[1] or 0
-            except Exception:
-                last_pallet_agro = 0
-                count_pallet_agro = 0
+                        try:
+                            cursor.execute(f"SELECT COALESCE(MAX(id), 0), COUNT(*) FROM {get_table_name('palety_workowanie', 'PSD')}")
+                            row_psd = cursor.fetchone()
+                            last_pallet_psd = row_psd[0] or 0
+                            count_pallet_psd = row_psd[1] or 0
+                        except Exception:
+                            last_pallet_psd = 0
+                            count_pallet_psd = 0
 
-            # Fetch Big Bags for AGRO
-            try:
-                cursor.execute("SELECT COALESCE(MAX(id), 0), COUNT(*) FROM agro_workowanie_bigbagi")
-                row_bb = cursor.fetchone()
-                last_bigbag_agro = row_bb[0] or 0
-                count_bigbag_agro = row_bb[1] or 0
-            except Exception:
-                last_bigbag_agro = 0
-                count_bigbag_agro = 0
+                        try:
+                            cursor.execute("""
+                                SELECT 
+                                    GREATEST(COALESCE((SELECT MAX(id) FROM palety_agro), 0), COALESCE((SELECT MAX(id) FROM palety_workowanie_agro), 0)),
+                                    (SELECT COUNT(*) FROM palety_agro) + (SELECT COUNT(*) FROM palety_workowanie_agro)
+                            """)
+                            row_agro = cursor.fetchone()
+                            last_pallet_agro = row_agro[0] or 0
+                            count_pallet_agro = row_agro[1] or 0
+                        except Exception:
+                            last_pallet_agro = 0
+                            count_pallet_agro = 0
 
-            # Fetch Packaging assignments for AGRO
-            try:
-                cursor.execute("SELECT COALESCE(MAX(id), 0) FROM agro_plan_opakowania")
-                last_pkg_agro = cursor.fetchone()[0] or 0
-            except Exception:
-                last_pkg_agro = 0
+                        try:
+                            cursor.execute("SELECT COALESCE(MAX(id), 0), COUNT(*) FROM agro_workowanie_bigbagi")
+                            row_bb = cursor.fetchone()
+                            last_bigbag_agro = row_bb[0] or 0
+                            count_bigbag_agro = row_bb[1] or 0
+                        except Exception:
+                            last_bigbag_agro = 0
+                            count_bigbag_agro = 0
 
-            # 5. Fetch last zasyp (szarża) for BOTH halls
-            try:
-                cursor.execute(f"SELECT MAX(id) FROM {get_table_name('szarze', 'PSD')}")
-                last_zasyp_psd = cursor.fetchone()[0] or 0
-                cursor.execute(f"SELECT MAX(id) FROM {get_table_name('szarze', 'AGRO')}")
-                last_zasyp_agro = cursor.fetchone()[0] or 0
-            except Exception:
-                last_zasyp_psd = 0
-                last_zasyp_agro = 0
+                        try:
+                            cursor.execute("SELECT COALESCE(MAX(id), 0) FROM agro_plan_opakowania")
+                            last_pkg_agro = cursor.fetchone()[0] or 0
+                        except Exception:
+                            last_pkg_agro = 0
 
-            # 6. Fetch last failure (awaria) ID
-            try:
-                cursor.execute("SELECT MAX(id) FROM dziennik_zmiany")
-                last_awaria = cursor.fetchone()[0] or 0
-            except Exception:
-                last_awaria = 0
+                        try:
+                            cursor.execute(f"SELECT MAX(id) FROM {get_table_name('szarze', 'PSD')}")
+                            last_zasyp_psd = cursor.fetchone()[0] or 0
+                            cursor.execute(f"SELECT MAX(id) FROM {get_table_name('szarze', 'AGRO')}")
+                            last_zasyp_agro = cursor.fetchone()[0] or 0
+                        except Exception:
+                            last_zasyp_psd = 0
+                            last_zasyp_agro = 0
 
-            # 7. Fetch last dosypka ID for BOTH halls
-            try:
-                cursor.execute(f"SELECT MAX(id) FROM {get_table_name('dosypki', 'PSD')}")
-                last_dosypka_psd = cursor.fetchone()[0] or 0
-                cursor.execute(f"SELECT MAX(id) FROM {get_table_name('dosypki', 'AGRO')}")
-                last_dosypka_agro = cursor.fetchone()[0] or 0
-            except Exception:
-                last_dosypka_psd = 0
-                last_dosypka_agro = 0
+                        try:
+                            cursor.execute("SELECT MAX(id) FROM dziennik_zmiany")
+                            last_awaria = cursor.fetchone()[0] or 0
+                        except Exception:
+                            last_awaria = 0
 
-            # 8. Fetch state sum of dosypki (potwierdzone + anulowana) to detect confirmations/cancellations
-            try:
-                cursor.execute(f"SELECT COALESCE(SUM(potwierdzone + COALESCE(anulowana, 0)), 0) FROM {get_table_name('dosypki', 'PSD')}")
-                state_dosypka_psd = int(cursor.fetchone()[0] or 0)
-                cursor.execute(f"SELECT COALESCE(SUM(potwierdzone + COALESCE(anulowana, 0)), 0) FROM {get_table_name('dosypki', 'AGRO')}")
-                state_dosypka_agro = int(cursor.fetchone()[0] or 0)
-            except Exception:
-                state_dosypka_psd = 0
-                state_dosypka_agro = 0
+                        try:
+                            cursor.execute(f"SELECT MAX(id) FROM {get_table_name('dosypki', 'PSD')}")
+                            last_dosypka_psd = cursor.fetchone()[0] or 0
+                            cursor.execute(f"SELECT MAX(id) FROM {get_table_name('dosypki', 'AGRO')}")
+                            last_dosypka_agro = cursor.fetchone()[0] or 0
+                        except Exception:
+                            last_dosypka_psd = 0
+                            last_dosypka_agro = 0
 
-            cursor.close()
-            conn.close()
+                        try:
+                            cursor.execute(f"SELECT COALESCE(SUM(potwierdzone + COALESCE(anulowana, 0)), 0) FROM {get_table_name('dosypki', 'PSD')}")
+                            state_dosypka_psd = int(cursor.fetchone()[0] or 0)
+                            cursor.execute(f"SELECT COALESCE(SUM(potwierdzone + COALESCE(anulowana, 0)), 0) FROM {get_table_name('dosypki', 'AGRO')}")
+                            state_dosypka_agro = int(cursor.fetchone()[0] or 0)
+                        except Exception:
+                            state_dosypka_psd = 0
+                            state_dosypka_agro = 0
 
-            response_data = {
-                'success': True,
-                'state': {
-                    'last_move': last_move,
-                    'last_plan': last_plan,
-                    'last_notif': last_notif,
-                    'last_station_change': last_station_change,
-                    'last_pallet_psd': last_pallet_psd,
-                    'count_pallet_psd': count_pallet_psd,
-                    'last_pallet_agro': last_pallet_agro,
-                    'count_pallet_agro': count_pallet_agro,
-                    'last_pallet': max(last_pallet_psd, last_pallet_agro),
-                    'last_bigbag_agro': last_bigbag_agro,
-                    'count_bigbag_agro': count_bigbag_agro,
-                    'last_pkg_agro': last_pkg_agro,
-                    'last_zasyp_psd': last_zasyp_psd,
-                    'last_zasyp_agro': last_zasyp_agro,
-                    'last_awaria': last_awaria,
-                    'last_dosypka_psd': last_dosypka_psd,
-                    'last_dosypka_agro': last_dosypka_agro,
-                    'state_dosypka': state_dosypka_psd + state_dosypka_agro
+                        state_payload = {
+                            'last_move': last_move,
+                            'last_plan': last_plan,
+                            'last_notif': last_notif,
+                            'last_station_change': last_station_change,
+                            'last_pallet_psd': last_pallet_psd,
+                            'count_pallet_psd': count_pallet_psd,
+                            'last_pallet_agro': last_pallet_agro,
+                            'count_pallet_agro': count_pallet_agro,
+                            'last_pallet': max(last_pallet_psd, last_pallet_agro),
+                            'last_bigbag_agro': last_bigbag_agro,
+                            'count_bigbag_agro': count_bigbag_agro,
+                            'last_pkg_agro': last_pkg_agro,
+                            'last_zasyp_psd': last_zasyp_psd,
+                            'last_zasyp_agro': last_zasyp_agro,
+                            'last_awaria': last_awaria,
+                            'last_dosypka_psd': last_dosypka_psd,
+                            'last_dosypka_agro': last_dosypka_agro,
+                            'state_dosypka': state_dosypka_psd + state_dosypka_agro,
+                        }
+                finally:
+                    cursor.close()
+                    conn.close()
+
+                response_data = {
+                    'success': True,
+                    'state': state_payload,
                 }
-            }
-            
-            _system_state_cache[linia] = {
-                'timestamp': now,
-                'data': response_data
-            }
-            return jsonify(response_data)
+
+                _system_state_cache[linia] = {
+                    'timestamp': time.time(),
+                    'data': response_data,
+                }
+                return jsonify(response_data)
         except Exception as e:
             current_app.logger.error(f"Error in get_system_state: {e}")
             return jsonify({'success': False, 'error': str(e)}), 500

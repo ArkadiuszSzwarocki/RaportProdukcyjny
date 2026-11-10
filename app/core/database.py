@@ -122,6 +122,7 @@ def set_active_database_name(database_name, verify_connection=True):
 
 _DB_POOL = None
 _DB_POOL_LOCK = threading.Lock()
+_last_pool_failure_ts = 0.0
 
 
 def _configured_pool_size():
@@ -136,42 +137,64 @@ def _configured_pool_size():
 
 def _get_or_create_pool():
     """Lazily initialize or return MySQL connection pool matching current DB_CONFIG."""
-    global _DB_POOL
+    global _DB_POOL, _last_pool_failure_ts
     with _DB_POOL_LOCK:
+        if _DB_POOL is not None:
+            return _DB_POOL
+
+        # Don't hammer the remote DB retrying pool creation every request if it recently failed
+        if time.time() - _last_pool_failure_ts < 30.0:
+            return None
+
         with _DB_CONFIG_LOCK:
             target_db = DB_CONFIG.get('database')
             target_host = DB_CONFIG.get('host')
             pool_config = dict(DB_CONFIG)
 
-        current_pool_db = getattr(_DB_POOL, '_pool_database', None) if _DB_POOL else None
-        current_pool_host = getattr(_DB_POOL, '_pool_host', None) if _DB_POOL else None
+        try:
+            from mysql.connector import pooling
+            from mysql.connector.connection import MySQLConnection
+            pool_config['use_pure'] = True
+            pool_config['buffered'] = True
+            cfg_size = _configured_pool_size()
+            candidate_sizes = [cfg_size]
+            for fb in (16, 8, 5, 3, 2):
+                if fb < cfg_size and fb not in candidate_sizes:
+                    candidate_sizes.append(fb)
 
-        if _DB_POOL is None or current_pool_db != target_db or current_pool_host != target_host:
-            try:
-                from mysql.connector import pooling
-                from mysql.connector.connection import MySQLConnection
-                pool_config['use_pure'] = True
-                pool_config['buffered'] = True
+            pool = None
+            for psize in candidate_sizes:
                 try:
                     pool = pooling.MySQLConnectionPool(
-                        pool_name="app_db_pool",
-                        pool_size=_configured_pool_size(),
+                        pool_name='app_db_pool',
+                        pool_size=psize,
                         pool_reset_session=True,
                         connection_class=MySQLConnection,
                         **pool_config
                     )
+                    break
                 except (TypeError, Exception):
-                    pool = pooling.MySQLConnectionPool(
-                        pool_name="app_db_pool",
-                        pool_size=_configured_pool_size(),
-                        pool_reset_session=True,
-                        **pool_config
-                    )
+                    try:
+                        pool = pooling.MySQLConnectionPool(
+                            pool_name='app_db_pool',
+                            pool_size=psize,
+                            pool_reset_session=True,
+                            **pool_config
+                        )
+                        break
+                    except Exception as p_err:
+                        continue
+
+            if pool:
                 pool._pool_database = target_db
                 pool._pool_host = target_host
                 _DB_POOL = pool
-            except Exception:
+            else:
                 _DB_POOL = None
+                _last_pool_failure_ts = time.time()
+        except Exception:
+            _DB_POOL = None
+            _last_pool_failure_ts = time.time()
         return _DB_POOL
 
 

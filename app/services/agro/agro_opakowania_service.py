@@ -2,8 +2,8 @@ from app.repositories.agro_opakowania_repository import AgroOpakowaniaRepository
 
 class AgroOpakowaniaService:
     @staticmethod
-    def get_packaging_inventory(linia='Agro'):
-        return AgroOpakowaniaRepository.get_packaging_inventory(linia=linia)
+    def get_packaging_inventory(linia='Agro', conn=None):
+        return AgroOpakowaniaRepository.get_packaging_inventory(linia=linia, conn=conn)
 
     @staticmethod
     def create_packaging(nazwa, ilosc, lokalizacja=None, linia='Agro'):

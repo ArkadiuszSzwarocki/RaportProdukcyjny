@@ -120,8 +120,11 @@ class DowntimeRepository:
         finally:
             conn.close()
 
-    def get_downtimes(self, linia: str, data_od: str, data_do: str, sekcja: Optional[str] = None, exclude_system_bugs: bool = True) -> List[Dict[str, Any]]:
-        conn = get_db_connection()
+    def get_downtimes(self, linia: str, data_od: str, data_do: str, sekcja: Optional[str] = None, exclude_system_bugs: bool = True, conn=None) -> List[Dict[str, Any]]:
+        own_conn = conn is None
+        if own_conn:
+            conn = get_db_connection()
+        cursor = None
         try:
             cursor = conn.cursor(dictionary=True)
             results = []
@@ -159,13 +162,19 @@ class DowntimeRepository:
 
             return results
         finally:
-            conn.close()
+            if cursor is not None:
+                cursor.close()
+            if own_conn and conn is not None:
+                conn.close()
 
-    def get_downtime_summary_map(self, plan_ids: List[int]) -> Dict[int, Dict[str, Any]]:
+    def get_downtime_summary_map(self, plan_ids: List[int], conn=None) -> Dict[int, Dict[str, Any]]:
         """Zwraca mapę sumy przestojów dla podanych identyfikatorów plan_id: {plan_id: {'total_min': int, 'count': int}}."""
         if not plan_ids:
             return {}
-        conn = get_db_connection()
+        own_conn = conn is None
+        if own_conn:
+            conn = get_db_connection()
+        cursor = None
         try:
             cursor = conn.cursor(dictionary=True)
             valid_ids = [int(p) for p in plan_ids if str(p).isdigit()]
@@ -219,5 +228,8 @@ class DowntimeRepository:
 
             return summary_map
         finally:
-            conn.close()
+            if cursor is not None:
+                cursor.close()
+            if own_conn and conn is not None:
+                conn.close()
 

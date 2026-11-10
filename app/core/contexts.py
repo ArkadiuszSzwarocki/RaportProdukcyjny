@@ -16,6 +16,31 @@ from flask import session, request, current_app
 _translations_cache = {}
 _CONTEXT_CACHE = {}
 _CONTEXT_CACHE_LOCK = threading.Lock()
+_CONTEXT_KEY_LOCKS = {}
+
+
+def _get_context_key_lock(key):
+    with _CONTEXT_CACHE_LOCK:
+        lock = _CONTEXT_KEY_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _CONTEXT_KEY_LOCKS[key] = lock
+        return lock
+
+
+def _acquire_context_conn(connector_fn):
+    """Borrow request-scoped sidebar-badge connection when batching, or open an isolated one."""
+    try:
+        from flask import g, has_request_context
+        if has_request_context() and getattr(g, '_sidebar_badge_batch', False):
+            shared = getattr(g, '_sidebar_badge_conn', None)
+            if shared is None:
+                shared = connector_fn()
+                g._sidebar_badge_conn = shared
+            return shared, False
+    except Exception:
+        pass
+    return connector_fn(), True
 
 
 def _get_cached_context(key, ttl_seconds, fetcher_fn):
@@ -25,18 +50,25 @@ def _get_cached_context(key, ttl_seconds, fetcher_fn):
         cached = _CONTEXT_CACHE.get(key)
         if cached and (now - cached['ts']) < ttl_seconds:
             return cached['val']
-    try:
-        val = fetcher_fn()
-    except Exception:
-        # If fetcher fails, fallback to stale cache if present
+    key_lock = _get_context_key_lock(key)
+    with key_lock:
+        now = time.time()
         with _CONTEXT_CACHE_LOCK:
             cached = _CONTEXT_CACHE.get(key)
-            if cached:
+            if cached and (now - cached['ts']) < ttl_seconds:
                 return cached['val']
-        raise
-    with _CONTEXT_CACHE_LOCK:
-        _CONTEXT_CACHE[key] = {'ts': time.time(), 'val': val}
-    return val
+        try:
+            val = fetcher_fn()
+        except Exception:
+            # If fetcher fails, fallback to stale cache if present
+            with _CONTEXT_CACHE_LOCK:
+                cached = _CONTEXT_CACHE.get(key)
+                if cached:
+                    return cached['val']
+            raise
+        with _CONTEXT_CACHE_LOCK:
+            _CONTEXT_CACHE[key] = {'ts': time.time(), 'val': val}
+        return val
 
 
 def _normalize_role_name(raw_role):
@@ -524,33 +556,35 @@ def inject_app_version():
 
 def _fetch_bug_report_counters():
     from app.db import get_db_connection
-    conn = get_db_connection()
+    conn, own_conn = _acquire_context_conn(get_db_connection)
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM zgloszenia_bledow WHERE status = 'nowy'")
         row = cursor.fetchone()
+        cursor.close()
         count = int(row[0]) if row else 0
         return dict(unread_bug_reports_count=count)
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if own_conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def inject_bug_report_counters():
-    """Inject unread bug reports count for templates (cached 5s)."""
+    """Inject unread bug reports count for templates (cached 8s)."""
     try:
         if not session.get('zalogowany'):
             return dict(unread_bug_reports_count=0)
-        return _get_cached_context('bug_report_counters', 5.0, _fetch_bug_report_counters)
+        return _get_cached_context('bug_report_counters', 8.0, _fetch_bug_report_counters)
     except Exception:
         return dict(unread_bug_reports_count=0)
 
 
 def _fetch_delivery_counters():
     from app.db import get_db_connection
-    conn = get_db_connection()
+    conn, own_conn = _acquire_context_conn(get_db_connection)
     try:
         cursor = conn.cursor()
         counts = {'PSD': 0, 'AGRO': 0, 'OSIP': 0, 'ALL': 0}
@@ -643,10 +677,11 @@ def _fetch_delivery_counters():
             pending_external_pallets=external_pallet_counts
         )
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if own_conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def inject_delivery_counters():
@@ -675,17 +710,19 @@ def inject_delivery_counters():
 
 def _fetch_pending_orders_count():
     from app.db import get_db_connection
-    conn = get_db_connection()
+    conn, own_conn = _acquire_context_conn(get_db_connection)
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM magazyn_zamowienia WHERE status = 'NOWE'")
         count = cursor.fetchone()[0]
+        cursor.close()
         return dict(pending_orders_count=count)
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if own_conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def inject_pending_orders_count():
@@ -700,7 +737,7 @@ def inject_pending_orders_count():
 
 def _fetch_pending_picking_count():
     from app.db import get_db_connection
-    conn = get_db_connection()
+    conn, own_conn = _acquire_context_conn(get_db_connection)
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -713,13 +750,15 @@ def _fetch_pending_picking_count():
             """
         )
         row = cursor.fetchone()
+        cursor.close()
         count = row[0] if row else 0
         return dict(pending_picking_count=count)
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if own_conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def inject_pending_picking_count():
@@ -778,7 +817,7 @@ def inject_system_errors_count():
 
 def _fetch_osip_transfers_count():
     from app.core.database import get_db_connection
-    conn = get_db_connection()
+    conn, own_conn = _acquire_context_conn(get_db_connection)
     try:
         cursor = conn.cursor(dictionary=True)
         try:
@@ -802,10 +841,11 @@ def _fetch_osip_transfers_count():
         finally:
             cursor.close()
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if own_conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def inject_osip_transfers_count():

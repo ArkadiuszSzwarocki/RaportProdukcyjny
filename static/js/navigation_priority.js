@@ -7,6 +7,9 @@
     const pending = new Set();
     const backgroundPaths = new Set([
         '/api/system_state', '/api/notifications', '/api/health', '/api/ping',
+        '/api/printer-server/status', '/api/printer-server-status-public',
+        '/auth/printer-server-status-public',
+        '/api/machines/telemetry', '/api/machines/telemetry/live', '/machines/telemetry/live',
         '/warehouse-v2/api/sidebar-badges', '/warehouse-v2/api/live/snapshot',
         '/warehouse-v2/api/orders/picking/active', '/warehouse-v2/api/orders/picking/all',
         '/auth/temporary-masteradmin/status', '/api/agro/pomiary',

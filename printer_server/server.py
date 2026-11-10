@@ -12,6 +12,17 @@ import threading
 import time
 from functools import wraps
 
+try:
+    from dotenv import load_dotenv
+    _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _env_candidate = os.path.join(_repo_root, '.env')
+    if os.path.isfile(_env_candidate):
+        load_dotenv(dotenv_path=_env_candidate)
+    else:
+        load_dotenv()
+except Exception:
+    pass
+
 from flask import Flask, jsonify, request
 
 try:
@@ -60,8 +71,32 @@ def _read_int_env(name, default_value, minimum=None, maximum=None):
 
 def _load_printer_map():
     """Load printer targets from configuration instead of source-controlled IPs."""
-    raw = str(os.getenv('PRINTER_IP_MAP_JSON') or '').strip()
     items = {}
+
+    db_host = os.getenv('DB_HOST')
+    if db_host:
+        try:
+            import mysql.connector
+            conn = mysql.connector.connect(
+                host=db_host,
+                port=int(os.getenv('DB_PORT', 3306)),
+                user=os.getenv('DB_USER', 'biblioteka'),
+                password=os.getenv('DB_PASSWORD', ''),
+                database=os.getenv('DB_NAME', 'biblioteka'),
+                connection_timeout=3
+            )
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT nazwa, ip FROM drukarki WHERE aktywna = 1")
+            for r in cur.fetchall():
+                name = str(r.get('nazwa') or '').strip()
+                ip = str(r.get('ip') or '').strip()
+                if name and ip:
+                    items[name] = ip
+            conn.close()
+        except Exception:
+            pass
+
+    raw = str(os.getenv('PRINTER_IP_MAP_JSON') or '').strip()
     if raw:
         try:
             parsed = json.loads(raw)
@@ -164,8 +199,12 @@ def _normalize_network_target(value):
 
 
 def _resolve_zpl_target(data):
+    global PRINTER_IP_MAP
     printer_name = str(data.get('drukarka') or '').strip()
     requested_ip = str(data.get('ip') or '').strip()
+
+    if (printer_name and printer_name not in PRINTER_IP_MAP) or (requested_ip and requested_ip not in PRINTER_IP_MAP.values()):
+        PRINTER_IP_MAP = _load_printer_map()
 
     if app.config.get('TESTING') and requested_ip:
         return _normalize_network_target(requested_ip), printer_name or None

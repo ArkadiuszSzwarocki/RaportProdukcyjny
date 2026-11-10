@@ -25,25 +25,37 @@ def api_orders_list():
 
 @warehouse_v2_bp.route('/api/sidebar-badges', methods=['GET'])
 def api_sidebar_badges():
+    from flask import g
     from app.core.contexts import (
         _get_cached_context, _fetch_delivery_counters, _fetch_osip_transfers_count,
         _fetch_pending_orders_count, _fetch_pending_picking_count,
         inject_bug_report_counters, inject_system_errors_count,
     )
-    ttl = 0.0 if request.args.get('fresh') == '1' else 5.0
+    ttl = 0.0 if request.args.get('fresh') == '1' else 8.0
     values = {}
-    for key, fetcher in (
-        ('delivery_counters', _fetch_delivery_counters),
-        ('osip_transfers_count', _fetch_osip_transfers_count),
-        ('pending_orders_count', _fetch_pending_orders_count),
-        ('pending_picking_count', _fetch_pending_picking_count),
-    ):
-        try:
-            values.update(_get_cached_context(key, ttl, fetcher))
-        except Exception:
-            pass
-    values.update(inject_bug_report_counters())
-    values.update(inject_system_errors_count())
+    g._sidebar_badge_batch = True
+    try:
+        for key, fetcher in (
+            ('delivery_counters', _fetch_delivery_counters),
+            ('osip_transfers_count', _fetch_osip_transfers_count),
+            ('pending_orders_count', _fetch_pending_orders_count),
+            ('pending_picking_count', _fetch_pending_picking_count),
+        ):
+            try:
+                values.update(_get_cached_context(key, ttl, fetcher))
+            except Exception:
+                pass
+        values.update(inject_bug_report_counters())
+        values.update(inject_system_errors_count())
+    finally:
+        g._sidebar_badge_batch = False
+        shared_conn = getattr(g, '_sidebar_badge_conn', None)
+        if shared_conn is not None:
+            g._sidebar_badge_conn = None
+            try:
+                shared_conn.close()
+            except Exception:
+                pass
     return jsonify({
         'success': True,
         'orders_nowe': values.get('pending_orders_count', 0),

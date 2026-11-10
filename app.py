@@ -79,7 +79,7 @@ def run_production_server(application, host: str, port: int, ssl_context) -> Non
 
     # Default production WSGI server: Waitress
     from waitress import serve
-    threads = int(os.environ.get('WAITRESS_THREADS', '8'))
+    threads = int(os.environ.get('WAITRESS_THREADS', '24'))
     timeout = int(os.environ.get('WAITRESS_TIMEOUT', '120'))
     print(f"[OK] Starting production WSGI server (Waitress) on {host}:{port} with {threads} threads")
     serve(

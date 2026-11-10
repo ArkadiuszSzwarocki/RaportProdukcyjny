@@ -385,7 +385,7 @@ class DashboardService:
         return res
 
     @staticmethod
-    def get_agro_packaging_context(dzisiaj: date, plan_id: Optional[int] = None) -> Dict[str, Any]:
+    def get_agro_packaging_context(dzisiaj: date, plan_id: Optional[int] = None, conn=None) -> Dict[str, Any]:
         """Fetch packaging usage context specifically for AGRO hall."""
         default_ctx = {
             'active_plan': None,
@@ -400,7 +400,8 @@ class DashboardService:
             'estimated_bags': 0,
             'all_warehouse_packaging': [],
         }
-        shared_read_connection = None
+        shared_read_connection = conn
+        own_shared_conn = conn is None
 
         def read_connection():
             nonlocal shared_read_connection
@@ -412,24 +413,24 @@ class DashboardService:
             from app.services.agro.agro_opakowania_service import AgroOpakowaniaService
             from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
             from app.services.agro.agro_tanks_service import AgroTanksService
-            active_plan = AgroTanksService.get_active_workowanie_plan(linia='AGRO', target_date=None, plan_id=plan_id)
+            ctx_conn = read_connection()
+            active_plan = AgroTanksService.get_active_workowanie_plan(linia='AGRO', target_date=None, plan_id=plan_id, conn=ctx_conn)
             is_active_plan = bool(active_plan)
             if not active_plan:
                 # If no active plan, try to fetch the last finished plan of the day
                 # to keep the settlement context visible for reports.
-                finished_plans = AgroTanksService.get_finished_plans_of_day(linia='AGRO', target_date=dzisiaj)
+                finished_plans = AgroTanksService.get_finished_plans_of_day(linia='AGRO', target_date=dzisiaj, conn=ctx_conn)
                 if finished_plans:
                     active_plan = finished_plans[0] # Take the most recent one
                 else:
                     return dict(default_ctx)
                 
             plan_id = int(active_plan['id'])
-            packaging_items = AgroOpakowaniaPlanService.get_all_linked_packaging(plan_id) or []
+            packaging_items = AgroOpakowaniaPlanService.get_all_linked_packaging(plan_id, conn=ctx_conn) or []
             
             history = []
-            conn_hist = read_connection()
+            cur_hist = ctx_conn.cursor(dictionary=True)
             try:
-                cur_hist = conn_hist.cursor(dictionary=True)
                 cur_hist.execute(
                     "SELECT id, opakowanie_nazwa, zuzyte_worki, stan_przed, stan_po, created_at "
                     "FROM agro_workowanie_rozliczenie "
@@ -441,13 +442,13 @@ class DashboardService:
                 print(f"Error fetching workowanie history: {e}")
             finally:
                 cur_hist.close()
-            all_warehouse_packaging = AgroOpakowaniaService.get_packaging_inventory(linia='AGRO') or []
-            
+            all_warehouse_packaging = AgroOpakowaniaService.get_packaging_inventory(linia='AGRO', conn=ctx_conn) or []
+            raw_warehouse_packaging = list(all_warehouse_packaging)
+
             # Fetch active packaging IDs (currently linked to an active plan) so we don't show active items
             active_opak_ids = set()
-            conn_active = read_connection()
+            cur_act = ctx_conn.cursor()
             try:
-                cur_act = conn_active.cursor()
                 cur_act.execute("SELECT opakowanie_id FROM agro_plan_opakowania WHERE is_active = TRUE")
                 active_opak_ids = set(r[0] for r in cur_act.fetchall() if r[0])
             except Exception as e:
@@ -566,33 +567,39 @@ class DashboardService:
             inactive_opakowania = []
             
             try:
+                import re
+                ruch_loc_by_id = {}
+                opak_ids = [item.get('opakowanie_id') for item in packaging_items if item.get('opakowanie_id')]
+                if opak_ids:
+                    table_ruch = get_table_name('magazyn_ruch', 'AGRO')
+                    fmt_opak = ','.join(['%s'] * len(opak_ids))
+                    cur_loc.execute(
+                        f"SELECT surowiec_id, komentarz FROM {table_ruch} "
+                        f"WHERE surowiec_id IN ({fmt_opak}) AND komentarz LIKE 'Pobranie z lok:%%' ORDER BY id DESC",
+                        opak_ids,
+                    )
+                    for row_sid, row_kom in (cur_loc.fetchall() or []):
+                        if row_sid not in ruch_loc_by_id and row_kom:
+                            match = re.search(r'Pobranie z lok:\s*(.+)', row_kom)
+                            if match:
+                                ruch_loc_by_id[row_sid] = match.group(1).strip()
+
+                fallback_loc_by_name = {}
+                for w_item in raw_warehouse_packaging:
+                    w_loc = w_item.get('lokalizacja')
+                    w_name = w_item.get('nazwa')
+                    if w_name and w_loc and w_loc != 'Maszyna':
+                        fallback_loc_by_name[w_name] = w_loc
+
                 for item in packaging_items:
                     nazwa_itemu = item.get('nazwa') or ''
-                    
                     suggested_loc = ''
                     if nazwa_itemu:
                         opak_id = item.get('opakowanie_id')
-                        if opak_id:
-                            table_ruch = get_table_name('magazyn_ruch', 'AGRO')
-                            cur_loc.execute(
-                                f"SELECT komentarz FROM {table_ruch} WHERE surowiec_id=%s AND komentarz LIKE 'Pobranie z lok:%%' ORDER BY id DESC LIMIT 1",
-                                (opak_id,)
-                            )
-                            ruch_row = cur_loc.fetchone()
-                            if ruch_row and ruch_row[0]:
-                                import re
-                                match = re.search(r'Pobranie z lok:\s*(.+)', ruch_row[0])
-                                if match:
-                                    suggested_loc = match.group(1).strip()
-                        
-                        if not suggested_loc:
-                            cur_loc.execute(
-                                "SELECT lokalizacja FROM magazyn_opakowania WHERE nazwa=%s AND lokalizacja IS NOT NULL AND lokalizacja != 'Maszyna' AND stan_magazynowy > 0 ORDER BY id DESC LIMIT 1",
-                                (nazwa_itemu,)
-                            )
-                            loc_row = cur_loc.fetchone()
-                            if loc_row and loc_row[0]:
-                                suggested_loc = loc_row[0]
+                        if opak_id and opak_id in ruch_loc_by_id:
+                            suggested_loc = ruch_loc_by_id[opak_id]
+                        elif nazwa_itemu in fallback_loc_by_name:
+                            suggested_loc = fallback_loc_by_name[nazwa_itemu]
                             
                     p_item = {
                         'link_id': item.get('link_id'),
@@ -627,7 +634,7 @@ class DashboardService:
             bigbag_settlement = {}
             try:
                 from app.services.agro_workowanie_bigbag_service import AgroWorkowanieBigBagService
-                bigbag_settlement = AgroWorkowanieBigBagService.get_plan_bigbag_settlement(plan_id, linia='AGRO')
+                bigbag_settlement = AgroWorkowanieBigBagService.get_plan_bigbag_settlement(plan_id, linia='AGRO', conn=read_connection())
             except Exception as e_bb:
                 print(f"Error fetching bigbag settlement: {e_bb}")
 
@@ -651,7 +658,7 @@ class DashboardService:
             out['wrctx_error'] = str(error)
             return out
         finally:
-            if shared_read_connection is not None:
+            if own_shared_conn and shared_read_connection is not None:
                 shared_read_connection.close()
 
     @staticmethod

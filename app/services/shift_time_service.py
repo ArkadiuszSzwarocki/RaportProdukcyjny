@@ -17,7 +17,7 @@ class ShiftTimeService:
     DEFAULT_SHIFT_START_MINUTE = 0
 
     @classmethod
-    def get_shift_time_range(cls, date_str: str, end_datetime: Optional[datetime] = None) -> Tuple[int, str, str]:
+    def get_shift_time_range(cls, date_str: str, end_datetime: Optional[datetime] = None, conn=None) -> Tuple[int, str, str]:
         """
         Zwraca: (czas_brutto_min, start_str, end_str).
         
@@ -37,7 +37,7 @@ class ShiftTimeService:
         sched_hour, sched_min = 15, 0
         try:
             from app.services.auto_report_service import AutoReportService
-            sched = AutoReportService.get_schedule('AGRO', date_str)
+            sched = AutoReportService.get_schedule('AGRO', date_str, conn=conn)
             if sched and sched.get('scheduled_time'):
                 parts = sched['scheduled_time'].split(':')
                 sched_hour = int(parts[0])

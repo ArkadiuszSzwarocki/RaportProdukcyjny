@@ -88,6 +88,10 @@ class PalletRelocationService:
                     elif (dozw_lok.startswith('R') or dozw_lok.startswith('A') or dozw_lok.startswith('OS')) and new_location.startswith(dozw_lok):
                         is_dict_valid = True
                         break
+
+                from app.utils.location_validator import is_osip_location
+                if not is_dict_valid and is_osip_location(new_location) and ('OSIP' in dozwolone or 'OS' in dozwolone):
+                    is_dict_valid = True
                 
                 if not is_dict_valid:
                     return False, f"BŁĄD: Lokalizacja '{new_location}' nie występuje w dozwolonym słowniku (Baza: Ustawienia)."
@@ -179,7 +183,7 @@ class PalletRelocationService:
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')
             from app.services.osip_transfer_service import OsipTransferService
-            osip_receiving = OsipTransferService.require_receiving(cursor, nr_palety, new_location)
+            osip_receiving = OsipTransferService.require_receiving(cursor, nr_palety, new_location, user_login=worker_login)
             if osip_receiving and amount_to_move is not None and abs(amount_to_move - qty) > 0.001:
                 return False, 'Odbiór transferu obejmuje pełny stan palety.', None
 
@@ -205,7 +209,8 @@ class PalletRelocationService:
                     source_location=old_loc,
                     target_location=new_location,
                     pallet_id=pallet_id,
-                    nr_palety=nr_palety
+                    nr_palety=nr_palety,
+                    user_login=worker_login
                 )
                 if not is_inter_valid:
                     return False, inter_err_msg, None
@@ -214,7 +219,8 @@ class PalletRelocationService:
                     source_location=old_loc,
                     target_location=new_location,
                     pallet_id=pallet_id,
-                    nr_palety=nr_palety
+                    nr_palety=nr_palety,
+                    user_login=worker_login
                 )
                 if not is_trf_valid:
                     return False, trf_err_msg, None

@@ -309,7 +309,7 @@ class ZasypEtapyService:
         return sessions
 
     @staticmethod
-    def get_dashboard_sessions(plan_ids: List[int], linia: str):
+    def get_dashboard_sessions(plan_ids: List[int], linia: str, conn=None):
         """Read stages and parameters for the whole page with bounded SQL calls.
 
         The dashboard must not acquire a connection per order or query per batch.
@@ -323,7 +323,9 @@ class ZasypEtapyService:
         rows_by_plan = {pid: {} for pid in ids}
         numbers_by_plan = {pid: set() for pid in ids}
         parameters = {pid: {'wielkosc_szarzy_kg': None} for pid in ids}
-        conn = get_db_connection()
+        own_conn = conn is None
+        if own_conn:
+            conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             try:
@@ -372,7 +374,8 @@ class ZasypEtapyService:
             finally:
                 cursor.close()
         finally:
-            conn.close()
+            if own_conn and conn is not None:
+                conn.close()
         sessions_by_plan = {}
         for pid in ids:
             sessions = []

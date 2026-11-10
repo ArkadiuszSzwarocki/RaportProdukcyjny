@@ -353,15 +353,39 @@ class AgroTanksRepository:
                 q = (
                     f"SELECT r.id as ruch_id, r.surowiec_id, COALESCE(s.nazwa, r.surowiec_nazwa) as nazwa, "
                     f"s.lokalizacja, ABS(r.ilosc) as ilosc_pobrana, "
-                    f"COALESCE((SELECT SUM(z.ilosc) FROM {table_ruch} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as ilosc_zwrocona, "
-                    f"COALESCE((SELECT SUM(k.ilosc) FROM {table_ruch} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as ilosc_korekta, "
                     f"r.plan_id, r.autor_login, r.autor_data, r.zbiornik{plan_select} "
                     f"FROM {table_ruch} r LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id {plan_join} "
                     "WHERE r.typ_ruchu = 'PRODUKCJA' AND r.status = 'POTWIERDZONE' "
                     "ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
                 )
                 cursor.execute(q, (limit,))
-                rows = cursor.fetchall()
+                rows = cursor.fetchall() or []
+                ruch_ids = [r['ruch_id'] for r in rows if r.get('ruch_id')]
+                zwrot_map = {}
+                korekta_map = {}
+                if ruch_ids:
+                    for i in range(0, len(ruch_ids), 500):
+                        chunk = ruch_ids[i:i+500]
+                        fmt = ','.join(['%s'] * len(chunk))
+                        cursor.execute(
+                            f"SELECT ruch_zrodlowy_id, typ_ruchu, SUM(ilosc) as suma "
+                            f"FROM {table_ruch} "
+                            f"WHERE ruch_zrodlowy_id IN ({fmt}) AND typ_ruchu IN ('ZWROT', 'INWENTARYZACJA_PROD') "
+                            f"GROUP BY ruch_zrodlowy_id, typ_ruchu",
+                            chunk
+                        )
+                        for zrow in cursor.fetchall() or []:
+                            zid = zrow.get('ruch_zrodlowy_id')
+                            ztyp = zrow.get('typ_ruchu')
+                            zsum = float(zrow.get('suma') or 0.0)
+                            if ztyp == 'ZWROT':
+                                zwrot_map[zid] = zwrot_map.get(zid, 0.0) + zsum
+                            elif ztyp == 'INWENTARYZACJA_PROD':
+                                korekta_map[zid] = korekta_map.get(zid, 0.0) + zsum
+                for r in rows:
+                    rid = r.get('ruch_id')
+                    r['ilosc_zwrocona'] = zwrot_map.get(rid, 0.0)
+                    r['ilosc_korekta'] = korekta_map.get(rid, 0.0)
                 result = []
                 for r in rows:
                     pobrana = float(r.get('ilosc_pobrana') or 0)
@@ -411,8 +435,6 @@ class AgroTanksRepository:
                     q = (
                         f"SELECT r.id as ruch_id, r.surowiec_id, COALESCE(s.nazwa, r.surowiec_nazwa) as nazwa, "
                         f"s.lokalizacja, ABS(r.ilosc) as ilosc_pobrana, pal.nr_palety, pal.nr_partii, "
-                        f"COALESCE((SELECT SUM(z.ilosc) FROM {ruch_tbl} z WHERE z.ruch_zrodlowy_id = r.id AND z.typ_ruchu = 'ZWROT'), 0) as ilosc_zwrocona, "
-                        f"COALESCE((SELECT SUM(k.ilosc) FROM {ruch_tbl} k WHERE k.ruch_zrodlowy_id = r.id AND k.typ_ruchu = 'INWENTARYZACJA_PROD'), 0) as ilosc_korekta, "
                         f"r.plan_id, r.autor_login, r.autor_data, r.zbiornik{plan_select} "
                         f"FROM {ruch_tbl} r "
                         f"LEFT JOIN {table_surowce} s ON r.surowiec_id = s.id "
@@ -423,7 +445,39 @@ class AgroTanksRepository:
                         "ORDER BY r.autor_data DESC, r.id DESC LIMIT %s"
                     )
                     cursor.execute(q, (limit,))
-                    return cursor.fetchall() or []
+                    base_rows = cursor.fetchall() or []
+                    if not base_rows:
+                        return []
+
+                    ruch_ids = [r['ruch_id'] for r in base_rows if r.get('ruch_id')]
+                    zwrot_map = {}
+                    korekta_map = {}
+                    if ruch_ids:
+                        for i in range(0, len(ruch_ids), 500):
+                            chunk = ruch_ids[i:i+500]
+                            fmt = ','.join(['%s'] * len(chunk))
+                            cursor.execute(
+                                f"SELECT ruch_zrodlowy_id, typ_ruchu, SUM(ilosc) as suma "
+                                f"FROM {ruch_tbl} "
+                                f"WHERE ruch_zrodlowy_id IN ({fmt}) AND typ_ruchu IN ('ZWROT', 'INWENTARYZACJA_PROD') "
+                                f"GROUP BY ruch_zrodlowy_id, typ_ruchu",
+                                chunk
+                            )
+                            for zrow in cursor.fetchall() or []:
+                                zid = zrow.get('ruch_zrodlowy_id')
+                                ztyp = zrow.get('typ_ruchu')
+                                zsum = float(zrow.get('suma') or 0.0)
+                                if ztyp == 'ZWROT':
+                                    zwrot_map[zid] = zwrot_map.get(zid, 0.0) + zsum
+                                elif ztyp == 'INWENTARYZACJA_PROD':
+                                    korekta_map[zid] = korekta_map.get(zid, 0.0) + zsum
+
+                    for r in base_rows:
+                        rid = r.get('ruch_id')
+                        r['ilosc_zwrocona'] = zwrot_map.get(rid, 0.0)
+                        r['ilosc_korekta'] = korekta_map.get(rid, 0.0)
+
+                    return base_rows
 
                 rows = list(_fetch_from_ruch_table(table_ruch))
                 if table_ruch == 'magazyn_agro_ruch':
@@ -480,7 +534,7 @@ class AgroTanksRepository:
                 conn.close()
 
     @staticmethod
-    def get_production_inventory_snapshot(limit=4000, linia='Agro', show_empty=False):
+    def get_production_inventory_snapshot(limit=1000, linia='Agro', show_empty=False):
             """Zwraca aktualny snapshot produkcji: maksymalnie 1 surowiec na zbiornik.
 
             Snapshot wybiera najnowszy aktywny wpis (stan_systemowy > 0) dla każdego zbiornika.
@@ -686,9 +740,12 @@ class AgroTanksRepository:
             finally:
                 conn.close()
 
-    def get_active_workowanie_plan(linia='Agro', target_date=None, plan_id=None):
+    def get_active_workowanie_plan(linia='Agro', target_date=None, plan_id=None, conn=None):
             """Helper to find specifically an active Workowanie plan."""
-            conn = get_db_connection()
+            own_conn = conn is None
+            if own_conn:
+                conn = get_db_connection()
+            cursor = None
             try:
                 cursor = conn.cursor(dictionary=True)
                 table_plan = get_table_name('plan_produkcji', linia)
@@ -734,11 +791,17 @@ class AgroTanksRepository:
                 cursor.execute(fallback_query)
                 return cursor.fetchone()
             finally:
-                conn.close()
+                if cursor is not None:
+                    cursor.close()
+                if own_conn:
+                    conn.close()
 
-    def get_finished_plans_of_day(linia='Agro', target_date=None):
+    def get_finished_plans_of_day(linia='Agro', target_date=None, conn=None):
             """Helper to find finished Workowanie plans for a specific day."""
-            conn = get_db_connection()
+            own_conn = conn is None
+            if own_conn:
+                conn = get_db_connection()
+            cursor = None
             try:
                 cursor = conn.cursor(dictionary=True)
                 table_plan = get_table_name('plan_produkcji', linia)
@@ -756,7 +819,10 @@ class AgroTanksRepository:
                 cursor.execute(query, params)
                 return cursor.fetchall()
             finally:
-                conn.close()
+                if cursor is not None:
+                    cursor.close()
+                if own_conn:
+                    conn.close()
 
     def auto_register_pallet(plan_id, linia='AGRO', source_instance=None):
             """Automatically registers a 1000kg pallet for a given plan."""

@@ -27,8 +27,8 @@ class AutoReportService:
         return AutoReportHistoryService.ensure_history_tables(conn)
 
     @classmethod
-    def get_schedule(cls, linia: str = 'AGRO', date_str: Optional[str] = None) -> Dict[str, Any]:
-        return AutoReportScheduleService.get_schedule(linia, date_str)
+    def get_schedule(cls, linia: str = 'AGRO', date_str: Optional[str] = None, conn=None) -> Dict[str, Any]:
+        return AutoReportScheduleService.get_schedule(linia, date_str, conn=conn)
 
     @classmethod
     def set_schedule(cls, linia: str, date_str: str, scheduled_time: str, is_paused: bool = False, user_name: str = 'Lider') -> Tuple[bool, str]:

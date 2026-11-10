@@ -306,6 +306,68 @@
         }
     }
 
+    function _resolveLiveForm(form) {
+        if (!form) {
+            return null;
+        }
+        if (form.isConnected) {
+            return form;
+        }
+        var action = form.getAttribute('action') || '';
+        var matchKeys = ['plan_id', 'etap', 'szarza_nr', 'linia'];
+        var expected = {};
+        matchKeys.forEach(function (name) {
+            var el = form.querySelector('[name="' + name + '"]');
+            if (el) {
+                expected[name] = String(el.value || '');
+            }
+        });
+
+        var candidates = document.querySelectorAll('form');
+        for (var i = 0; i < candidates.length; i += 1) {
+            var candidate = candidates[i];
+            if (!candidate.isConnected || (candidate.getAttribute('action') || '') !== action) {
+                continue;
+            }
+            var matches = Object.keys(expected).every(function (name) {
+                var el = candidate.querySelector('[name="' + name + '"]');
+                return el && String(el.value || '') === expected[name];
+            });
+            if (!matches) {
+                continue;
+            }
+            ['wielkosc_szarzy_kg', 'next_action', 'powod_opoznienia'].forEach(function (fieldName) {
+                var src = form.querySelector('[name="' + fieldName + '"]');
+                if (!src) {
+                    return;
+                }
+                var dst = candidate.querySelector('[name="' + fieldName + '"]');
+                if (!dst) {
+                    dst = document.createElement('input');
+                    dst.type = 'hidden';
+                    dst.name = fieldName;
+                    candidate.appendChild(dst);
+                }
+                dst.value = src.value;
+            });
+            return candidate;
+        }
+
+        // Detached forms are silently ignored by HTMLFormElement.prototype.submit; attach a hidden fallback.
+        form.style.display = 'none';
+        document.body.appendChild(form);
+        return form;
+    }
+
+    function _submitLiveForm(form) {
+        var targetForm = _resolveLiveForm(form);
+        if (!targetForm) {
+            return;
+        }
+        _setFormSubmitButtonsLoading(targetForm, true);
+        HTMLFormElement.prototype.submit.call(targetForm);
+    }
+
     function _setFormSubmitButtonsLoading(form, isLoading) {
         if (!form) {
             return;
@@ -453,8 +515,7 @@
                         form.appendChild(rHidden);
                     }
                     rHidden.value = reason;
-                    _setFormSubmitButtonsLoading(form, true);
-                    HTMLFormElement.prototype.submit.call(form);
+                    _submitLiveForm(form);
                 });
                 return false;
             }
@@ -584,10 +645,9 @@
 
         hidden.value = String(parsed);
         delete form.dataset.waitingSzarzaConfirm;
-        _setFormSubmitButtonsLoading(form, true);
         modal.classList.remove('open');
         try {
-            HTMLFormElement.prototype.submit.call(form);
+            _submitLiveForm(form);
         } catch (error) {
             console.error('Form submit failed', error);
         }
@@ -975,8 +1035,7 @@
                     }
                 } catch (e) {}
                 try {
-                    _setFormSubmitButtonsLoading(form, true);
-                    HTMLFormElement.prototype.submit.call(form);
+                    _submitLiveForm(form);
                 } catch (error) {
                     console.error('submit failed', error);
                 }
@@ -1003,8 +1062,7 @@
             }
         } catch (e) {}
         try {
-            _setFormSubmitButtonsLoading(form, true);
-            HTMLFormElement.prototype.submit.call(form);
+            _submitLiveForm(form);
         } catch (error) {
             console.error('submit failed', error);
         }

@@ -204,6 +204,8 @@ def validate_registered_warehouse_location(cursor, location_code):
             return True, None
     elif location in allowed and not is_rack_location(location):
         return True, None
+    elif is_osip_location(location) and ('OSIP' in allowed or 'OS' in allowed or location in allowed):
+        return True, None
     return False, f"Lokalizacja '{location}' nie występuje w dozwolonym słowniku."
 
 
@@ -359,8 +361,40 @@ def is_osip_location(location_code):
     loc = str(location_code).strip().upper()
     if loc in ('OSIP', 'BFOS', 'W_TRANZYCIE_OSIP'):
         return True
-    if re.match(r'^A\d{2}$', loc) or re.match(r'^OS\d{2}$', loc):
+    if re.match(r'^A\d{1,2}$', loc) or re.match(r'^OS\d{1,2}$', loc):
         return True
+    return False
+
+
+def is_masteradmin_user(user_login=None) -> bool:
+    """Sprawdza czy użytkownik to MasterAdmin (po loginie, sesji Flask lub roli w bazie)."""
+    if user_login:
+        clean_login = str(user_login).strip().lower().replace(' ', '').replace('_', '')
+        if clean_login == 'masteradmin':
+            return True
+    try:
+        from flask import has_request_context, session
+        if has_request_context():
+            sess_role = str(session.get('rola') or session.get('role') or '').strip().lower().replace(' ', '').replace('_', '')
+            sess_login = str(session.get('login') or session.get('username') or '').strip().lower().replace(' ', '').replace('_', '')
+            if sess_role == 'masteradmin' or sess_login == 'masteradmin':
+                return True
+    except Exception:
+        pass
+    if user_login:
+        try:
+            from app.core.database import get_db_connection
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT rola FROM uzytkownicy WHERE LOWER(TRIM(login)) = %s LIMIT 1", (str(user_login).strip().lower(),))
+            row = cur.fetchone()
+            conn.close()
+            if row:
+                r_clean = str(row[0] or '').strip().lower().replace(' ', '').replace('_', '')
+                if r_clean == 'masteradmin':
+                    return True
+        except Exception:
+            pass
     return False
 
 
@@ -374,9 +408,10 @@ def is_centrala_location(location_code):
     return not is_osip_location(loc)
 
 
-def validate_centrala_osip_move(source_location, target_location, pallet_id=None, nr_palety=None):
+def validate_centrala_osip_move(source_location, target_location, pallet_id=None, nr_palety=None, user_login=None):
     """
     Sprawdza czy ruch palety nie przekracza granicy Centrala <-> OSIP bez aktywnego transferu.
+    Zezwala na bezpośrednie ruchy użytkownikowi MasterAdmin.
     Zwraca (is_valid: bool, error_msg: str | None).
     """
     if not source_location or not target_location:
@@ -387,6 +422,10 @@ def validate_centrala_osip_move(source_location, target_location, pallet_id=None
     
     # Ruch wewnątrz Centrali lub wewnątrz OSIP jest dozwolony
     if src_osip == tgt_osip:
+        return True, None
+
+    # Zezwolenie dla MasterAdmina na swobodne ruchy między Centralą a OSIP
+    if is_masteradmin_user(user_login):
         return True, None
         
     # Wyjątki dla statusów specjalnych / tranzytowych
@@ -480,7 +519,7 @@ def get_warehouse_zone(location_code: str) -> str:
     return 'OTHER'
 
 
-def validate_inter_warehouse_move(source_location: str, target_location: str, pallet_id=None, nr_palety=None) -> tuple[bool, str | None]:
+def validate_inter_warehouse_move(source_location: str, target_location: str, pallet_id=None, nr_palety=None, user_login=None) -> tuple[bool, str | None]:
     """
     Weryfikuje regułę rozdziału magazynów:
     1. Magazyn MP01 (MP01, BF_MP01 oraz regały i lokalizacje R01..R99) to JEDEN magazyn.
@@ -505,7 +544,7 @@ def validate_inter_warehouse_move(source_location: str, target_location: str, pa
 
     # Granica Centrala <-> OSIP
     if src_zone == 'OSIP' or tgt_zone == 'OSIP':
-        return validate_centrala_osip_move(source_location, target_location, pallet_id=pallet_id, nr_palety=nr_palety)
+        return validate_centrala_osip_move(source_location, target_location, pallet_id=pallet_id, nr_palety=nr_palety, user_login=user_login)
 
     # Granica MS01 <-> MP01 (MS01, BF_MS01, PSD, PSD01 <-> MP01, BF_MP01, regały R01..R99)
     if (src_zone == 'MS01' and tgt_zone == 'MP01') or (src_zone == 'MP01' and tgt_zone == 'MS01'):

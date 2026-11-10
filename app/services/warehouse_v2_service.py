@@ -179,7 +179,7 @@ class WarehouseV2Service:
             qty = float(row.get(col_qty) or 0)
             nr_palety = row.get('nr_palety')
             from app.services.osip_transfer_service import OsipTransferService
-            receiving_transfer = OsipTransferService.require_receiving(cursor, nr_palety, new_location)
+            receiving_transfer = OsipTransferService.require_receiving(cursor, nr_palety, new_location, user_login=worker_login)
             actual_pallet_id = int(row['id'])
             mother_sscc = nr_palety
             
@@ -205,7 +205,8 @@ class WarehouseV2Service:
                     source_location=old_loc,
                     target_location=new_location,
                     pallet_id=actual_pallet_id,
-                    nr_palety=nr_palety
+                    nr_palety=nr_palety,
+                    user_login=worker_login
                 )
                 if not is_inter_valid:
                     return False, inter_err_msg
@@ -215,7 +216,8 @@ class WarehouseV2Service:
                     source_location=old_loc,
                     target_location=new_location,
                     pallet_id=actual_pallet_id,
-                    nr_palety=nr_palety
+                    nr_palety=nr_palety,
+                    user_login=worker_login
                 )
                 if not is_trf_valid:
                     return False, trf_err_msg

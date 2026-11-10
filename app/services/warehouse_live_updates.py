@@ -104,10 +104,19 @@ _STREAM_COUNT = 0
 
 
 def reserve_stream():
-    """Leave at least half of the HTTP worker threads available for normal requests."""
+    """Leave HTTP worker threads available for normal requests."""
     global _STREAM_COUNT
-    threads = max(1, int(os.environ.get('GUNICORN_THREADS', '8' if os.getenv('APP_INSTANCE_MODE') == 'local' else '64')))
-    limit = min(threads // 2, max(1, int(os.environ.get('WAREHOUSE_SSE_MAX_CLIENTS', '32'))))
+    is_local = os.getenv('APP_INSTANCE_MODE') == 'local'
+    gunicorn_threads = os.environ.get('GUNICORN_THREADS')
+    if gunicorn_threads is not None:
+        threads = max(1, int(gunicorn_threads))
+        default_cap = '32'
+    else:
+        waitress_default = '8' if is_local else '24'
+        threads = max(1, int(os.environ.get('WAITRESS_THREADS', waitress_default)))
+        # Waitress production uses 24 threads; cap SSE streams at 8 so >=16 threads remain free.
+        default_cap = '8'
+    limit = min(max(1, threads // 2), max(1, int(os.environ.get('WAREHOUSE_SSE_MAX_CLIENTS', default_cap))))
     with _STREAM_LOCK:
         if _STREAM_COUNT >= limit:
             return None

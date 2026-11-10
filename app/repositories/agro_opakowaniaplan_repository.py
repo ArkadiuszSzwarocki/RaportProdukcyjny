@@ -99,9 +99,12 @@ class AgroOpakowaniaPlanRepository:
             finally:
                 conn.close()
 
-    def get_all_linked_packaging(plan_id):
+    def get_all_linked_packaging(plan_id, conn=None):
             """Get ALL packaging items linked to a production plan, active and inactive."""
-            conn = get_db_connection()
+            own_conn = conn is None
+            if own_conn:
+                conn = get_db_connection()
+            cursor = None
             try:
                 cursor = conn.cursor(dictionary=True)
                 cursor.execute("""
@@ -114,7 +117,10 @@ class AgroOpakowaniaPlanRepository:
                 """, (plan_id,))
                 return cursor.fetchall()
             finally:
-                conn.close()
+                if cursor is not None:
+                    cursor.close()
+                if own_conn:
+                    conn.close()
 
     def _link_to_active_plan(cursor, opakowanie_id, lokalizacja, linia='Agro'):
             """Internal helper to link packaging to active plan if moved to machine."""

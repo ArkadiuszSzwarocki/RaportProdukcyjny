@@ -82,10 +82,13 @@ def _format_quantity_label(value):
     return f"{numeric:.2f}".rstrip('0').rstrip('.')
 
 class AgroOpakowaniaRepository:
-    def get_packaging_inventory(linia='Agro'):
+    def get_packaging_inventory(linia='Agro', conn=None):
             """Return packaging inventory rows from magazyn_opakowania."""
             table_opak = get_table_name('magazyn_opakowania', linia)
-            conn = get_db_connection()
+            own_conn = conn is None
+            if own_conn:
+                conn = get_db_connection()
+            cursor = None
             try:
                 cursor = conn.cursor(dictionary=True)
                 cursor.execute(
@@ -95,7 +98,10 @@ class AgroOpakowaniaRepository:
                 )
                 return cursor.fetchall()
             finally:
-                conn.close()
+                if cursor is not None:
+                    cursor.close()
+                if own_conn:
+                    conn.close()
 
     def create_packaging(nazwa, ilosc, lokalizacja=None, linia='Agro'):
             table_opak = get_table_name('magazyn_opakowania', linia)

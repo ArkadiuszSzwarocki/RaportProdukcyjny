@@ -3,6 +3,7 @@ Wersja: 1.1.0
 Opis: Serwis planowania i realizacji produkcji. Zarządza zleceniami i wagami.
 """
 import logging
+import time
 from datetime import date, datetime
 from typing import Dict, List, Tuple, Any, Optional
 from app.db import get_db_connection, get_table_name, refresh_bufor_queue
@@ -600,9 +601,15 @@ class ProductionService:
             return True
         return False
 
-    @staticmethod
-    def get_ko_station_pallet_map(cursor=None, linia='AGRO') -> Dict[str, Dict[str, Any]]:
+    _ko_pallet_map_cache = {}
+    _ko_pallet_map_cache_ts = 0.0
+
+    @classmethod
+    def get_ko_station_pallet_map(cls, cursor=None, linia='AGRO', force_refresh=False) -> Dict[str, Dict[str, Any]]:
         """Zwraca mapę stacji KO -> {stacja, surowiec, nr_palety, nr_partii, is_premix} dla wsypanych palet."""
+        if not force_refresh and (time.time() - cls._ko_pallet_map_cache_ts) < 30 and cls._ko_pallet_map_cache:
+            return {k: dict(v) for k, v in cls._ko_pallet_map_cache.items()}
+
         conn = None
         result: Dict[str, Dict[str, Any]] = {}
         try:
@@ -614,7 +621,7 @@ class ProductionService:
             try:
                 cursor.execute(
                     "SELECT UPPER(TRIM(kod_zbiornika)), TRIM(COALESCE(nazwa_surowca, '')) "
-                    "FROM konfiguracja_zbiornikow WHERE is_active = 1 AND UPPER(TRIM(kod_zbiornika)) LIKE 'KO%'"
+                    "FROM konfiguracja_zbiornikow WHERE is_active = 1 AND (kod_zbiornika LIKE 'KO%' OR kod_zbiornika LIKE 'ko%')"
                 )
                 for row in cursor.fetchall() or []:
                     st = str(row[0] or '').strip().upper()
@@ -630,7 +637,7 @@ class ProductionService:
             except Exception:
                 pass
 
-            # 2. Ruchy produkcyjne z magazyn_agro_ruch i magazyn_ruch na stacje KO
+            # 2. Ruchy produkcyjne z magazyn_agro_ruch i magazyn_ruch na stacje KO (szybkie zapytanie z LIMIT 150)
             for ruch_tbl in ('magazyn_agro_ruch', 'magazyn_ruch'):
                 try:
                     cursor.execute(
@@ -643,8 +650,9 @@ class ProductionService:
                         LEFT JOIN magazyn_surowce s ON r.surowiec_id = s.id
                         WHERE r.status = 'POTWIERDZONE'
                           AND r.typ_ruchu IN ('PRODUKCJA', 'INWENTARYZACJA_PROD')
-                          AND UPPER(TRIM(COALESCE(r.zbiornik, ''))) LIKE 'KO%'
+                          AND (r.zbiornik LIKE 'KO%' OR r.zbiornik LIKE 'ko%')
                         ORDER BY r.autor_data DESC, r.id DESC
+                        LIMIT 150
                         """
                     )
                     for row in cursor.fetchall() or []:
@@ -670,7 +678,7 @@ class ProductionService:
                 except Exception:
                     pass
 
-            # 3. Fallback z magazyn_surowce po lokalizacji KOxx
+            # 3. Fallback z magazyn_surowce po lokalizacji KOxx (szybkie zapytanie z LIMIT 150)
             try:
                 cursor.execute(
                     """
@@ -679,8 +687,9 @@ class ProductionService:
                            TRIM(COALESCE(nr_palety, '')) AS nr_palety,
                            TRIM(COALESCE(nr_partii, '')) AS nr_partii
                     FROM magazyn_surowce
-                    WHERE UPPER(TRIM(COALESCE(lokalizacja, ''))) LIKE 'KO%'
+                    WHERE (lokalizacja LIKE 'KO%' OR lokalizacja LIKE 'ko%')
                     ORDER BY updated_at DESC, id DESC
+                    LIMIT 150
                     """
                 )
                 for row in cursor.fetchall() or []:
@@ -707,6 +716,10 @@ class ProductionService:
                     entry['is_premix'] = ProductionService.is_ko_premix(st, entry.get('surowiec') or nazwa)
             except Exception:
                 pass
+
+            if result:
+                cls._ko_pallet_map_cache = dict(result)
+                cls._ko_pallet_map_cache_ts = time.time()
 
         except Exception as exc:
             _logger.warning("get_ko_station_pallet_map error: %s", exc)

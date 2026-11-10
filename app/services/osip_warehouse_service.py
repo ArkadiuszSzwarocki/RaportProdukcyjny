@@ -14,26 +14,44 @@ class OsipWarehouseService:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
+            osip_loc_condition = """
+                (lokalizacja = 'OSIP' OR lokalizacja = 'BFOS' 
+                 OR (lokalizacja LIKE 'OS%' AND lokalizacja NOT LIKE 'OSIP_%') 
+                 OR (lokalizacja LIKE 'A%' AND lokalizacja NOT LIKE 'ARCHI%'))
+            """
+
             # 1. Surowce w OSIP / A01..A99 / BFOS / OSxx
-            query_sur = """
+            query_sur = f"""
                 SELECT id, nr_palety, nazwa, stan_magazynowy, stan_magazynowy as ilosc_kg, data_przydatnosci, nr_partii, lokalizacja, 'raw' as item_type
                 FROM magazyn_surowce
-                WHERE stan_magazynowy > 0 AND (lokalizacja = 'OSIP' OR lokalizacja LIKE 'OS%' OR lokalizacja LIKE 'A%' OR lokalizacja = 'BFOS')
+                WHERE stan_magazynowy > 0 AND {osip_loc_condition}
             """
             cursor.execute(query_sur)
             raw_materials = cursor.fetchall()
 
-            # 2. Wyroby Gotowe w OSIP / A01..A99 / BFOS / OSxx
-            query_fg = """
-                SELECT id, nr_palety, 'Wyrób Gotowy' as nazwa, waga as ilosc_kg, waga as stan_magazynowy, data_dodania as data_przydatnosci, 'brak' as nr_partii, lokalizacja, 'fg' as item_type
-                FROM palety_workowanie
-                WHERE (lokalizacja = 'OSIP' OR lokalizacja LIKE 'OS%' OR lokalizacja LIKE 'A%' OR lokalizacja = 'BFOS')
-            """
             try:
-                cursor.execute(query_fg)
-                finished_goods = cursor.fetchall()
+                cursor.execute(f"""
+                    SELECT id, nr_palety, nazwa, stan_magazynowy, stan_magazynowy as ilosc_kg, data_przydatnosci, nr_partii, lokalizacja, 'raw' as item_type
+                    FROM magazyn_agro_surowce
+                    WHERE stan_magazynowy > 0 AND {osip_loc_condition}
+                """)
+                raw_materials.extend(cursor.fetchall())
             except Exception:
-                finished_goods = []
+                pass
+
+            # 2. Wyroby Gotowe w OSIP / A01..A99 / BFOS / OSxx (magazyn_palety i magazyn_palety_agro)
+            finished_goods = []
+            for fg_table in ('magazyn_palety', 'magazyn_palety_agro'):
+                try:
+                    cursor.execute(f"""
+                        SELECT id, nr_palety, produkt as nazwa, waga_netto as ilosc_kg, waga_netto as stan_magazynowy, 
+                               COALESCE(data_przydatnosci, data_produkcji) as data_przydatnosci, nr_partii, lokalizacja, 'fg' as item_type
+                        FROM {fg_table}
+                        WHERE waga_netto > 0 AND {osip_loc_condition}
+                    """)
+                    finished_goods.extend(cursor.fetchall())
+                except Exception:
+                    pass
 
             # Filtrowanie wyszukiwaniem (dla cyfr szukamy od konca - suffix matching)
             if search_term:
@@ -76,14 +94,29 @@ class OsipWarehouseService:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            query = """
+            osip_loc_condition = """
+                (lokalizacja = 'OSIP' OR lokalizacja = 'BFOS' 
+                 OR (lokalizacja LIKE 'OS%' AND lokalizacja NOT LIKE 'OSIP_%') 
+                 OR (lokalizacja LIKE 'A%' AND lokalizacja NOT LIKE 'ARCHI%'))
+            """
+            query = f"""
                 SELECT id, nr_palety, nazwa, stan_magazynowy, nr_partii, lokalizacja, typ_opakowania, data_przydatnosci, created_at
                 FROM magazyn_surowce
-                WHERE stan_magazynowy > 0 AND (lokalizacja = 'OSIP' OR lokalizacja LIKE 'OS%' OR lokalizacja LIKE 'A%' OR lokalizacja = 'BFOS')
+                WHERE stan_magazynowy > 0 AND {osip_loc_condition}
                 ORDER BY nazwa ASC, id ASC
             """
             cursor.execute(query)
             items = cursor.fetchall()
+            try:
+                cursor.execute(f"""
+                    SELECT id, nr_palety, nazwa, stan_magazynowy, nr_partii, lokalizacja, typ_opakowania, data_przydatnosci, created_at
+                    FROM magazyn_agro_surowce
+                    WHERE stan_magazynowy > 0 AND {osip_loc_condition}
+                    ORDER BY nazwa ASC, id ASC
+                """)
+                items.extend(cursor.fetchall())
+            except Exception:
+                pass
             
             # Grupowanie według nazwy
             grouped: Dict[str, Dict[str, Any]] = {}

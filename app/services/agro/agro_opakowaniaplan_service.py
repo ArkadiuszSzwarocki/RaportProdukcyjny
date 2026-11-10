@@ -6,8 +6,8 @@ class AgroOpakowaniaPlanService:
         return AgroOpakowaniaPlanRepository.get_linked_packaging(plan_id=plan_id)
 
     @staticmethod
-    def get_all_linked_packaging(plan_id):
-        return AgroOpakowaniaPlanRepository.get_all_linked_packaging(plan_id=plan_id)
+    def get_all_linked_packaging(plan_id, conn=None):
+        return AgroOpakowaniaPlanRepository.get_all_linked_packaging(plan_id=plan_id, conn=conn)
 
     @staticmethod
     def _link_to_active_plan(cursor, opakowanie_id, lokalizacja, linia='Agro'):

@@ -10,14 +10,17 @@ class DashboardContextService:
     """Service for building complex dashboard data contexts."""
 
     @staticmethod
-    def build_allowed_work_start_ids(dzisiaj: date, aktywna_linia: str, work_first_map: Dict[str, int], logger=None) -> Set[int]:
+    def build_allowed_work_start_ids(dzisiaj: date, aktywna_linia: str, work_first_map: Dict[str, int], logger=None, conn=None) -> Set[int]:
         """Resolve Workowanie plans that may expose START based on current buffer queue."""
         log = logger or _logger
         allowed_work_start_ids = set()
+        own_conn = conn is None
+        cursor = None
         try:
             table_bufor = get_table_name('bufor', aktywna_linia)
             table_plan = get_table_name('plan_produkcji', aktywna_linia)
-            conn = get_db_connection()
+            if own_conn:
+                conn = get_db_connection()
             cursor = conn.cursor()
 
             cursor.execute(
@@ -74,16 +77,19 @@ class DashboardContextService:
                     except Exception as fallback_error:
                         log.error("[DEBUG-START] Błąd fallback dla '%s': %s", produkt, fallback_error)
 
-            cursor.close()
-            conn.close()
         except Exception as error:
             log.error('[ERROR-START] Błąd: %s', error)
             allowed_work_start_ids = set()
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if own_conn and conn is not None:
+                conn.close()
 
         return allowed_work_start_ids
 
     @staticmethod
-    def build_dosypki_maps(dzisiaj: date, aktywna_sekcja: str, aktywna_linia: str, logger=None) -> Tuple[Dict, Dict]:
+    def build_dosypki_maps(dzisiaj: date, aktywna_sekcja: str, aktywna_linia: str, logger=None, conn=None) -> Tuple[Dict, Dict]:
         """Load confirmed and pending dosypki maps for the active Zasyp view."""
         log = logger or _logger
         dosypki_mapa = {}
@@ -91,10 +97,13 @@ class DashboardContextService:
         if aktywna_sekcja != 'Zasyp':
             return dosypki_mapa, dosypki_oczekujace_mapa
 
+        own_conn = conn is None
+        cursor = None
         try:
             table_dosypki = get_table_name('dosypki', aktywna_linia)
             table_plan = get_table_name('plan_produkcji', aktywna_linia)
-            conn = get_db_connection()
+            if own_conn:
+                conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
                 f"""
@@ -137,15 +146,18 @@ class DashboardContextService:
                 dosypki_oczekujace_mapa[(plan_id, batch_id)] = pending_count
                 dosypki_oczekujace_mapa[('nr', plan_id, batch_number)] = pending_count
 
-            cursor.close()
-            conn.close()
         except Exception as error:
             log.error('[ERROR-DOSYPKI] Błąd pobierania potwierdzonych dosypek: %s', error)
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if own_conn and conn is not None:
+                conn.close()
 
         return dosypki_mapa, dosypki_oczekujace_mapa
 
     @staticmethod
-    def build_zasyp_etapy_context(plan_dnia: List, dzisiaj: date, aktywna_sekcja: str, aktywna_linia: str, logger=None) -> Dict[str, Any]:
+    def build_zasyp_etapy_context(plan_dnia: List, dzisiaj: date, aktywna_sekcja: str, aktywna_linia: str, logger=None, conn=None) -> Dict[str, Any]:
         """Load Zasyp etap sessions, parameters and kg/h metrics."""
         log = logger or _logger
         etapy_mapa = {}
@@ -166,65 +178,79 @@ class DashboardContextService:
                 'kgph_stats_mapa': kgph_stats_mapa,
             }
 
-        try:
-            from app.services.zasyp_etapy_service import ZasypEtapyService
-
-            stage_ids = [plan[0] for plan in plan_dnia if plan[3] in ['w toku', 'zakonczone', 'zamkniete']]
-            sessions_map, parameters_map = ZasypEtapyService.get_dashboard_sessions(stage_ids, aktywna_linia)
-            for plan in plan_dnia:
-                if plan[3] in ['w toku', 'zakonczone', 'zamkniete']:
-                    plan_id = plan[0]
-                    sessions = sessions_map[plan_id]
-                    latest = sessions[0]
-                    etapy_sesje_mapa[plan_id] = sessions
-                    etapy_mapa[plan_id] = latest.get('etapy') or []
-                    etapy_total[plan_id] = latest.get('total_duration_str') or ''
-                    etapy_total_s[plan_id] = int(latest.get('total_duration_s') or 0)
-                    etapy_curr_szarza[plan_id] = latest.get('curr_szarza_nr') or 1
-                    etapy_parametry[plan_id] = parameters_map[plan_id]
-        except Exception as error:
-            log.warning('Etapy Zasyp load failed: %s', error)
+        own_conn = conn is None
+        if own_conn:
+            try:
+                conn = get_db_connection()
+            except Exception as error:
+                log.warning('Zasyp etapy DB connection failed: %s', error)
+                conn = None
 
         try:
-            table_plan = get_table_name('plan_produkcji', aktywna_linia)
-            plan_ids = [int(plan[0]) for plan in plan_dnia if plan and len(plan) > 0]
-            plan_realized_kg = {}
-            plan_status = {}
-            for plan in plan_dnia:
-                try:
-                    plan_realized_kg[int(plan[0])] = float(plan[7] or 0.0)
-                    plan_status[int(plan[0])] = str(plan[3] or '').strip().lower()
-                except Exception:
-                    continue
+            try:
+                from app.services.zasyp_etapy_service import ZasypEtapyService
 
-            if plan_ids:
-                conn_stats = get_db_connection()
-                cursor_stats = conn_stats.cursor(dictionary=True)
-                fmt_ids = ','.join(['%s'] * len(plan_ids))
-                cursor_stats.execute(
-                    f'SELECT id, COALESCE(tonaz_rzeczywisty, 0) AS tonaz_rzeczywisty, real_start, real_stop FROM {table_plan} WHERE id IN ({fmt_ids})',
-                    plan_ids,
-                )
-                plan_meta = {int(row['id']): row for row in (cursor_stats.fetchall() or [])}
+                stage_ids = [plan[0] for plan in plan_dnia if plan[3] in ['w toku', 'zakonczone', 'zamkniete']]
+                sessions_map, parameters_map = ZasypEtapyService.get_dashboard_sessions(stage_ids, aktywna_linia, conn=conn)
+                for plan in plan_dnia:
+                    if plan[3] in ['w toku', 'zakonczone', 'zamkniete']:
+                        plan_id = plan[0]
+                        sessions = sessions_map[plan_id]
+                        latest = sessions[0]
+                        etapy_sesje_mapa[plan_id] = sessions
+                        etapy_mapa[plan_id] = latest.get('etapy') or []
+                        etapy_total[plan_id] = latest.get('total_duration_str') or ''
+                        etapy_total_s[plan_id] = int(latest.get('total_duration_s') or 0)
+                        etapy_curr_szarza[plan_id] = latest.get('curr_szarza_nr') or 1
+                        etapy_parametry[plan_id] = parameters_map[plan_id]
+            except Exception as error:
+                log.warning('Etapy Zasyp load failed: %s', error)
 
-                # Pobieramy zarejestrowane przestoje dla sekcji Zasyp w dniu dzisiejszym
-                awarie_zasyp_min = 0
-                try:
-                    from app.repositories.downtime_repository import DowntimeRepository
-                    downtimes_all = DowntimeRepository().get_downtimes(aktywna_linia, str(dzisiaj), str(dzisiaj))
-                    for dt in downtimes_all:
-                        if (dt.get('sekcja') or '').strip().lower() == 'zasyp':
-                            dur = dt.get('czas_trwania_min')
-                            if dur is not None:
-                                try:
-                                    awarie_zasyp_min += int(dur)
-                                except: pass
-                except Exception:
-                    pass
+            try:
+                table_plan = get_table_name('plan_produkcji', aktywna_linia)
+                plan_ids = [int(plan[0]) for plan in plan_dnia if plan and len(plan) > 0]
+                plan_realized_kg = {}
+                plan_status = {}
+                for plan in plan_dnia:
+                    try:
+                        plan_realized_kg[int(plan[0])] = float(plan[7] or 0.0)
+                        plan_status[int(plan[0])] = str(plan[3] or '').strip().lower()
+                    except Exception:
+                        continue
 
-                from app.services.shift_time_service import ShiftTimeService
-                brutto_min, start_str, end_str = ShiftTimeService.get_shift_time_range(str(dzisiaj))
-                czas_netto_min = max(1, brutto_min - awarie_zasyp_min)
+                if plan_ids and conn is not None:
+                    cursor_stats = conn.cursor(dictionary=True)
+                    try:
+                        fmt_ids = ','.join(['%s'] * len(plan_ids))
+                        cursor_stats.execute(
+                            f'SELECT id, COALESCE(tonaz_rzeczywisty, 0) AS tonaz_rzeczywisty, real_start, real_stop FROM {table_plan} WHERE id IN ({fmt_ids})',
+                            plan_ids,
+                        )
+                        plan_meta = {int(row['id']): row for row in (cursor_stats.fetchall() or [])}
+                    finally:
+                        cursor_stats.close()
+
+                    # Pobieramy zarejestrowane przestoje dla sekcji Zasyp w dniu dzisiejszym
+                    awarie_zasyp_min = 0
+                    try:
+                        from app.repositories.downtime_repository import DowntimeRepository
+                        downtimes_all = DowntimeRepository().get_downtimes(
+                            aktywna_linia, str(dzisiaj), str(dzisiaj), 'Zasyp', True, conn
+                        )
+                        for dt in downtimes_all:
+                            if (dt.get('sekcja') or '').strip().lower() == 'zasyp':
+                                dur = dt.get('czas_trwania_min')
+                                if dur is not None:
+                                    try:
+                                        awarie_zasyp_min += int(dur)
+                                    except Exception:
+                                        pass
+                    except Exception:
+                        pass
+
+                    from app.services.shift_time_service import ShiftTimeService
+                    brutto_min, start_str, end_str = ShiftTimeService.get_shift_time_range(str(dzisiaj), conn=conn)
+                    czas_netto_min = max(1, brutto_min - awarie_zasyp_min)
 
                 for plan_id in plan_ids:
                     meta = plan_meta.get(plan_id) or {}
@@ -299,10 +325,11 @@ class DashboardContextService:
                         'timeline_sources': timeline_sources,
                     }
 
-                cursor_stats.close()
-                conn_stats.close()
-        except Exception as error:
-            log.warning('kgph stats load failed: %s', error)
+            except Exception as error:
+                log.warning('kgph stats load failed: %s', error)
+        finally:
+            if own_conn and conn is not None:
+                conn.close()
 
         return {
             'etapy_mapa': etapy_mapa,
@@ -314,7 +341,7 @@ class DashboardContextService:
         }
 
     @staticmethod
-    def build_agro_mix_context(dzisiaj: date, aktywna_linia: str, logger=None) -> Tuple[Dict, List]:
+    def build_agro_mix_context(dzisiaj: date, aktywna_linia: str, logger=None, conn=None) -> Tuple[Dict, List]:
         """Load AGRO MIX consumption and available-mix context."""
         log = logger or _logger
         agro_mix_mapa = {}
@@ -322,8 +349,11 @@ class DashboardContextService:
         if aktywna_linia not in ['AGRO', 'ALL']:
             return agro_mix_mapa, agro_mix_dostepne
 
+        own_conn = conn is None
+        cursor = None
         try:
-            conn = get_db_connection()
+            if own_conn:
+                conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
                 """
@@ -340,8 +370,12 @@ class DashboardContextService:
                     agro_mix_mapa.setdefault(next_plan_id, []).append(mix)
                 if mix['status'] == 'DOSTEPNY':
                     agro_mix_dostepne.append(mix)
-            conn.close()
         except Exception as error:
             log.warning('AGRO MIX load failed: %s', error)
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if own_conn and conn is not None:
+                conn.close()
 
         return agro_mix_mapa, agro_mix_dostepne

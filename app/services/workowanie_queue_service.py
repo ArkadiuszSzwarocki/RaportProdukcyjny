@@ -10,7 +10,7 @@ class WorkowanieQueueService:
     """Service responsible for determining which Workowanie orders can be started."""
 
     @staticmethod
-    def get_allowed_start_ids(dzisiaj: date, aktywna_linia: str, work_first_map: Dict[str, int], logger=None) -> Set[int]:
+    def get_allowed_start_ids(dzisiaj: date, aktywna_linia: str, work_first_map: Dict[str, int], logger=None, conn=None) -> Set[int]:
         """Resolve Workowanie plans that may expose START based on current buffer queue.
 
         FIFO is resolved primarily by zasyp_id (physical batch flow), with product-name
@@ -18,10 +18,13 @@ class WorkowanieQueueService:
         """
         log = logger or _logger
         allowed_work_start_ids = set()
+        own_conn = conn is None
+        cursor = None
         try:
             table_bufor = get_table_name('bufor', aktywna_linia)
             table_plan = get_table_name('plan_produkcji', aktywna_linia)
-            conn = get_db_connection()
+            if own_conn:
+                conn = get_db_connection()
             cursor = conn.cursor()
 
             cursor.execute(
@@ -109,10 +112,13 @@ class WorkowanieQueueService:
                     except Exception as fallback_error:
                         log.error("[DEBUG-START] Błąd fallback dla '%s': %s", produkt, fallback_error)
 
-            cursor.close()
-            conn.close()
         except Exception as error:
             log.error('[ERROR-START] Błąd: %s', error)
             allowed_work_start_ids = set()
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if own_conn and conn is not None:
+                conn.close()
 
         return allowed_work_start_ids

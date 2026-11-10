@@ -205,6 +205,7 @@
             document.body.classList.contains('sidebar-open') ||
             document.querySelector('.quick-popup.open, .drawer.open, .bottom-sheet.open, .fullscreen-modal.open, .wizard-modal') ||
             document.querySelector('.modal.show, .modal-premium[open], dialog[open], #manualModal[style*="display: flex"]') ||
+            document.querySelector('#szarza-modal.open, #stop-decision-modal.open, #oproznianie-prompt-modal.open, #recepturaModal[style*="display: flex"], #recepturaModal[style*="display:flex"]') ||
             document.querySelector('#start-order-checklist-overlay, #start-order-date-overlay, #czyszczenie-packaging-overlay, #appDialogOverlay') ||
             // --- NEW: Block refresh if a Select2 or standard select dropdown is open ---
             document.querySelector('.select2-container--open') ||

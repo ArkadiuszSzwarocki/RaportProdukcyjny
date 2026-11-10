@@ -240,7 +240,8 @@ class ScannerMovementService:
         finally:
             conn_dict.close()
 
-        is_valid = any(nowa_lokalizacja.startswith(dozw_lok) for dozw_lok in dozwolone)
+        from app.utils.location_validator import is_osip_location
+        is_valid = any(nowa_lokalizacja.startswith(dozw_lok) for dozw_lok in dozwolone) or (is_osip_location(nowa_lokalizacja) and ('OSIP' in dozwolone or 'OS' in dozwolone))
         if not is_valid:
             return False, f"Lokalizacja '{nowa_lokalizacja}' nie występuje w dozwolonym słowniku ustawień."
 
@@ -263,7 +264,7 @@ class ScannerMovementService:
 
             nr_p = pallet.get('nr_palety')
             from app.services.osip_transfer_service import OsipTransferService
-            OsipTransferService.require_receiving(cur, nr_p, nowa_lokalizacja)
+            OsipTransferService.require_receiving(cur, nr_p, nowa_lokalizacja, user_login=worker_login)
             from app.services.magazyn_dostawy.delivery_queries import DeliveryQueries
             in_trf, trf_ref = DeliveryQueries.is_pallet_in_pending_transfer(pallet_id=surowiec_id, nr_palety=nr_p)
             is_in_transfer_acceptance = bool(in_trf)
@@ -285,7 +286,8 @@ class ScannerMovementService:
                 source_location=stara_lokalizacja,
                 target_location=nowa_lokalizacja,
                 pallet_id=surowiec_id,
-                nr_palety=nr_p
+                nr_palety=nr_p,
+                user_login=worker_login
             )
             if not is_inter_valid:
                 return False, inter_err_msg
@@ -294,7 +296,8 @@ class ScannerMovementService:
                 source_location=stara_lokalizacja,
                 target_location=nowa_lokalizacja,
                 pallet_id=surowiec_id,
-                nr_palety=nr_p
+                nr_palety=nr_p,
+                user_login=worker_login
             )
             if not is_trf_valid:
                 return False, trf_err_msg
