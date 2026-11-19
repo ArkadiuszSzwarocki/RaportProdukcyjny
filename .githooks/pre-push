@@ -1,5 +1,6 @@
 #!/bin/sh
-# Pre-push CI guard: run spellcheck and pylint locally before pushing to GitHub.
+# cspell:words prepush
+# Pre-push CI guard: run spellcheck, pylint, and targeted pytest locally before pushing to GitHub.
 set -e
 
 if [ "${SKIP_CI_GUARD:-0}" = "1" ]; then
@@ -27,4 +28,9 @@ if [ -n "$PYTHON_BIN" ] && "$PYTHON_BIN" -m pylint --version >/dev/null 2>&1; th
     "$PYTHON_BIN" -m pylint --disable=all --enable=E,F \
         --ignored-modules=app.db,playwright.sync_api,win32print,win32api,win32ui,msvcrt,fitz,PIL.Image,PIL.ImageWin \
         app/ printer_server/
+fi
+
+if [ -n "$PYTHON_BIN" ] && "$PYTHON_BIN" -m pytest --version >/dev/null 2>&1; then
+    echo "[pre-push] Checking targeted unit tests (pytest)..."
+    "$PYTHON_BIN" scripts/run_prepush_tests.py
 fi
