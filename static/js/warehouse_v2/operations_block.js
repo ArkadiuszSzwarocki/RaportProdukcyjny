@@ -114,13 +114,17 @@ async function printCurrentPallet(triggerBtn) {
             showToast('Rozpoczynam druk etykiety...', 'info');
         }
 
+        const copiesInput = document.getElementById('printCopiesInput');
+        const copiesValue = copiesInput ? Math.max(1, Math.min(100, parseInt(copiesInput.value, 10) || 2)) : 2;
+
         const requestBody = {
             id: currentPallet.id,
             nr_palety: currentPallet.displayId || currentPallet.nr_palety || '',
             display_id: currentPallet.displayId || '',
             type: currentPallet.type,
             linia: currentPallet.linia,
-            printer_id: printerId
+            printer_id: printerId,
+            copies: copiesValue
         };
 
         const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;

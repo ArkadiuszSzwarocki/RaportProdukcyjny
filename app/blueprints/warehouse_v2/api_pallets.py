@@ -160,7 +160,7 @@ def print_pallet_label():
     pallet_type = data.get('type')
     printer_selection = data.get('printer_id')
     linia = data.get('linia', 'PSD')
-    copies = int(data.get('copies', 1))
+    copies = max(1, min(100, int(data.get('copies') or 2)))
     
     if not all([pallet_id, pallet_type, printer_selection]):
         return jsonify({'success': False, 'error': 'Brak parametrów (id, typ, drukarka)'}), 400
@@ -354,9 +354,9 @@ def print_pallet_label():
         _append_candidate(getattr(printer_service, 'printer_name', None), getattr(printer_service, 'printer_ip', None))
 
         if pallet_type == 'Wyrób Gotowy':
-            zpl_payload = printer_service.build_finished_product_label_zpl(label_data)
+            zpl_payload = printer_service.build_finished_product_label_zpl(label_data, copies=copies)
         else:
-            zpl_payload = printer_service.build_pallet_label_zpl(label_data)
+            zpl_payload = printer_service.build_pallet_label_zpl(label_data, copies=copies)
 
         fallback_printers = []
         fallback_seen = set()
@@ -424,7 +424,7 @@ def print_pallet_label():
                 'endpoint': endpoint_entries[0]['endpoint'],
                 'status_endpoint': endpoint_entries[0]['status_endpoint'],
                 'endpoints': endpoint_entries,
-                'copies': 1,
+                'copies': copies,
                 'zpl': zpl_payload,
                 'printers': fallback_printers,
                 'reason': 'server_printer_timeout',
