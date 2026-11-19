@@ -26,6 +26,7 @@ class DeliverySaveService:
         items = data.get('items', []) or []
         status = data.get('status', 'OCZEKUJE')
         lokalizacja_do = norm_loc(data.get('lokalizacja_do', ''))
+        is_depozyt = 1 if as_bool(data.get('is_depozyt', False)) else 0
         global_skip_lookup = as_bool(data.get('skip_warehouse_lookup', data.get('skipWarehouseLookup', False)))
 
         source_locations = sorted({
@@ -147,6 +148,7 @@ class DeliverySaveService:
                     cursor, items, linia, supplier, order_ref, physical_insert_loc,
                     printer_info, old_data, old_items, login,
                     connection=conn, delivery_id=dostawa_id,
+                    is_depozyt=is_depozyt,
                 )
 
             # A row ID is local to a stock table; distinct SSCC must survive save.
@@ -201,20 +203,20 @@ class DeliverySaveService:
                 cursor.execute("""
                     UPDATE magazyn_dostawy
                     SET order_ref=%s, supplier=%s, delivery_date=%s, status=%s, items=%s,
-                        lokalizacja_z=%s, lokalizacja_do=%s
+                        lokalizacja_z=%s, lokalizacja_do=%s, is_depozyt=%s
                     WHERE id=%s
                 """, (order_ref, supplier, delivery_date, final_status, json.dumps(items),
-                      lokalizacja_z, lokalizacja_do, dostawa_id))
+                      lokalizacja_z, lokalizacja_do, is_depozyt, dostawa_id))
             else:
                 cursor.execute("""
                     INSERT INTO magazyn_dostawy
                         (id, order_ref, supplier, delivery_date, status, items,
                          created_by, created_at, requires_lab, linia,
-                         lokalizacja_z, lokalizacja_do)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                         lokalizacja_z, lokalizacja_do, is_depozyt)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, (dostawa_id, order_ref, supplier, delivery_date, final_status,
                       json.dumps(items), login, datetime.now(), 0, linia,
-                      lokalizacja_z, lokalizacja_do))
+                      lokalizacja_z, lokalizacja_do, is_depozyt))
 
             if not is_external:
                 from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment

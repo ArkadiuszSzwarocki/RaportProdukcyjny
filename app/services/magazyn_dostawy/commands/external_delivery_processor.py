@@ -14,6 +14,7 @@ class ExternalDeliveryProcessor:
         order_ref: str, physical_insert_loc: str, printer_info: Dict[str, Any],
         old_data: Dict[str, Any], old_items: List[Dict[str, Any]], login: str,
         connection=None, delivery_id: str | None = None,
+        is_depozyt: int = 0,
     ) -> List[Dict[str, Any]]:
         table_sur = get_table_name('magazyn_surowce', linia)
         table_opk = get_table_name('magazyn_opakowania', linia)
@@ -121,6 +122,9 @@ class ExternalDeliveryProcessor:
                                          exclude=(target_table, source_pallet_id) if source_pallet_id else None,
                                          active_only=False)
 
+            deposit_flag = 1 if is_depozyt else 0
+            item['is_depozyt'] = deposit_flag
+
             if source_pallet_id:
                 cursor.execute(f"SELECT id,nr_palety,lokalizacja FROM {target_table} WHERE id=%s FOR UPDATE", (source_pallet_id,))
                 previous = cursor.fetchone()
@@ -131,24 +135,24 @@ class ExternalDeliveryProcessor:
                     target_loc = item.get('lokalizacja_przyjecia') or item.get('targetSpot')
                     if target_loc and target_loc != 'OCZEKUJĄCE':
                         cursor.execute(
-                            f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
-                            (product_name, qty, target_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
+                            f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s, is_depozyt=%s WHERE id = %s",
+                            (product_name, qty, target_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, deposit_flag, source_pallet_id)
                         )
                     else:
                         cursor.execute(
-                            f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
-                            (product_name, qty, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
+                            f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s, is_depozyt=%s WHERE id = %s",
+                            (product_name, qty, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, deposit_flag, source_pallet_id)
                         )
                 else:
                     cursor.execute(
-                        f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s WHERE id = %s",
-                        (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, source_pallet_id)
+                        f"UPDATE {target_table} SET nazwa=%s, stan_magazynowy=%s, lokalizacja=%s, nr_partii=%s, data_produkcji=%s, data_przydatnosci=%s, nr_palety=%s, typ_opakowania=%s, is_depozyt=%s WHERE id = %s",
+                        (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, deposit_flag, source_pallet_id)
                     )
                 pallet_id = source_pallet_id
             else:
                 cursor.execute(
-                    f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form)
+                    f"INSERT INTO {target_table} (nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, nr_palety, typ_opakowania, is_depozyt) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (product_name, qty, physical_insert_loc, nr_partii, data_produkcji, data_przydatnosci, nr_palety, pkg_form, deposit_flag)
                 )
                 pallet_id = cursor.lastrowid
                 item['sourcePalletId'] = pallet_id

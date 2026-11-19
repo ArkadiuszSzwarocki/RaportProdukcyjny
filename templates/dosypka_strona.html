@@ -545,6 +545,7 @@
                     {% endfor %}
                 </datalist>
                 {% endif %}
+                <script type="application/json" id="dosypka-tank-map">{{ (material_tanks or {})|tojson }}</script>
 
                 <div class="ds-infobar">
                     <div class="ds-infobar-item">
@@ -1067,4 +1068,5 @@
     });
 })();
 </script>
+<script src="{{ url_for('static', filename='js/dosypka_tank_validator.js') }}?v={{ static_version }}"></script>
 {% endblock %}

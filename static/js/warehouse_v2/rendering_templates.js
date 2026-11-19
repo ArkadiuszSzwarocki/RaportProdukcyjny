@@ -242,6 +242,7 @@ function generateTableRow(item, index) {
         <td data-label="Produkt" class="product-cell">
             <div class="product-inline-flow" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;">
                 <strong class="text-primary product-title" style="font-size: 13px; font-weight: 700; color: #0f172a;">${displayName}</strong>
+                ${item.is_depozyt ? '<span class="badge deposit-tag" style="background: #e0e7ff; color: #3730a3; border: 1px solid #a5b4fc; font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; text-transform: uppercase;"><span class="material-icons" style="font-size: 11px;">inventory</span> DEPOZYT</span>' : ''}
                 ${fifoBadge ? `<span class="desktop-only-fifo">${fifoBadge}</span>` : ''}
                 <span class="mobile-sscc-badge" style="display: none; align-items: center; gap: 4px; font-family: ui-monospace, monospace; font-size: 12px; font-weight: 700; color: #1e293b;">
                     ${icon}
@@ -336,7 +337,7 @@ function generateGridCard(item) {
             <span class="id-tag">#${item.displayId}</span>
         </div>
         <div class="card-body">
-            <div class="product-name">${displayName}</div>
+            <div class="product-name">${displayName}${item.is_depozyt ? ' <span class="badge deposit-tag" style="background: #e0e7ff; color: #3730a3; border: 1px solid #a5b4fc; font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; text-transform: uppercase; vertical-align: middle; margin-left: 4px;"><span class="material-icons" style="font-size: 11px;">inventory</span> DEPOZYT</span>' : ''}</div>
             <div style="margin: 4px 0;">${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia, item.raw_packaging_type || item.typ_opakowania)}</div>
             ${batchSubtitle}
             <div class="amount-row">

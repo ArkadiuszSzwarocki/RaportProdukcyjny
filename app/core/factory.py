@@ -217,6 +217,13 @@ def _maybe_start_background_daemons(app, is_reloader_parent):
     from app.core.report_daemon import start_report_scheduler
     start_report_scheduler(app)
 
+    if _env_bool('ENABLE_IPOMIAR_COLLECTOR', True):
+        from app.services.ipomiar_collector_service import start_ipomiar_collector_daemon
+        try:
+            start_ipomiar_collector_daemon(app.logger)
+        except Exception:
+            app.logger.exception('Failed to start iPomiar collector daemon')
+
     default_enabled = not _is_production()
     if _env_bool('ENABLE_MQTT_BRIDGE', _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)):
         from app.services.mqtt_service import start_mqtt_bridge

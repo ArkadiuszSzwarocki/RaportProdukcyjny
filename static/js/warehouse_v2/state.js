@@ -16,6 +16,7 @@ let selectedBlockedReasons = []; // Store selected block reasons (empty = show a
 let currentSortCol = null; // Column index for sorting
 let currentSortDir = 'asc'; // 'asc' or 'desc'
 let filterOnlyBlocked = false; // Filter strictly blocked / expired pallets
+let filterOnlyDeposit = false; // Filter strictly deposit pallets
 
 let currentFilteredItems = [];
 let currentRenderedCount = 0;

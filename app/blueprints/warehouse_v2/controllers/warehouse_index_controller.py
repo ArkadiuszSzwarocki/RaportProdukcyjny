@@ -32,7 +32,7 @@ class WarehouseIndexController:
             # 1. Surowce
             table_surowce = get_table_name('magazyn_surowce', linia)
             try:
-                cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Surowiec' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at, typ_opakowania FROM {table_surowce} WHERE stan_magazynowy > 0")
+                cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Surowiec' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, is_depozyt, created_at, typ_opakowania FROM {table_surowce} WHERE stan_magazynowy > 0")
                 surowce = cursor.fetchall()
                 for row in surowce:
                     row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"SUR-{row['id']}"
@@ -43,6 +43,7 @@ class WarehouseIndexController:
                     row['batch'] = row.get('nr_partii') or '-'
                     row['unit'] = 'kg'
                     row['is_blocked'] = row.get('is_blocked', 0)
+                    row['is_depozyt'] = int(bool(row.get('is_depozyt', 0)))
                     row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
                     row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                     items.append(row)
@@ -53,7 +54,7 @@ class WarehouseIndexController:
             # 2. Opakowania
             table_opakowania = get_table_name('magazyn_opakowania', linia)
             try:
-                cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Opakowanie' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at, typ_opakowania FROM {table_opakowania} WHERE stan_magazynowy > 0")
+                cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Opakowanie' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, is_depozyt, created_at, typ_opakowania FROM {table_opakowania} WHERE stan_magazynowy > 0")
                 opakowania = cursor.fetchall()
                 for row in opakowania:
                     row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"OPK-{row['id']}"
@@ -64,6 +65,7 @@ class WarehouseIndexController:
                     row['batch'] = row.get('nr_partii') or '-'
                     row['unit'] = 'szt'
                     row['is_blocked'] = row.get('is_blocked', 0)
+                    row['is_depozyt'] = int(bool(row.get('is_depozyt', 0)))
                     row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
                     row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                     items.append(row)
@@ -214,7 +216,7 @@ class WarehouseIndexController:
 
             # 4. Dodatki
             try:
-                cursor.execute("SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Dodatek' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, created_at, typ_opakowania FROM magazyn_dodatki WHERE stan_magazynowy > 0")
+                cursor.execute("SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Dodatek' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, is_depozyt, created_at, typ_opakowania FROM magazyn_dodatki WHERE stan_magazynowy > 0")
                 dodatki = cursor.fetchall()
                 for row in dodatki:
                     row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"DOD-{row['id']}"
@@ -225,6 +227,7 @@ class WarehouseIndexController:
                     row['batch'] = row.get('nr_partii') or '-'
                     row['unit'] = 'kg'
                     row['is_blocked'] = row.get('is_blocked', 0)
+                    row['is_depozyt'] = int(bool(row.get('is_depozyt', 0)))
                     row['packaging_type'] = classify_packaging_type(row['productName'], row['type'], row['amount'], row['unit'], row.get('typ_opakowania'))
                     row['raw_packaging_type'] = row.get('typ_opakowania') or 'Karton'
                     items.append(row)

@@ -239,3 +239,69 @@ class TankValidationService:
             f"\"{assigned_name}\". Próba wydania niezgodnego surowca: \"{scanned_name}\" jest zablokowana!"
         )
         return False, error_msg
+
+    @classmethod
+    def get_material_tank_map(cls, linia: str = 'AGRO') -> Dict[str, List[Dict[str, Any]]]:
+        """Return a mapping of normalized raw material name -> list of tanks where it is active or assigned."""
+        by_material: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+        def _register(raw_name: Optional[str], tank_code: Optional[str], source: str, amount_kg: Optional[float] = None) -> None:
+            norm_name = _normalize_name_for_comparison(raw_name)
+            norm_tank = _normalize_tank_code(tank_code)
+            if not norm_name or not norm_tank:
+                return
+            tanks_for_mat = by_material.setdefault(norm_name, {})
+            existing = tanks_for_mat.get(norm_tank)
+            if existing:
+                if existing['source'] != source:
+                    existing['source'] = 'both'
+                if amount_kg is not None:
+                    existing['amount_kg'] = round(float(existing.get('amount_kg') or 0) + float(amount_kg), 2)
+            else:
+                tanks_for_mat[norm_tank] = {
+                    'code': norm_tank,
+                    'source': source,
+                    'amount_kg': round(float(amount_kg), 2) if amount_kg is not None else None,
+                }
+
+        try:
+            for rule in TankValidationRepository.get_all_rules():
+                if rule.is_active and rule.nazwa_surowca and rule.kod_zbiornika:
+                    _register(rule.nazwa_surowca, rule.kod_zbiornika, 'rule', None)
+        except Exception:
+            pass
+
+        try:
+            snapshot = AgroTanksService.get_production_inventory_snapshot(linia=linia or 'AGRO', show_empty=False)
+            for item in snapshot or []:
+                amount = float(item.get('stan_systemowy') or 0)
+                if amount <= 0:
+                    continue
+                tank_code = AgroTanksRepository.normalize_production_tank(item.get('zbiornik'))
+                raw_name = item.get('surowiec_nazwa') or item.get('nazwa')
+                _register(raw_name, tank_code, 'production', amount)
+        except Exception:
+            pass
+
+        return {
+            norm_name: [tanks[code] for code in sorted(tanks.keys())]
+            for norm_name, tanks in by_material.items()
+        }
+
+    @classmethod
+    def get_tanks_for_materials(cls, material_names, linia: str = 'AGRO') -> Dict[str, Dict[str, Any]]:
+        """Resolve tank locations and validation status for a list of raw material names."""
+        tank_map = cls.get_material_tank_map(linia=linia)
+        result: Dict[str, Dict[str, Any]] = {}
+        for raw_name in material_names or []:
+            key = str(raw_name or '').strip()
+            if not key or key in result:
+                continue
+            norm_name = _normalize_name_for_comparison(key)
+            tanks = tank_map.get(norm_name, [])
+            result[key] = {
+                'is_assigned': bool(tanks),
+                'tanks': tanks,
+                'tank_codes': [t['code'] for t in tanks],
+            }
+        return result

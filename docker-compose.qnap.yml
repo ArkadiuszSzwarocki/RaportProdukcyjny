@@ -18,6 +18,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./raporty:/app/raporty
+      - ./instance/ipomiar:/app/instance/ipomiar
       - bug_attachments:/app/static/uploads/bugs
     restart: unless-stopped
     healthcheck:

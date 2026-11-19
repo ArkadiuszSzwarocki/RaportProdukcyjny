@@ -137,6 +137,7 @@ const PickingViewModule = (function () {
         _allItemsMap = {};
 
         const grouped = orderData.items_grouped || {};
+        const materialTanks = orderData.material_tanks || {};
         const surowceNames = Object.keys(grouped);
 
         if (surowceNames.length === 0) {
@@ -147,11 +148,26 @@ const PickingViewModule = (function () {
         let firstPendingItem = null;
 
         surowceNames.forEach(function (nazwa) {
+            var tankInfo = materialTanks[nazwa] || null;
+            var tankBadgeHtml = '';
+            if (tankInfo && Array.isArray(tankInfo.tanks) && tankInfo.tanks.length > 0) {
+                var tankLabels = tankInfo.tanks.map(function (t) {
+                    var kgPart = (t.amount_kg !== null && t.amount_kg !== undefined)
+                        ? ' (' + Number(t.amount_kg).toFixed(0) + ' kg)'
+                        : '';
+                    return escapePickingText(t.code) + kgPart;
+                }).join(', ');
+                tankBadgeHtml = '<span style="display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; padding: 2px 9px; border-radius: 999px; background: rgba(16, 185, 129, 0.22); border: 1px solid rgba(52, 211, 153, 0.6); color: #a7f3d0; font-size: 11px; font-weight: 800; vertical-align: middle;">' +
+                    '<span class="material-icons" style="font-size: 14px; color: #34d399;">precision_manufacturing</span>Zbiornik: ' + tankLabels + '</span>';
+            } else {
+                tankBadgeHtml = '<span style="display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; padding: 2px 9px; border-radius: 999px; background: rgba(245, 158, 11, 0.22); border: 1px solid rgba(251, 191, 36, 0.65); color: #fde68a; font-size: 11px; font-weight: 800; vertical-align: middle;" title="Surowiec nie jest obecnie przypisany ani załadowany na żaden zbiornik produkcyjny">' +
+                    '<span class="material-icons" style="font-size: 14px; color: #fbbf24;">warning</span>Brak przypisanego zbiornika</span>';
+            }
             var headerTr = document.createElement('tr');
             headerTr.style.cssText = 'background: linear-gradient(135deg, #1e293b, #334155); border: none;';
             headerTr.innerHTML = '<td colspan="7" style="padding: 10px 14px; font-weight: 700; font-size: 13px; color: #ffffff; letter-spacing: 0.3px;">' +
                 '<span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 6px; color: #60a5fa;">inventory_2</span>' +
-                escapePickingText(nazwa) + '</td>';
+                escapePickingText(nazwa) + tankBadgeHtml + '</td>';
             tbody.appendChild(headerTr);
 
             var pallets = grouped[nazwa] || [];
@@ -470,11 +486,25 @@ const PickingViewModule = (function () {
         var orderRef = _currentOrderRef || '';
         var nowStr = new Date().toLocaleString('pl-PL');
         var grouped = _orderData.items_grouped || {};
+        var materialTanks = _orderData.material_tanks || {};
         var progress = _orderData.progress || {};
 
         var rowsHtml = '';
         Object.keys(grouped).forEach(function (nazwa) {
-            rowsHtml += '<tr style="background: #f1f5f9;"><td colspan="7" style="padding: 8px; font-weight: bold; font-size: 14px; border: 1px solid #cbd5e1;">' + nazwa + '</td></tr>';
+            var tankInfo = materialTanks[nazwa] || null;
+            var tankPrintBadge = '';
+            if (tankInfo && Array.isArray(tankInfo.tanks) && tankInfo.tanks.length > 0) {
+                var tankLabels = tankInfo.tanks.map(function (t) {
+                    var kgPart = (t.amount_kg !== null && t.amount_kg !== undefined)
+                        ? ' (' + Number(t.amount_kg).toFixed(0) + ' kg)'
+                        : '';
+                    return escapePickingText(t.code) + kgPart;
+                }).join(', ');
+                tankPrintBadge = ' <span style="display: inline-block; margin-left: 10px; padding: 2px 8px; border: 1.5px solid #0f766e; border-radius: 4px; background: #ecfdf5; color: #065f46; font-size: 12px; font-weight: 800;">Stacja / Zbiornik: ' + tankLabels + '</span>';
+            } else {
+                tankPrintBadge = ' <span style="display: inline-block; margin-left: 10px; padding: 2px 8px; border: 1.5px solid #b45309; border-radius: 4px; background: #fffbeb; color: #92400e; font-size: 12px; font-weight: 700;">Brak przypisanej stacji</span>';
+            }
+            rowsHtml += '<tr style="background: #f1f5f9;"><td colspan="7" style="padding: 8px; font-weight: bold; font-size: 14px; border: 1px solid #cbd5e1;">' + escapePickingText(nazwa) + tankPrintBadge + '</td></tr>';
             (grouped[nazwa] || []).forEach(function (p) {
                 var statusStr = p.status === 'SKOMPLETOWANA' ? '✅ SKOMPLET.'
                     : (p.is_blocked ? '⛔ ZABLOKOW.' : '⏳ OCZEKUJE');

@@ -1,23 +1,31 @@
 {% set role = (session.get('rola') or '')|lower|replace(' ', '')|replace('_', '')|replace('-', '')|trim %}
 {% set user_group = (session.get('grupa') or '').upper().strip() %}
-{% set user_hall = user_group if user_group == 'OSIP' else ('ALL' if role in ['admin', 'masteradmin', 'zarzad', 'laborant', 'laboratorium', 'magazynier', 'planista', 'lider'] else (session.get('grupa') or 'ALL').upper()) %}
+{% set user_hall = user_group if user_group == 'OSIP' else ('ALL' if role in ['admin', 'masteradmin',
+'zarzad','laborant', 'laboratorium', 'magazynier', 'planista', 'lider'] else (session.get('grupa') or 'ALL').upper()) %}
 {% set hall_view = session.get('selected_hall_view') %}
 {% set can_switch_halls = user_hall == 'ALL' %}
 {% set effective_hall = (hall_view or user_hall) if can_switch_halls else user_hall %}
 
 <div class="sidebar-overlay" id="sidebarOverlay" tabindex="-1" aria-hidden="true"></div>
-<aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false" data-login-session="{{ session.get('session_tracking_id', '') }}">
+<aside class="sidebar" id="appSidebar" role="navigation" aria-hidden="false"
+    data-login-session="{{ session.get('session_tracking_id', '') }}">
     <style>
         /* Sidebar navigation is text-only; icons remain available in page content. */
-        .sidebar .material-icons { display: none !important; }
+        .sidebar .material-icons {
+            display: none !important;
+        }
     </style>
-    
+
     {% include 'includes/sidebar/_sidebar_header.html' %}
 
     <nav class="sidebar-nav">
-        {% set can_use_agro_scanner = session.get('zalogowany') and role in ['pracownik', 'agro'] and user_group == 'AGRO' and role_has_access('agro.zasyp') %}
-        {% if navigation_group_allowed('scanner') and (effective_hall != 'OSIP' or navigation_group_allowed('osip')) and (can_use_agro_scanner or role_has_access('magazyn.card') or user_group == 'OSIP' or effective_hall == 'OSIP') %}
-        <a href="{{ url_for('scanner.scanner_ui', linia='OSIP' if effective_hall == 'OSIP' else 'AGRO') }}" class="nav-item {% if request.blueprint == 'scanner' %}active{% endif %}" style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #1e40af; border-left: 4px solid #3b82f6; font-weight: bold; margin-bottom: 8px;">
+        {% set can_use_agro_scanner = session.get('zalogowany') and role in ['pracownik', 'agro'] and user_group ==
+        'AGRO' and role_has_access('agro.zasyp') %}
+        {% if navigation_group_allowed('scanner') and (effective_hall != 'OSIP' or navigation_group_allowed('osip')) and
+        (can_use_agro_scanner or role_has_access('magazyn.card') or user_group == 'OSIP' or effective_hall == 'OSIP') %}
+        <a href="{{ url_for('scanner.scanner_ui', linia='OSIP' if effective_hall == 'OSIP' else 'AGRO') }}"
+            class="nav-item {% if request.blueprint == 'scanner' %}active{% endif %}"
+            style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); color: #1e40af; border-left: 4px solid #3b82f6; font-weight: bold; margin-bottom: 8px;">
             <span class="material-icons" style="margin-right: 12px; color: #2563eb;">qr_code_scanner</span>
             <span>Skaner & Drukarka</span>
         </a>
@@ -26,40 +34,52 @@
         {% set can_open_plan = role_has_access('planista') %}
         {% set can_open_plan_buffer_psd = navigation_group_allowed('psd') and role_has_access('psd.bufor') %}
         {% set can_open_plan_buffer_agro = navigation_group_allowed('agro') and role_has_access('agro.bufor') %}
-        {% if navigation_group_allowed('planning') and (can_open_plan or (role == 'planista' and (can_open_plan_buffer_psd or can_open_plan_buffer_agro))) %}
-            <div class="nav-item-group">
-                <button type="button" class="nav-item main-cat-btn">
-                    <span>PLAN PRODUKCJI</span>
-                    <span class="material-icons chevron">expand_more</span>
-                </button>
-                <div id="plan-sub" class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/bufor') %}open{% endif %}">
-                    {% if can_open_plan %}
-                    <a href="/planista?tab=psd" class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab', 'psd') == 'psd' or request.args.get('linia') == 'PSD') %}active{% endif %}">
-                        Plan PSD
-                    </a>
-                    <a href="/planista?tab=agro" class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab') == 'agro' or request.args.get('linia') == 'AGRO') %}active{% endif %}">
-                        Plan AGRO
-                    </a>
-                    {% endif %}
-                    {% if can_open_plan_buffer_psd and (role == 'planista' or effective_hall not in ['PSD', 'ALL']) %}
-                    <a href="{{ url_for('planista.bufor_page', linia='PSD') }}"
-                        class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
-                        Bufor PSD
-                    </a>
-                    {% endif %}
-                    {% if can_open_plan_buffer_agro and (role == 'planista' or effective_hall not in ['AGRO', 'ALL']) %}
-                    <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
-                        class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}">
-                        Bufor Agro
-                    </a>
-                    {% endif %}
-                </div>
+        {% set can_open_plan_station_history = navigation_group_allowed('agro_station_history') and not
+        (navigation_group_allowed('agro') and effective_hall in ['AGRO', 'ALL']) %}
+        {% set show_plan_buffer_psd = can_open_plan_buffer_psd and (effective_hall not in ['PSD', 'ALL']) %}
+        {% set show_plan_buffer_agro = can_open_plan_buffer_agro and (effective_hall not in ['AGRO', 'ALL']) %}
+        {% if navigation_group_allowed('planning') and (can_open_plan or show_plan_buffer_psd or show_plan_buffer_agro
+        or can_open_plan_station_history) %}
+        <div class="nav-item-group">
+            <button type="button" class="nav-item main-cat-btn">
+                <span>PLAN PRODUKCJI</span>
+                <span class="material-icons chevron">expand_more</span>
+            </button>
+            <div id="plan-sub"
+                class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/bufor') or (can_open_plan_station_history and request.endpoint == 'production.agro_station_history') %}open{% endif %}">
+                {% if can_open_plan %}
+                <a href="/planista?tab=psd"
+                    class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab', 'psd') == 'psd' or request.args.get('linia') == 'PSD') %}active{% endif %}">
+                    Plan PSD
+                </a>
+                <a href="/planista?tab=agro"
+                    class="nav-sub-item {% if request.path.startswith('/planista') and (request.args.get('tab') == 'agro' or request.args.get('linia') == 'AGRO') %}active{% endif %}">
+                    Plan AGRO
+                </a>
+                {% endif %}
+                {% if can_open_plan_buffer_psd and (effective_hall not in ['PSD', 'ALL']) %}
+                <a href="{{ url_for('planista.bufor_page', linia='PSD') }}"
+                    class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
+                    Bufor PSD
+                </a>
+                {% endif %}
+                {% if can_open_plan_buffer_agro and (effective_hall not in ['AGRO', 'ALL']) %}
+                <a href="{{ url_for('planista.bufor_page', linia='AGRO') }}"
+                    class="nav-sub-item {% if request.path.startswith('/bufor') and request.args.get('linia')|upper == 'AGRO' %}active{% endif %}">
+                    Bufor Agro
+                </a>
+                {% endif %}
+                {% if can_open_plan_station_history %}
+                <a href="{{ url_for('production.agro_station_history') }}"
+                    class="nav-sub-item {% if request.endpoint == 'production.agro_station_history' %}active{% endif %}">
+                    Historia Stacji (BB/MZ/WZ)
+                </a>
+                {% endif %}
             </div>
+        </div>
         {% endif %}
-        {% if role != 'planista' %}
-            {% include 'includes/sidebar/_sidebar_psd.html' %}
-            {% include 'includes/sidebar/_sidebar_agro.html' %}
-        {% endif %}
+        {% include 'includes/sidebar/_sidebar_psd.html' %}
+        {% include 'includes/sidebar/_sidebar_agro.html' %}
         {% include 'includes/sidebar/_sidebar_warehouse.html' %}
         {% include 'includes/sidebar/_sidebar_settlements.html' %}
         {% include 'includes/sidebar/_sidebar_admin.html' %}
@@ -70,7 +90,7 @@
 </aside>
 
 <script>
-    (function() {
+    (function () {
         try {
             // Restore desktop collapsed state immediately to avoid jump
             if (window.innerWidth > 1200 && localStorage.getItem('sidebar_collapsed_desktop') === '1') {
@@ -79,11 +99,11 @@
             var loginToken = document.getElementById('appSidebar').getAttribute('data-login-session');
             if (loginToken && localStorage.getItem('sidebar_login_session') !== loginToken) {
                 var closed = {};
-                document.querySelectorAll('.nav-sub').forEach(function(sub) {
+                document.querySelectorAll('.nav-sub').forEach(function (sub) {
                     sub.classList.remove('open');
                     if (sub.id) closed[sub.id] = false;
                 });
-                document.querySelectorAll('#appSidebar details').forEach(function(group) { group.open = false; });
+                document.querySelectorAll('#appSidebar details').forEach(function (group) { group.open = false; });
                 localStorage.setItem('sidebar_submenus_state', JSON.stringify(closed));
                 localStorage.setItem('sidebar_login_session', loginToken);
             }
@@ -91,8 +111,8 @@
             try {
                 var saved = JSON.parse(localStorage.getItem('sidebar_submenus_state') || '{}');
                 if (saved && typeof saved === 'object' && !Array.isArray(saved)) states = saved;
-            } catch (_) {}
-            document.querySelectorAll('.nav-sub').forEach(function(sub) {
+            } catch (_) { }
+            document.querySelectorAll('.nav-sub').forEach(function (sub) {
                 var hasSaved = Object.prototype.hasOwnProperty.call(states, sub.id);
                 var shouldOpen = hasSaved ? states[sub.id] === true : sub.classList.contains('open');
                 sub.classList.toggle('open', shouldOpen);
@@ -111,20 +131,20 @@
                 }
 
                 // Save scroll position before leaving page or scrolling
-                var saveScroll = function() {
+                var saveScroll = function () {
                     sessionStorage.setItem('sidebar_scroll_pos', sidebar.scrollTop);
                 };
                 sidebar.addEventListener('scroll', saveScroll, { passive: true });
-                
+
                 // Extra precaution: save on link click
-                sidebar.addEventListener('click', function(e) {
+                sidebar.addEventListener('click', function (e) {
                     var target = e.target.closest('a');
                     if (target && target.href && !target.href.startsWith('javascript:')) {
                         saveScroll();
                     }
                 });
             }
-        } catch(e) {
+        } catch (e) {
             console.error('[sidebar inline] restore failed', e);
         }
     })();

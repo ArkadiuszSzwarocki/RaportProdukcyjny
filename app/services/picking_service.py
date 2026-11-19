@@ -313,11 +313,16 @@ class PickingService:
             self._format_dates(item)
             grouped[nazwa].append(item)
 
+        from app.services.tank_validation_service import TankValidationService
+        order_linia = str(items[0].get('linia') or 'AGRO').upper() if items else 'AGRO'
+        material_tanks = TankValidationService.get_tanks_for_materials(grouped.keys(), linia=order_linia)
+
         return {
             'order_ref': order_ref,
             'operator_login': items[0].get('operator_login', '') if items else '',
             'created_at': items[0].get('created_at', '') if items else '',
             'items_grouped': grouped,
+            'material_tanks': material_tanks,
             'progress': {
                 'total': total,
                 'completed': completed,

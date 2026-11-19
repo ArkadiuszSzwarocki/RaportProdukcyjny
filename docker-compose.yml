@@ -17,7 +17,11 @@ services:
       - db_data:/var/lib/mysql
       - ./db-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,6 +48,9 @@ services:
       HOST: 0.0.0.0
       ENABLE_BACKGROUND_DAEMONS: "false"
       ENABLE_AUTO_REPORT_SCHEDULER: "false"
+      ENABLE_IPOMIAR_COLLECTOR: "false"
+      IPOMIAR_CONFIG_FILE: ${IPOMIAR_CONFIG_FILE:-}
+      IPOMIAR_ARCHIVE_DIR: ${IPOMIAR_ARCHIVE_DIR:-instance/ipomiar}
       TRUST_PROXY_HEADERS: "false"
       PRINTER_BRIDGE_URL: ${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}
       PRINTER_BRIDGE_TOKEN: ${PRINTER_BRIDGE_TOKEN:?PRINTER_BRIDGE_TOKEN is required}
@@ -56,6 +63,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./raporty:/app/raporty
+      - ./instance/ipomiar:/app/instance/ipomiar
       - bug_attachments:/app/static/uploads/bugs
       - ./config:/app/config:ro
       - "${TLS_CERT_HOST_PATH:?TLS_CERT_HOST_PATH is required}:/run/secrets/tls-cert.pem:ro"
@@ -97,6 +105,10 @@ services:
       TZ: ${TZ:-Europe/Warsaw}
       ENABLE_BACKGROUND_DAEMONS: "true"
       ENABLE_AUTO_REPORT_SCHEDULER: "false"
+      ENABLE_IPOMIAR_COLLECTOR: ${ENABLE_IPOMIAR_COLLECTOR:-true}
+      IPOMIAR_CONFIG_FILE: ${IPOMIAR_CONFIG_FILE:-}
+      IPOMIAR_ARCHIVE_DIR: ${IPOMIAR_ARCHIVE_DIR:-instance/ipomiar}
+      IPOMIAR_POLL_INTERVAL_SECONDS: ${IPOMIAR_POLL_INTERVAL_SECONDS:-60}
       SKIP_DB_SETUP: "true"
       PRINTER_BRIDGE_URL: ${PRINTER_BRIDGE_URL:-http://127.0.0.1:3001}
       PRINTER_BRIDGE_TOKEN: ${PRINTER_BRIDGE_TOKEN:?PRINTER_BRIDGE_TOKEN is required}
@@ -113,6 +125,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./raporty:/app/raporty
+      - ./instance/ipomiar:/app/instance/ipomiar
       - bug_attachments:/app/static/uploads/bugs
       - ./config:/app/config:ro
     depends_on:

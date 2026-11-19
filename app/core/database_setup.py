@@ -1514,6 +1514,8 @@ def _migrate_columns(cursor):
 
     for tbl in ["magazyn_surowce", "magazyn_agro_surowce", "magazyn_opakowania", "magazyn_agro_opakowania", "magazyn_dodatki"]:
         _add_column_if_missing(cursor, tbl, "nr_palety", "VARCHAR(100) NULL", f"Dodawanie kolumny 'nr_palety' do {tbl}")
+        _add_column_if_missing(cursor, tbl, "is_depozyt", "TINYINT(1) NOT NULL DEFAULT 0", f"Dodawanie kolumny 'is_depozyt' do {tbl}")
+    _add_column_if_missing(cursor, "magazyn_dostawy", "is_depozyt", "TINYINT(1) NOT NULL DEFAULT 0", "Dodawanie kolumny 'is_depozyt' do magazyn_dostawy")
 
     _add_column_if_missing(cursor, "osip_transfers", "email_sent_at", "DATETIME NULL", "Dodawanie kolumny 'email_sent_at' do osip_transfers")
     _add_column_if_missing(cursor, "osip_transfers", "email_sent_to", "VARCHAR(255) NULL", "Dodawanie kolumny 'email_sent_to' do osip_transfers")

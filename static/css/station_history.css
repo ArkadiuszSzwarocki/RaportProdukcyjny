@@ -26,6 +26,12 @@
 .station-history-table th {background:#f8fafc;color:#475569;font-size:11px;text-transform:uppercase;padding:12px;white-space:nowrap;text-align:left;}
 .station-history-table td {padding:12px;vertical-align:top;border-bottom:1px solid #f1f5f9;font-size:13px;}
 .station-history-table tbody tr:hover {background:#f8fafc;}
+.station-history-row-clickable {cursor:pointer;transition:background-color .15s ease;}
+.station-history-row-clickable:hover {background:#eff6ff!important;}
+.station-history-row-clickable:focus-visible {outline:2px solid #0284c7;outline-offset:-2px;background:#eff6ff;}
+.station-history-pallet-link {display:inline-flex;align-items:center;gap:4px;color:#0369a1;font-weight:700;text-decoration:underline;text-decoration-color:#bae6fd;text-underline-offset:2px;}
+.station-history-pallet-link .material-icons {font-size:14px;color:#0284c7;}
+.station-history-row-clickable:hover .station-history-pallet-link {color:#0284c7;text-decoration-color:#0284c7;}
 .station-history-message {text-align:center!important;color:#64748b;padding:32px!important;}
 .station-history-error {color:#b91c1c!important;}
 .station-history-code {font-family:monospace;font-size:12px!important;white-space:nowrap;}

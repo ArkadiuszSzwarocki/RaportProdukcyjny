@@ -185,6 +185,16 @@ def register_production_dosypki_routes(
                 current_app.logger.warning('dosypka_strona: failed to load raw material suggestions', exc_info=True)
                 dostepne_surowce = []
 
+            material_tanks = {}
+            try:
+                from app.services.tank_validation_service import TankValidationService, _normalize_name_for_comparison
+                material_tanks = TankValidationService.get_material_tank_map(linia=linia)
+                for item in existing_dosypki:
+                    tanks = material_tanks.get(_normalize_name_for_comparison(item.get('nazwa')), [])
+                    item['tank_codes'] = [t['code'] for t in tanks]
+            except Exception:
+                current_app.logger.warning('dosypka_strona: failed to load tank assignments', exc_info=True)
+
             template_name = 'dodaj_dosypke_popup.html' if is_ajax else 'dosypka_strona.html'
             return render_template(
                 template_name,
@@ -198,6 +208,7 @@ def register_production_dosypki_routes(
                 existing_dosypki=existing_dosypki,
                 linia=linia,
                 dostepne_surowce=dostepne_surowce,
+                material_tanks=material_tanks,
             )
         except Exception as e:
             current_app.logger.error(f'Error in dosypka_strona: {e}', exc_info=True)
@@ -376,6 +387,28 @@ def register_production_dosypki_routes(
                     return redirect(bezpieczny_powrot())
 
                 entries = [(allowed_map[str(name).strip().lower()], kg) for name, kg in entries]
+
+                if linia.upper() == 'AGRO' and not is_admin_or_zarzad:
+                    try:
+                        from app.services.tank_validation_service import TankValidationService, _normalize_name_for_comparison
+                        tank_map = TankValidationService.get_material_tank_map(linia=linia)
+                        if tank_map:
+                            missing_tank_materials = [
+                                name for name, _ in entries
+                                if _normalize_name_for_comparison(name) not in tank_map
+                            ]
+                            if missing_tank_materials:
+                                missing_label = ', '.join(sorted(set(missing_tank_materials))[:3])
+                                err_msg = (
+                                    f'⛔ Brak surowca na zbiorniku: {missing_label}. '
+                                    'Wybierz surowiec przypisany lub załadowany na aktywnym zbiorniku.'
+                                )
+                                if is_ajax:
+                                    return jsonify({'success': False, 'message': err_msg}), 400
+                                flash(err_msg, 'warning')
+                                return redirect(bezpieczny_powrot())
+                    except Exception:
+                        current_app.logger.warning('dodaj_dosypke: tank validation check failed', exc_info=True)
 
             has_login_col = False
             try:

@@ -1,5 +1,6 @@
 {% extends 'admin/users_center_layout.html' %}
 {% block users_content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/acl_sidebar_editor.css') }}?v={{ static_version }}&acl_ui=1">
 <style>
   .acl {
     max-width: 1400px;
@@ -403,10 +404,10 @@
           <option value="changed">Zmienione</option>
           <option value="override">Wyjątki użytkownika</option>
         </select></div>
-      <div class="acl-bulk"><button type="button" id="acl-reset-user" hidden disabled>Przywróć domyślne z
+      <div class="acl-bulk"><button type="button" id="acl-toggle-expand" class="acl-bulk-secondary" disabled>Rozwiń wszystko</button><button type="button" id="acl-reset-user" hidden disabled>Przywróć domyślne z
           roli</button><button type="button" id="acl-block-tab" disabled>Zablokuj wszystkie strony</button><button
           type="button" id="acl-block-all" disabled>Zablokuj wszystkie edytowalne uprawnienia</button></div>
-      <div id="acl-list">
+      <div id="acl-list" class="acl-sidebar-tree">
         <div class="acl-empty">Wybierz użytkownika z listy po lewej.</div>
       </div>
       <div class="acl-savebar"><span id="acl-status" class="acl-status" aria-live="polite">Brak niezapisanych
@@ -528,7 +529,7 @@
           counts.deny++;
         } else if (!row || row.key === 'magazyn.card' || row.key === 'function.warehouse_v2.move_pallet') {
           counts.policy++;
-        } else if (isMaster || sharedWarehousePages.has(row.key) && (mode === 'role' || value(row) === 'inherit')) {
+        } else if (isMaster) {
           counts.allow++;
         } else {
           counts[effective(row, value(row))]++;
@@ -542,24 +543,52 @@
       if (policy && deny + policy === entries.length) return ['partial', 'Blokada edytowalnych · pozostałe wg reguł modułu'];
       return ['partial', policy ? 'Dostęp częściowy · część wg reguł modułu' : 'Dostęp częściowy'];
     }
-    function appendGroupSwitch(heading, groupRow, title) {
+    function unlockGroupIfBlocked(targetGroupRow) {
+      if (!targetGroupRow || targetIsMaster() || outsideFixedHall(targetGroupRow.key)) return;
+      if (!isBlocked(targetGroupRow)) return;
+      if (targetGroupRow.original === 'allow') delete changes[targetGroupRow.key];
+      else changes[targetGroupRow.key] = 'allow';
+    }
+    function selectStateClass(effectiveState) {
+      if (effectiveState === 'allow') return 'acl-state-allow';
+      if (effectiveState === 'readonly') return 'acl-state-readonly';
+      return 'acl-state-deny';
+    }
+    function syncExpandButton() {
+      const btn = el('acl-toggle-expand');
+      if (!btn) return;
+      const groupsInDom = [...el('acl-list').querySelectorAll('details.acl-group')];
+      btn.disabled = loading || !groupsInDom.length;
+      const allOpen = groupsInDom.length > 0 && groupsInDom.every(d => d.open);
+      btn.textContent = allOpen ? 'Zwiń wszystko' : 'Rozwiń wszystko';
+    }
+    function appendGroupSwitch(controlsHost, groupRow, title, parentGroupRow) {
       const label = document.createElement('label');
       label.className = 'acl-group-switch';
       const fixed = outsideFixedHall(groupRow.key);
-      label.textContent = fixed ? 'Rola przypisana do hali ' + fixedHall() : targetIsMaster() ? 'MasterAdmin ma stały dostęp' : 'Dostęp do grupy';
+      if (fixed) {
+        label.title = 'Rola przypisana do hali ' + fixedHall();
+      } else if (targetIsMaster()) {
+        label.title = 'MasterAdmin ma stały dostęp';
+      }
       const select = document.createElement('select');
       select.setAttribute('aria-label', 'Dostęp do grupy: ' + title);
       const options = mode === 'user' ? [['inherit', 'Z roli'], ['allow', 'Otwarta'], ['deny', 'Zablokowana']] : [['allow', 'Otwarta'], ['deny', 'Zablokowana']];
       options.forEach(([optionValue, text]) => select.add(new Option(text, optionValue)));
-      select.value = fixed ? 'deny' : targetIsMaster() || value(groupRow) === 'readonly' ? 'allow' : value(groupRow);
+      const currentVal = fixed ? 'deny' : targetIsMaster() || value(groupRow) === 'readonly' ? 'allow' : value(groupRow);
+      select.value = currentVal;
+      const effectiveGroupState = fixed ? 'deny' : targetIsMaster() ? 'allow' : effective(groupRow, currentVal);
+      select.className = selectStateClass(effectiveGroupState);
       select.disabled = loading || fixed || targetIsMaster();
+      ['click', 'mousedown'].forEach(evt => label.addEventListener(evt, e => e.stopPropagation()));
       select.addEventListener('change', () => {
         if (select.value === groupRow.original) delete changes[groupRow.key];
         else changes[groupRow.key] = select.value;
+        if (select.value === 'allow') unlockGroupIfBlocked(parentGroupRow);
         render();
       });
       label.append(select);
-      heading.append(label);
+      controlsHost.append(label);
     }
     function updateStatus() { el('acl-save').disabled = !dirty() || loading; el('acl-status').textContent = loading ? 'Wczytywanie…' : dirty() ? `Niezapisane zmiany: ${dirty()}` : 'Brak niezapisanych zmian'; }
     function render() {
@@ -581,81 +610,154 @@
           (filter === 'all' || row && (filter === 'denied' && effective(row, value(row)) === 'deny' ||
             filter === 'changed' && row.key in changes || filter === 'override' && mode === 'user' && value(row) !== 'inherit')));
         if (!items.length) return;
-        const section = document.createElement('details'); section.className = 'acl-group'; section.dataset.group = title; section.open = opened.has(title) || !!search || filter !== 'all'; const summary = document.createElement('summary'); summary.textContent = `${title} (${items.length})`;
-        const [statusClass, statusLabel] = groupBlocked ? ['blocked', 'Całkowicie zablokowana'] : groupStatus(entries);
+        const section = document.createElement('details');
+        section.className = 'acl-group' + (title === 'Skaner & Drukarka' ? ' acl-group-scanner' : '');
+        section.dataset.group = title;
+        section.open = opened.has(title) || !!search || filter !== 'all';
+        section.addEventListener('toggle', syncExpandButton);
+        const summary = document.createElement('summary');
+        const summaryLeft = document.createElement('span');
+        summaryLeft.className = 'acl-summary-left';
+        const chevron = document.createElement('span');
+        chevron.className = 'acl-chevron';
+        chevron.setAttribute('aria-hidden', 'true');
+        chevron.textContent = '▸';
+        const summaryTitle = document.createElement('span');
+        summaryTitle.className = 'acl-summary-title';
+        summaryTitle.textContent = title;
+        const [statusClass, statusLabel] = groupBlocked ? ['blocked', 'Zablokowana'] : groupStatus(entries);
         const badge = document.createElement('span');
         badge.className = 'acl-group-status ' + statusClass;
         badge.textContent = statusLabel;
-        summary.append(badge);
+        summaryLeft.append(chevron, summaryTitle, badge);
+        const summaryControls = document.createElement('span');
+        summaryControls.className = 'acl-summary-controls';
         const editable = [...new Set(entries.map(entry => entry.row).filter(Boolean))];
         if (groupRow) {
-          appendGroupSwitch(summary, groupRow, title);
+          appendGroupSwitch(summaryControls, groupRow, title);
         } else if (editable.length) {
           const block = document.createElement('button');
           block.type = 'button';
           block.className = 'acl-group-block';
-          block.textContent = entries.some(entry => !entry.row) ? 'Zablokuj edytowalne' : 'Zablokuj całą grupę';
+          block.textContent = entries.some(entry => !entry.row) ? 'Zablokuj edytowalne' : 'Zablokuj grupę';
           block.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); blockRows(editable); });
-          summary.append(block);
+          summaryControls.append(block);
         }
+        summary.append(summaryLeft, summaryControls);
         section.append(summary);
+        const itemsWrap = document.createElement('div');
+        itemsWrap.className = 'acl-group-items';
+        section.append(itemsWrap);
         let previousSubgroup;
-        let container = section;
+        let container = itemsWrap;
         items.forEach(({ row: r, label: itemLabel, subgroup }) => {
           if (subgroup !== previousSubgroup) {
             previousSubgroup = subgroup;
-            container = section;
+            container = itemsWrap;
             if (subgroup) {
               container = document.createElement('details');
+              container.className = 'acl-subgroup';
               container.dataset.group = title + ' / ' + subgroup;
               container.open = opened.has(container.dataset.group) || !!search || filter !== 'all';
               const heading = document.createElement('summary');
               heading.className = 'acl-subheading';
-              heading.textContent = subgroup;
+              const subLeft = document.createElement('span');
+              subLeft.className = 'acl-summary-left';
+              const subChevron = document.createElement('span');
+              subChevron.className = 'acl-chevron';
+              subChevron.setAttribute('aria-hidden', 'true');
+              subChevron.textContent = '▸';
+              const subTitle = document.createElement('span');
+              subTitle.className = 'acl-summary-title';
+              subTitle.textContent = subgroup;
+              subLeft.append(subChevron, subTitle);
               const subgroupRow = groupRowFor(subgroup);
+              const subControls = document.createElement('span');
+              subControls.className = 'acl-summary-controls';
               if (subgroupRow) {
                 const subgroupBadge = document.createElement('span');
                 const [subClass, subLabel] = groupBlocked || isBlocked(subgroupRow)
-                  ? ['blocked', 'Całkowicie zablokowana']
+                  ? ['blocked', 'Zablokowana']
                   : groupStatus(entries.filter(entry => entry.subgroup === subgroup));
                 subgroupBadge.className = 'acl-group-status ' + subClass;
                 subgroupBadge.textContent = subLabel;
-                heading.append(subgroupBadge);
-                appendGroupSwitch(heading, subgroupRow, subgroup);
+                subLeft.append(subgroupBadge);
+                appendGroupSwitch(subControls, subgroupRow, subgroup, groupRow);
               }
+              heading.append(subLeft, subControls);
               container.append(heading);
-              section.append(container);
+              itemsWrap.append(container);
             }
           }
-          const row = document.createElement('div'); row.className = 'acl-row' + (r && r.key in changes ? ' changed' : ''); const text = document.createElement('div'), label = document.createElement('strong'); label.textContent = itemLabel; text.append(label);
+          const itemSubgroupRow = subgroup ? groupRowFor(subgroup) : null;
+          const fixed = r ? outsideFixedHall(r.key) : false;
+          const effectiveItemState = r ? (fixed ? 'deny' : effective(r, value(r))) : 'allow';
+          const effectiveBlocked = groupBlocked || (itemSubgroupRow && isBlocked(itemSubgroupRow)) || effectiveItemState === 'deny';
+          const row = document.createElement('div');
+          row.className = 'acl-row' + (r && r.key in changes ? ' changed' : '') + (effectiveBlocked ? ' acl-row-denied' : '');
+          const text = document.createElement('div');
+          text.className = 'acl-row-info';
+          const label = document.createElement('span');
+          label.className = 'acl-item-title';
+          label.textContent = itemLabel;
+          text.append(label);
           row.append(text);
           container.append(row);
           if (!r) {
-            const note = document.createElement('small');
-            note.textContent = 'Dostęp wynika z reguł modułu lub innych uprawnień';
+            const note = document.createElement('span');
+            note.className = 'acl-item-meta';
+            note.textContent = 'wg reguł modułu';
             text.append(note);
             return;
           }
           if (sidebarKeyCounts.get(r.key) > 1) {
-            const note = document.createElement('small');
-            note.textContent = 'Wspólne uprawnienie dla kilku pozycji menu';
-            text.append(note);
+            const pill = document.createElement('span');
+            pill.className = 'acl-item-pill';
+            pill.textContent = 'wspólne';
+            pill.title = 'Wspólne uprawnienie dla kilku pozycji menu';
+            text.append(pill);
           }
           if (r.key === 'magazyn.card') {
-            const note = document.createElement('small');
-            note.textContent = 'Widoczność skrótu zależy też od hali i dostępu do zasypu AGRO.';
+            const note = document.createElement('span');
+            note.className = 'acl-item-meta';
+            note.textContent = 'zależy też od hali / zasypu AGRO';
             text.append(note);
           }
-          if (mode === 'user') { const note = document.createElement('small'); note.textContent = 'Domyślnie z roli: ' + describe(r.inherited); text.append(note); }
-          const status = document.createElement('small');
-          const fixed = outsideFixedHall(r.key);
-          status.textContent = fixed ? 'Brak dostępu · rola przypisana do hali ' + fixedHall() : 'Ustawienie: ' + describe(effective(r, value(r)));
-          text.append(status);
-          const select = document.createElement('select'); select.setAttribute('aria-label', itemLabel); const options = mode === 'user' ? [['inherit', 'Z roli'], ['deny', 'Zablokuj'], ['readonly', 'Tylko odczyt'], ['allow', 'Zezwól']] : [['deny', 'Zablokuj'], ['readonly', 'Tylko odczyt'], ['allow', 'Zezwól']]; options.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; select.append(o); }); if (r.key.startsWith('group.')) select.querySelector('option[value=readonly]')?.remove(); select.value = fixed ? 'deny' : value(r); select.disabled = loading || fixed || (r.key.startsWith('group.') && targetIsMaster());
-          select.addEventListener('change', () => { if (select.value === r.original) delete changes[r.key]; else changes[r.key] = select.value; render(); }); row.append(select);
-        }); list.append(section);
+          if (mode === 'user') {
+            const note = document.createElement('span');
+            note.className = 'acl-item-meta';
+            note.textContent = 'z roli: ' + describe(r.inherited);
+            text.append(note);
+          }
+          if (fixed) {
+            const status = document.createElement('span');
+            status.className = 'acl-item-meta';
+            status.textContent = 'hala ' + fixedHall();
+            text.append(status);
+          }
+          const select = document.createElement('select');
+          select.setAttribute('aria-label', itemLabel);
+          const options = mode === 'user' ? [['inherit', 'Z roli'], ['deny', 'Zablokuj'], ['readonly', 'Tylko odczyt'], ['allow', 'Zezwól']] : [['deny', 'Zablokuj'], ['readonly', 'Tylko odczyt'], ['allow', 'Zezwól']];
+          options.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; select.append(o); });
+          if (r.key.startsWith('group.')) select.querySelector('option[value=readonly]')?.remove();
+          select.value = fixed ? 'deny' : value(r);
+          select.className = selectStateClass(effectiveItemState);
+          select.disabled = loading || fixed || (r.key.startsWith('group.') && targetIsMaster());
+          select.addEventListener('change', () => {
+            if (select.value === r.original) delete changes[r.key];
+            else changes[r.key] = select.value;
+            if (select.value === 'allow' || select.value === 'readonly') {
+              unlockGroupIfBlocked(groupRow);
+              unlockGroupIfBlocked(itemSubgroupRow);
+            }
+            render();
+          });
+          row.append(select);
+        });
+        list.append(section);
       });
       if (!list.childElementCount) { const empty = document.createElement('div'); empty.className = 'acl-empty'; empty.textContent = loading ? 'Wczytywanie…' : !selection ? 'Wybierz użytkownika lub rolę.' : 'Brak pozycji pasujących do filtra.'; list.append(empty); }
+      syncExpandButton();
       updateStatus();
     }
     function canSwitch() { return !dirty() || confirm('Masz niezapisane zmiany. Odrzucić je i zmienić wybór?'); }
@@ -671,6 +773,13 @@
         ? `Wybrane pozycje są już zablokowane. Niezapisane zmiany: ${dirty()}`
         : 'Wybrane pozycje są już zablokowane.';
     }
+    el('acl-toggle-expand').addEventListener('click', () => {
+      const groupsInDom = [...el('acl-list').querySelectorAll('details')];
+      if (!groupsInDom.length) return;
+      const shouldOpen = el('acl-list').querySelectorAll('details.acl-group:not([open])').length > 0;
+      groupsInDom.forEach(d => { d.open = shouldOpen; });
+      syncExpandButton();
+    });
     el('acl-reset-user').addEventListener('click', () => { if (loading || !selection || mode !== 'user') return; rows.forEach(r => { if (r.original === 'inherit') delete changes[r.key]; else changes[r.key] = 'inherit'; }); render(); });
     el('acl-block-tab').addEventListener('click', () => blockRows(rows.filter(r => r.key.startsWith('function.') === (kind === 'functions'))));
     el('acl-block-all').addEventListener('click', () => blockRows(rows));

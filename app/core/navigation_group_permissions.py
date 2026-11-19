@@ -34,7 +34,6 @@ GROUP_KEYS = {f'group.{group}' for group in GROUPS} | {f'group.entry_{entry}' fo
 AGRO_SUBGROUPS = {
     'agro_lp01': ('agro_packaging', 'agro'),
     'agro_packaging_stock': ('agro_packaging', 'agro'),
-    'agro_station_history': ('agro',),
     'agro_picking': ('agro',),
 }
 

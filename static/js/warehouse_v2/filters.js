@@ -271,6 +271,7 @@ function populateBlockedFilter() {
 
     checkboxesContainer.innerHTML = html;
     updateBlockedDropdownLabel();
+    if (typeof updateDepositBadgeCount === 'function') updateDepositBadgeCount();
 }
 
 function updateSelectedBlockedReasons() {
@@ -324,6 +325,31 @@ function toggleBlockedDropdown() {
     menu.style.display = isHidden ? 'block' : 'none';
 }
 
+function updateDepositBadgeCount() {
+    const badge = document.getElementById('headerDepositCountBadge');
+    const btn = document.getElementById('depositFilterBtn');
+    if (typeof allWarehouseItems === 'undefined' || !Array.isArray(allWarehouseItems)) return;
+    const depositCount = allWarehouseItems.filter(item => Boolean(item && item.is_depozyt)).length;
+    if (badge) {
+        badge.textContent = String(depositCount);
+        badge.style.display = depositCount > 0 ? 'inline-block' : 'none';
+    }
+    if (btn) {
+        const isActive = Boolean(typeof filterOnlyDeposit !== 'undefined' && filterOnlyDeposit);
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    }
+}
+
+function toggleDepositFilter() {
+    filterOnlyDeposit = !filterOnlyDeposit;
+    updateDepositBadgeCount();
+    if (typeof filterTable === 'function') {
+        filterTable({ preserveScroll: true });
+    }
+}
+
 function updateBlockedBadgeCount() {
     populateBlockedFilter();
+    updateDepositBadgeCount();
 }

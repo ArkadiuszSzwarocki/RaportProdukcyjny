@@ -76,10 +76,73 @@
     border-color: #0284c7;
     box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);
 }
+.station-history-modal-row-clickable {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.station-history-modal-row-clickable:hover {
+    background-color: #eff6ff;
+}
+.station-history-modal-row-clickable:focus-visible {
+    outline: 2px solid #0284c7;
+    outline-offset: -2px;
+    background-color: #eff6ff;
+}
+.station-history-modal-pallet-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #0369a1;
+    text-decoration: underline;
+    text-decoration-color: #bae6fd;
+    text-underline-offset: 2px;
+}
+.station-history-modal-pallet-link .material-icons {
+    font-size: 14px;
+    color: #0284c7;
+}
 </style>
 
 <script>
 let currentStationHistoryLine = 'ALL';
+let stationHistoryModalRows = [];
+
+function _openStationHistoryModalRow(index) {
+    const row = stationHistoryModalRows[index];
+    if (!row || typeof window.openPalletHistoryFor !== 'function') return;
+    const rawCode = row.nr_palety && row.nr_palety !== '-' ? String(row.nr_palety).trim() : '';
+    const location = row.dokad && row.dokad !== '-' ? row.dokad : (row.skad && row.skad !== '-' ? row.skad : '');
+    window.openPalletHistoryFor({
+        id: row.paleta_id || '',
+        displayId: rawCode,
+        productName: row.nazwa && row.nazwa !== '-' ? row.nazwa : 'Nieokreślony',
+        location,
+        amount: row.ilosc,
+        type: row.typ_palety || '',
+        linia: row.linia || currentStationHistoryLine || 'PSD'
+    }, {
+        endpoint: '/warehouse-v2/historia-stacji/pallet-history',
+        syncSummaryFromLatest: true
+    });
+}
+
+function _bindStationHistoryModalRowClicks() {
+    const tbody = document.getElementById('stationHistoryTableBody');
+    if (!tbody || tbody.dataset.palletClickBound === '1') return;
+    tbody.dataset.palletClickBound = '1';
+    tbody.addEventListener('click', (event) => {
+        const tr = event.target.closest('tr[data-history-index]');
+        if (!tr) return;
+        _openStationHistoryModalRow(Number(tr.dataset.historyIndex));
+    });
+    tbody.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const tr = event.target.closest('tr[data-history-index]');
+        if (!tr) return;
+        event.preventDefault();
+        _openStationHistoryModalRow(Number(tr.dataset.historyIndex));
+    });
+}
 
 function setStationHistoryLine(line) {
     currentStationHistoryLine = line;
@@ -124,12 +187,15 @@ function fetchStationHistory() {
         .then(data => {
             if (!data.success) throw new Error(data.error || data.message || 'Wystąpił błąd podczas ładowania danych');
             if (!data.data || data.data.length === 0) {
+                stationHistoryModalRows = [];
                 tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 25px;">Brak danych w historii stacji dla wybranych filtrów.</td></tr>';
                 return;
             }
             
+            stationHistoryModalRows = data.data;
+            _bindStationHistoryModalRowClicks();
             let html = '';
-            data.data.forEach(r => {
+            data.data.forEach((r, idx) => {
                 let stacjaHtml = '';
                 let sVal = r.stacja || '';
                 if (!sVal.includes('->') && r.skad && r.dokad && r.skad !== '-' && r.dokad !== '-' && r.skad !== r.dokad) {
@@ -197,11 +263,20 @@ function fetchStationHistory() {
                     typeBadge = `<span class="status-badge" style="background-color: #f1f5f9; color: #334155;" title="${tooltipText}">${r.typ}</span>`;
                 }
 
-                html += `<tr>
+                const hasPallet = Boolean((r.nr_palety && String(r.nr_palety).trim() && String(r.nr_palety).trim() !== '-') || (r.paleta_id !== null && r.paleta_id !== undefined && String(r.paleta_id).trim() !== ''));
+                const rowAttrs = hasPallet
+                    ? ` class="station-history-modal-row-clickable" data-history-index="${idx}" tabindex="0" role="button" title="Kliknij, aby zobaczyć pełną historię palety"`
+                    : '';
+                const palletCodeLabel = r.nr_palety && r.nr_palety !== '-' ? r.nr_palety : (r.paleta_id ? `#${r.paleta_id}` : '-');
+                const palletCellHtml = hasPallet
+                    ? `<span class="station-history-modal-pallet-link"><span class="material-icons" aria-hidden="true">history</span><span>${palletCodeLabel}</span></span>`
+                    : palletCodeLabel;
+
+                html += `<tr${rowAttrs}>
                     <td>${r.data}</td>
                     <td>${stacjaHtml}</td>
                     <td style="font-weight: 600; color: #0f172a;">${prodDisplay}</td>
-                    <td style="font-size: 11px; font-family: monospace; color: #334155; font-weight: 600;">${r.nr_palety || '-'}</td>
+                    <td style="font-size: 11px; font-family: monospace; color: #334155; font-weight: 600;">${palletCellHtml}</td>
                     <td style="font-weight: bold; color: #16a34a;">${Number(r.ilosc || 0).toFixed(2)}</td>
                     <td>${typeBadge}${komHtml}</td>
                     <td>${r.user}</td>

@@ -9,7 +9,7 @@
     <button type="button" class="nav-item main-cat-btn">
         <span class="text-capitalize nav-main-label">
             MAGAZYNY
-            {% if pending_for_hall > 0 and role not in ['laborant', 'laboratorium'] %}
+            {% if pending_for_hall > 0 %}
             <span class="nav-main-dot" aria-hidden="true"></span>
             {% endif %}
         </span>
@@ -48,7 +48,7 @@
                 {% set transfer_pallets_for_hall = (transfer_pallet_map.get('ALL', (transfer_pallet_map.get('PSD', 0) + transfer_pallet_map.get('AGRO', 0))) if hall_key == 'ALL' else transfer_pallet_map.get(hall_key, 0))|int %}
                 {% set external_orders_for_hall = (external_order_map.get('ALL', (external_order_map.get('PSD', 0) + external_order_map.get('AGRO', 0))) if hall_key == 'ALL' else external_order_map.get(hall_key, 0))|int %}
                 {% set external_pallets_for_hall = (external_pallet_map.get('ALL', (external_pallet_map.get('PSD', 0) + external_pallet_map.get('AGRO', 0))) if hall_key == 'ALL' else external_pallet_map.get(hall_key, 0))|int %}
-                {% if pending_for_hall > 0 and role not in ['laborant', 'laboratorium'] %}
+                {% if pending_for_hall > 0 %}
                 <span class="nav-pending-badges-stack" aria-label="Są oczekujące przyjęcia">
                     {% if external_orders_for_hall > 0 %}
                     <span class="nav-pending-badge nav-pending-badge-delivery">{{ '99+' if external_orders_for_hall > 99 else external_orders_for_hall }}/{{ '99+' if external_pallets_for_hall > 99 else external_pallets_for_hall }}</span>
@@ -68,20 +68,15 @@
         {% endif %}
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
-        {% if role not in ['laborant', 'laboratorium'] %}
         {% set podzial_palety_endpoint = 'magazyn_dostawy.podzial_palety_view' if app.view_functions.get('magazyn_dostawy.podzial_palety_view') else ('magazyn_dostawy.lista_dostaw' if app.view_functions.get('magazyn_dostawy.lista_dostaw') else 'magazyn_dostawy.podglad_etykiety') %}
         {% if navigation_group_allowed('entry_split') %}
         <a href="{{ url_for(podzial_palety_endpoint, linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' %}active{% elif request.endpoint == podzial_palety_endpoint and podzial_palety_endpoint != 'magazyn_dostawy.podzial_palety_view' %}active{% endif %}">Podział Palety</a>
         {% endif %}
-        {% endif %}
         
-        {% if role in ['magazynier', 'lider', 'zarzad', 'admin', 'masteradmin'] %}
         {% if navigation_group_allowed('entry_mix') %}
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' %}active{% endif %}">Mixowanie Palet</a>
         {% endif %}
-        {% endif %}
         
-        {% if role not in ['laborant', 'laboratorium'] %}
         {% if navigation_group_allowed('entry_consumption') %}
         <a href="{{ url_for('warehouse_v2.zuzycie_view', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.zuzycie_view' %}active{% endif %}">
             Zużycie w Produkcji
@@ -118,12 +113,11 @@
         </a>
         {% endif %}
         {% endif %}
-        {% endif %}
     </div>
 </div>
 {% endif %}
 
-{% if navigation_group_allowed('osip') and role not in ['laborant', 'laboratorium'] %}
+{% if navigation_group_allowed('osip') %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0} %}
     {% set pending_osip = pending_map.get('OSIP', 0)|int %}
@@ -191,10 +185,8 @@
         {% if navigation_group_allowed('entry_split') %}
         <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Podział Palety</a>
         {% endif %}
-        {% if role in ['magazynier', 'lider', 'zarzad', 'admin', 'masteradmin'] %}
         {% if navigation_group_allowed('entry_mix') %}
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Mixowanie Palet</a>
-        {% endif %}
         {% endif %}
         {% if navigation_group_allowed('entry_osip_expedition') %}
         <a href="{{ url_for('osip.expedition_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.expedition_view' %}active{% endif %}">Wydania Zewnętrzne</a>

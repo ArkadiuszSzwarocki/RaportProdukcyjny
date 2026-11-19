@@ -8,43 +8,55 @@
         <span>ADMINISTRACJA & ANALIZA</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="admin-ana-sub" class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/zarzad') or request.path.startswith('/moje_godziny') or request.path.startswith('/struktura') %}open{% endif %}">
+    <div id="admin-ana-sub"
+        class="nav-sub {% if request.path.startswith('/planista') or request.path.startswith('/zarzad') or request.path.startswith('/moje_godziny') or request.path.startswith('/struktura') %}open{% endif %}">
         {% if role_has_access('moje_godziny') %}
-        <a href="{{ url_for('panels.moje_godziny') }}" class="nav-sub-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">Moje Godziny</a>
+        <a href="{{ url_for('panels.moje_godziny') }}"
+            class="nav-sub-item {% if request.path.startswith('/moje_godziny') %}active{% endif %}">Moje Godziny</a>
         {% endif %}
 
 
-        {% if role in ['admin', 'zarzad', 'masteradmin', 'lider'] or (effective_hall in ['AGRO', 'ALL'] and role_has_access('agro.workowanie') and role not in ['laborant', 'laboratorium']) %}
         {% if navigation_group_allowed('entry_machines') %}
-        <a href="/maszyny" class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}" style="color: #0284c7; font-weight: 700;">
+        <a href="/maszyny" class="nav-sub-item {% if request.path.startswith('/maszyny') %}active{% endif %}"
+            style="color: #0284c7; font-weight: 700;">
             🤖 Maszyny & Telemetria 3D
         </a>
-        {% endif %}
         {% endif %}
     </div>
 </div>
 
 {% endif %}
-{% if navigation_group_allowed('quality') and role_has_access('jakosc') %}
+{% set can_open_jakosc = role_has_access('jakosc') %}
+{% set can_open_magnets = navigation_group_allowed('entry_magnets') %}
+{% set can_open_separators = navigation_group_allowed('entry_separators') %}
+{% if navigation_group_allowed('quality') and (can_open_jakosc or can_open_magnets or can_open_separators) %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span>JAKOŚĆ</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="jakosc-sub" class="nav-sub {% if request.path.startswith('/jakosc') or request.path.startswith('/quality/magnet-cleaning') %}open{% endif %}">
-        <a href="{{ url_for('quality.jakosc_index') }}" class="nav-sub-item {% if request.endpoint == 'quality.jakosc_index' %}active{% endif %}">Strona Jakość</a>
-        {% if navigation_group_allowed('entry_magnets') %}
-        <a href="{{ url_for('magnet_cleaning.get_history') }}" class="nav-sub-item {% if request.endpoint == 'magnet_cleaning.get_history' %}active{% endif %}">Czyszczenie Magnesów</a>
+    <div id="jakosc-sub"
+        class="nav-sub {% if request.path.startswith('/jakosc') or request.path.startswith('/quality/magnet-cleaning') or request.path.startswith('/quality/separator-cleaning') %}open{% endif %}">
+        {% if can_open_jakosc %}
+        <a href="{{ url_for('quality.jakosc_index') }}"
+            class="nav-sub-item {% if request.endpoint == 'quality.jakosc_index' %}active{% endif %}">Strona Jakość</a>
         {% endif %}
-        {% if navigation_group_allowed('entry_separators') %}
-        <a href="{{ url_for('separator_cleaning.get_history') }}" class="nav-sub-item {% if request.endpoint == 'separator_cleaning.get_history' %}active{% endif %}">Czyszczenie Separatorów</a>
+        {% if can_open_magnets %}
+        <a href="{{ url_for('magnet_cleaning.get_history') }}"
+            class="nav-sub-item {% if request.endpoint == 'magnet_cleaning.get_history' %}active{% endif %}">Czyszczenie
+            Magnesów</a>
+        {% endif %}
+        {% if can_open_separators %}
+        <a href="{{ url_for('separator_cleaning.get_history') }}"
+            class="nav-sub-item {% if request.endpoint == 'separator_cleaning.get_history' %}active{% endif %}">Czyszczenie
+            Separatorów</a>
         {% endif %}
     </div>
 </div>
 {% endif %}
 
 <!-- AWARIE I USTERKI -->
-{% set downtime_agro = effective_hall in ['AGRO', 'ALL'] and role_has_access('agro.workowanie') and role not in ['laborant', 'laboratorium'] %}
+{% set downtime_agro = effective_hall in ['AGRO', 'ALL'] and role_has_access('agro.workowanie') %}
 {% set downtime_psd = effective_hall in ['PSD', 'ALL'] and role_has_access('psd.workowanie') %}
 {% if navigation_group_allowed('incidents') and (role_has_access('awarie') or downtime_agro or downtime_psd) %}
 <div class="nav-item-group">
@@ -53,41 +65,53 @@
         <span>AWARIE I USTERKI</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="awarie-sub" class="nav-sub {% if request.path.startswith('/dur/awarie') or request.endpoint == 'production.przestoje_list' %}open{% endif %}">
+    <div id="awarie-sub"
+        class="nav-sub {% if request.path.startswith('/dur/awarie') or request.endpoint == 'production.przestoje_list' %}open{% endif %}">
         {% if role_has_access('awarie') %}
-        <a href="{{ url_for('quality.dur_awarie') }}" class="nav-sub-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">Lista Zgłoszeń</a>
+        <a href="{{ url_for('quality.dur_awarie') }}"
+            class="nav-sub-item {% if request.path.startswith('/dur/awarie') %}active{% endif %}">Lista Zgłoszeń</a>
         {% endif %}
         {% if downtime_agro %}
-        <a href="{{ url_for('production.przestoje_list', linia='AGRO') }}" class="nav-sub-item {% if request.endpoint == 'production.przestoje_list' and request.args.get('linia', 'PSD')|upper == 'AGRO' %}active{% endif %}">Rejestr przestojów AGRO</a>
+        <a href="{{ url_for('production.przestoje_list', linia='AGRO') }}"
+            class="nav-sub-item {% if request.endpoint == 'production.przestoje_list' and request.args.get('linia', 'PSD')|upper == 'AGRO' %}active{% endif %}">Rejestr
+            przestojów AGRO</a>
         {% endif %}
         {% if downtime_psd %}
-        <a href="{{ url_for('production.przestoje_list', linia='PSD') }}" class="nav-sub-item {% if request.endpoint == 'production.przestoje_list' and request.args.get('linia', 'PSD')|upper == 'PSD' %}active{% endif %}">Rejestr przestojów PSD</a>
+        <a href="{{ url_for('production.przestoje_list', linia='PSD') }}"
+            class="nav-sub-item {% if request.endpoint == 'production.przestoje_list' and request.args.get('linia', 'PSD')|upper == 'PSD' %}active{% endif %}">Rejestr
+            przestojów PSD</a>
         {% endif %}
     </div>
 </div>
 {% endif %}
 
 <!-- ADMINISTRACJA SYSTEMOWA (Dla Adminów z uprawnieniami) -->
-{% if navigation_group_allowed('admin') and (role_has_access('ustawienia') or role in ['admin', 'zarzad', 'masteradmin', 'lider', 'planista']) %}
+{% set can_open_users_entry = navigation_group_allowed('entry_users') %}
+{% set can_open_email_entry = navigation_group_allowed('entry_email') %}
+{% if navigation_group_allowed('admin') and (can_open_system_settings or can_open_users_entry or can_open_email_entry)
+%}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span>ADMINISTRACJA</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="admin-system-sub" class="nav-sub {% if request.endpoint == 'admin.users_center' or '/admin/ustawienia' in request.path or request.endpoint == 'magazyn_dostawy.movement_print_history' %}open{% endif %}">
+    <div id="admin-system-sub"
+        class="nav-sub {% if request.endpoint == 'admin.users_center' or '/admin/ustawienia' in request.path or request.endpoint == 'magazyn_dostawy.movement_print_history' %}open{% endif %}">
         {% if can_open_system_settings %}
-        <a href="{{ url_for('admin.admin_ustawienia') }}" class="nav-sub-item {% if request.endpoint in ['admin.admin_ustawienia', 'admin.users_center', 'admin.email_center', 'magazyn_dostawy.movement_print_history'] or request.path.startswith('/admin/ustawienia/') %}active{% endif %}">Ustawienia Systemu</a>
+        <a href="{{ url_for('admin.admin_ustawienia') }}"
+            class="nav-sub-item {% if request.endpoint in ['admin.admin_ustawienia', 'admin.users_center', 'admin.email_center', 'magazyn_dostawy.movement_print_history'] or request.path.startswith('/admin/ustawienia/') %}active{% endif %}">Ustawienia
+            Systemu</a>
         {% else %}
         {# Keep direct access for roles that cannot open the settings hub. #}
-        {% if role in ['admin', 'zarzad', 'masteradmin', 'lider'] %}
-        {% if navigation_group_allowed('entry_users') %}
-        <a href="{{ url_for('admin.users_center', tab='struktura') }}" class="nav-sub-item {% if request.endpoint == 'admin.users_center' %}active{% endif %}">Użytkownicy i uprawnienia</a>
+        {% if can_open_users_entry %}
+        <a href="{{ url_for('admin.users_center', tab='struktura') }}"
+            class="nav-sub-item {% if request.endpoint == 'admin.users_center' %}active{% endif %}">Użytkownicy i
+            uprawnienia</a>
         {% endif %}
-        {% endif %}
-        {% if role in ['admin', 'zarzad', 'masteradmin', 'lider', 'planista'] %}
-        {% if navigation_group_allowed('entry_email') %}
-        <a href="{{ url_for('admin.email_center') }}" class="nav-sub-item {% if request.endpoint == 'admin.email_center' %}active{% endif %}">E-mail i powiadomienia</a>
-        {% endif %}
+        {% if can_open_email_entry %}
+        <a href="{{ url_for('admin.email_center') }}"
+            class="nav-sub-item {% if request.endpoint == 'admin.email_center' %}active{% endif %}">E-mail i
+            powiadomienia</a>
         {% endif %}
         {% endif %}
     </div>
@@ -96,87 +120,117 @@
 
 <!-- MASTER ADMIN & DIAGNOSTYKA -->
 {% set master_access = has_master_access or role == 'masteradmin' %}
-{% set show_diag = master_access or role_has_access('ustawienia.logs') or role_has_access('ustawienia.errors') or role_has_access('centrum') or role_has_access('raporty.performance') %}
+{% set show_diag = master_access or role_has_access('ustawienia.logs') or role_has_access('ustawienia.errors') or
+role_has_access('centrum') or role_has_access('raporty.performance') %}
 
 {% if navigation_group_allowed('diagnostics') and show_diag %}
 <div class="nav-item-group" style="border-top: 1px solid #334155; margin-top: 10px; padding-top: 10px;">
-    <button type="button" class="nav-item main-cat-btn" style="color: {% if master_access %}#fbbf24{% else %}#94a3b8{% endif %};">
-        <span class="material-icons" style="font-size: 18px;">{% if master_access %}security{% else %}settings_suggest{% endif %}</span>
+    <button type="button" class="nav-item main-cat-btn"
+        style="color: {% if master_access %}#fbbf24{% else %}#94a3b8{% endif %};">
+        <span class="material-icons" style="font-size: 18px;">{% if master_access %}security{% else %}settings_suggest{%
+            endif %}</span>
         <span>{% if master_access %}MASTER ADMIN{% else %}SYSTEM & DIAGNOSTYKA{% endif %}</span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="master-sub" class="nav-sub {% if '/logs' in request.path or '/logi-drukowania' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path or '/admin/master/' in request.path or '/zarzad/live-line' in request.path %}open{% endif %}">
+    <div id="master-sub"
+        class="nav-sub {% if '/logs' in request.path or '/logi-drukowania' in request.path or '/centrum' in request.path or '/secret' in request.path or '/performance' in request.path or '/roles' in request.path or 'sim' in request.path or 'slownik-surowcow' in request.path or '/admin/master/' in request.path or '/zarzad/live-line' in request.path %}open{% endif %}">
         {% if master_access %}
         {% if not can_open_system_settings %}
         {% if navigation_group_allowed('entry_raw_dictionary') %}
-        <a href="/admin/slownik-surowcow" class="nav-sub-item {% if '/admin/slownik-surowcow' in request.path %}active{% endif %}">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">menu_book</span> Słownik Surowców
+        <a href="/admin/slownik-surowcow"
+            class="nav-sub-item {% if '/admin/slownik-surowcow' in request.path %}active{% endif %}">
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px;">menu_book</span> Słownik Surowców
         </a>
         {% endif %}
         {% endif %}
         {% if navigation_group_allowed('entry_page_timing') %}
-        <a href="{{ url_for('admin.system_performance') }}" class="nav-sub-item {% if request.endpoint == 'admin.system_performance' %}active{% endif %}">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">speed</span> Czas przechodzenia stron
+        <a href="{{ url_for('admin.system_performance') }}"
+            class="nav-sub-item {% if request.endpoint == 'admin.system_performance' %}active{% endif %}">
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px;">speed</span> Czas przechodzenia
+            stron
         </a>
         {% endif %}
         {% if navigation_group_allowed('entry_mqtt') %}
-        <a href="/admin/master/mqtt" class="nav-sub-item {% if request.path == '/admin/master/mqtt' %}active{% endif %}">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">sensors</span> Monitor MQTT
+        <a href="/admin/master/mqtt"
+            class="nav-sub-item {% if request.path == '/admin/master/mqtt' %}active{% endif %}">
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px;">sensors</span> Monitor MQTT
         </a>
         {% endif %}
         {% if navigation_group_allowed('entry_process_flow') %}
-        <a href="/admin/master/process-flow-3d" class="nav-sub-item {% if '/admin/master/process-flow-3d' in request.path %}active{% endif %}" style="color: #38bdf8; font-weight: 700;">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #38bdf8;">view_in_ar</span> Przepływ 3D (MQTT Flow)
+        <a href="/admin/master/process-flow-3d"
+            class="nav-sub-item {% if '/admin/master/process-flow-3d' in request.path %}active{% endif %}"
+            style="color: #38bdf8; font-weight: 700;">
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px; color: #38bdf8;">view_in_ar</span>
+            Przepływ 3D (MQTT Flow)
         </a>
         {% endif %}
         {% if navigation_group_allowed('entry_live_line') %}
-        <a href="/zarzad/live-line?linia=AGRO" class="nav-sub-item {% if '/zarzad/live-line' in request.path %}active{% endif %}">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">view_in_ar</span> Dashboard Linii LIVE
+        <a href="/zarzad/live-line?linia=AGRO"
+            class="nav-sub-item {% if '/zarzad/live-line' in request.path %}active{% endif %}">
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px;">view_in_ar</span> Dashboard Linii
+            LIVE
         </a>
         {% endif %}
         {% if navigation_group_allowed('entry_integrity') %}
         <a href="javascript:void(0)" onclick="runIntegrityCheck()" class="nav-sub-item">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span> Test Integralności
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px;">fact_check</span> Test Integralności
         </a>
         {% endif %}
-        
+
         <!-- Moved Simulators here -->
         {% if navigation_group_allowed('entry_zebra_sim') %}
         <a href="/zebra-sim" class="nav-sub-item {% if '/zebra-sim' in request.path %}active{% endif %}">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">stay_current_portrait</span> Symulator Zebra
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px;">stay_current_portrait</span>
+            Symulator Zebra
         </a>
         {% endif %}
         {% if navigation_group_allowed('entry_scanner_sim') %}
         <a href="/agro/scanner/simulator" class="nav-sub-item {% if '/simulator' in request.path %}active{% endif %}">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">qr_code_scanner</span> Symulator Skanera
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px;">qr_code_scanner</span> Symulator
+            Skanera
         </a>
         {% endif %}
         {% endif %}
-        
+
         {% if master_access or role_has_access('ustawienia.logs') %}
-        <a href="/admin/ustawienia/logs" class="nav-sub-item {% if '/admin/ustawienia/logs' in request.path %}active{% endif %}">Logi Systemowe</a>
+        <a href="/admin/ustawienia/logs"
+            class="nav-sub-item {% if '/admin/ustawienia/logs' in request.path %}active{% endif %}">Logi Systemowe</a>
         {% endif %}
-        
+
         {% if master_access or role_has_access('ustawienia.errors') %}
-        <a href="/admin/ustawienia/errors" class="nav-sub-item {% if '/admin/ustawienia/errors' in request.path %}active{% endif %}">Logi Błędów</a>
+        <a href="/admin/ustawienia/errors"
+            class="nav-sub-item {% if '/admin/ustawienia/errors' in request.path %}active{% endif %}">Logi Błędów</a>
         {% endif %}
-        
+
         {% if not can_open_system_settings %}
         {% if navigation_group_allowed('entry_printer_logs') %}
-        <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">
-            <span class="material-icons" style="font-size: 16px; vertical-align: middle; margin-right: 4px;">print</span> Logi Drukarek (48h)
+        <a href="/admin/ustawienia/logi-drukowania"
+            class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">
+            <span class="material-icons"
+                style="font-size: 16px; vertical-align: middle; margin-right: 4px;">print</span> Logi Drukarek (48h)
         </a>
         {% endif %}
         {% endif %}
-        
+
         {% if master_access or role_has_access('centrum') %}
-        <a href="/admin/centrum" class="nav-sub-item {% if '/admin/centrum' in request.path %}active{% endif %}">Centrum Sterowania</a>
+        <a href="/admin/centrum" class="nav-sub-item {% if '/admin/centrum' in request.path %}active{% endif %}">Centrum
+            Sterowania</a>
         {% endif %}
-        
+
         {% if master_access or role_has_access('raporty.performance') %}
-        <a href="{{ url_for('panels.panel_performance_page') }}" class="nav-sub-item {% if request.endpoint == 'panels.panel_performance_page' %}active{% endif %}">Wydajność (KPI)</a>
+        <a href="{{ url_for('panels.panel_performance_page') }}"
+            class="nav-sub-item {% if request.endpoint == 'panels.panel_performance_page' %}active{% endif %}">Wydajność
+            (KPI)</a>
         {% endif %}
-        
+
         {% if master_access or role_has_access('baza_danych') %}
         <a href="{{ url_for('admin.admin_secret_db') }}" class="nav-sub-item" style="color: #ef4444;">
             <span class="material-icons" style="font-size: 14px; vertical-align: middle;">storage</span> Baza Danych

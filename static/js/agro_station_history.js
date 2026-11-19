@@ -49,10 +49,46 @@
             badge.title = row.komentarz && row.komentarz !== '-' ? raw + ': ' + row.komentarz : raw;
             return badge;
         }
+        function hasPalletReference(row) {
+            const hasCode = Boolean(row.nr_palety && String(row.nr_palety).trim() && String(row.nr_palety).trim() !== '-');
+            const hasId = row.paleta_id !== null && row.paleta_id !== undefined && String(row.paleta_id).trim() !== '';
+            return hasCode || hasId;
+        }
+        function openRowPalletHistory(row) {
+            if (typeof window.openPalletHistoryFor !== 'function') return;
+            const rawCode = row.nr_palety && row.nr_palety !== '-' ? String(row.nr_palety).trim() : '';
+            const location = row.dokad && row.dokad !== '-' ? row.dokad : (row.skad && row.skad !== '-' ? row.skad : '');
+            window.openPalletHistoryFor({
+                id: row.paleta_id || '',
+                displayId: rawCode,
+                productName: row.nazwa && row.nazwa !== '-' ? row.nazwa : 'Nieokreślony',
+                location,
+                amount: row.ilosc,
+                type: row.typ_palety || '',
+                linia: row.linia || 'AGRO'
+            }, {
+                endpoint: '/warehouse-v2/historia-stacji/pallet-history',
+                syncSummaryFromLatest: true
+            });
+        }
         function render(rows) {
             const fragment = document.createDocumentFragment();
             rows.forEach(row => {
                 const tr = node('tr');
+                const clickable = hasPalletReference(row);
+                if (clickable) {
+                    tr.className = 'station-history-row-clickable';
+                    tr.tabIndex = 0;
+                    tr.setAttribute('role', 'button');
+                    tr.title = 'Kliknij, aby zobaczyć pełną historię palety';
+                    tr.addEventListener('click', () => openRowPalletHistory(row));
+                    tr.addEventListener('keydown', (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openRowPalletHistory(row);
+                        }
+                    });
+                }
                 const dateText = String(row.data || '-').replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3.$2.$1');
                 tr.appendChild(node('td', 'station-history-code', dateText));
                 const routeCell = node('td');
@@ -69,7 +105,16 @@
                 routeCell.appendChild(route);
                 tr.appendChild(routeCell);
                 tr.appendChild(node('td', 'station-history-product', row.nazwa && row.nazwa !== '-' ? row.nazwa : 'Nieokreślony'));
-                tr.appendChild(node('td', 'station-history-code', row.nr_palety || '-'));
+                const palletCell = node('td', 'station-history-code');
+                if (clickable) {
+                    const link = node('span', 'station-history-pallet-link');
+                    link.appendChild(node('span', 'material-icons', 'history'));
+                    link.appendChild(node('span', '', row.nr_palety && row.nr_palety !== '-' ? row.nr_palety : ('#' + row.paleta_id)));
+                    palletCell.appendChild(link);
+                } else {
+                    palletCell.textContent = row.nr_palety || '-';
+                }
+                tr.appendChild(palletCell);
                 const quantity = Number(row.ilosc);
                 tr.appendChild(node('td', 'station-history-quantity', row.ilosc != null && Number.isFinite(quantity) ? quantity.toLocaleString('pl-PL', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'));
                 const details = node('td');

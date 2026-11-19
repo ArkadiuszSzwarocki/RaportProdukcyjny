@@ -119,6 +119,7 @@ var allWarehouseItems = [
             date_added: {{ (item.date_added or '-')|tojson }},
             unit: {{ item.unit|tojson }},
             is_blocked: {{ 1 if item.is_blocked else 0 }},
+            is_depozyt: {{ 1 if item.is_depozyt else 0 }},
             order_id: {{ (item.order_id or '')|tojson }},
             order_ref: {{ (item.order_ref or '')|tojson }},
             order_doc_type: {{ (item.order_doc_type or '')|tojson }},
@@ -180,7 +181,7 @@ function setViewMode(mode) {
 <script src="{{ url_for('static', filename='js/warehouse_v2/modals.js') }}?v={{ warehouse_ui_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/operations_delete.js') }}?v={{ warehouse_ui_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/operations_move.js') }}?v={{ warehouse_ui_version }}"></script>
-<script src="{{ url_for('static', filename='js/warehouse_v2/operations_history.js') }}?v={{ warehouse_ui_version }}&history_ui=3"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/operations_history.js') }}?v={{ warehouse_ui_version }}&history_ui=4"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/operations_block.js') }}?v={{ warehouse_ui_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/filters.js') }}?v={{ warehouse_ui_version }}"></script>
 <script src="{{ url_for('static', filename='js/warehouse_v2/sorting.js') }}?v={{ warehouse_ui_version }}"></script>

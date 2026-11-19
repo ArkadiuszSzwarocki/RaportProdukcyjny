@@ -623,7 +623,7 @@ input.field-data_produkcji, input.field-data_przydatnosci {
             <h6 style="margin: 0; font-size: 12px; font-weight: 700; color: #475569;">Informacje o Dostawie</h6>
         </div>
         <div class="delivery-panel-body">
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: end;">
+            <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; align-items: end;">
                 <div style="display: flex; flex-direction: column;">
                     <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">NUMER WZ / DOKUMENTU</label>
                     <input type="text" id="order_ref" class="premium-input" value="{{ dostawa.order_ref if dostawa else '' }}" placeholder="np. WZ/2024/123" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;" required>
@@ -635,6 +635,13 @@ input.field-data_produkcji, input.field-data_przydatnosci {
                 <div style="display: flex; flex-direction: column;">
                     <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">LICZBA PALET W DOSTAWIE</label>
                     <input type="number" id="pallets_count" class="premium-input" min="0" onchange="generateRows(this.value)" placeholder="Wpisz np. 5" style="height: 38px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                </div>
+                <div style="display: flex; flex-direction: column;">
+                    <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">TYP DOSTAWY</label>
+                    <label for="is_depozyt" style="height: 38px; padding: 0 12px; border: 1px solid #c7d2fe; border-radius: 6px; background: #eef2ff; color: #3730a3; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 700; user-select: none;">
+                        <input type="checkbox" id="is_depozyt" {% if dostawa and dostawa.is_depozyt %}checked{% endif %} style="width: 16px; height: 16px; accent-color: #4f46e5; cursor: pointer;">
+                        <span>Depozyt</span>
+                    </label>
                 </div>
                 <div style="display: none; flex-direction: column;">
                     <label style="font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 6px;">DOMYŚLNA LOKALIZACJA</label>
@@ -1150,6 +1157,7 @@ input.field-data_produkcji, input.field-data_przydatnosci {
             const deliveryDateEl = document.getElementById('delivery_date');
             const palletsCountEl = document.getElementById('pallets_count');
             const defaultLocEl = document.getElementById('default_loc');
+            const isDepozytEl = document.getElementById('is_depozyt');
 
             const draft = {
                 order_ref: orderRefEl ? orderRefEl.value : '',
@@ -1157,11 +1165,12 @@ input.field-data_produkcji, input.field-data_przydatnosci {
                 delivery_date: deliveryDateEl ? deliveryDateEl.value : '',
                 pallets_count: palletsCountEl ? palletsCountEl.value : '',
                 default_loc: defaultLocEl ? defaultLocEl.value : '',
+                is_depozyt: Boolean(isDepozytEl && isDepozytEl.checked),
                 items: items || [],
                 savedAt: new Date().toISOString()
             };
 
-            const hasContent = (draft.items && draft.items.length > 0) || Boolean(draft.order_ref.trim()) || Boolean(draft.supplier.trim());
+            const hasContent = (draft.items && draft.items.length > 0) || Boolean(draft.order_ref.trim()) || Boolean(draft.supplier.trim()) || draft.is_depozyt;
             if (hasContent) {
                 localStorage.setItem(storageKey, JSON.stringify(draft));
             } else {
@@ -1207,6 +1216,10 @@ input.field-data_produkcji, input.field-data_przydatnosci {
             if (draft.default_loc && document.getElementById('default_loc')) {
                 document.getElementById('default_loc').value = draft.default_loc;
             }
+            if (draft.is_depozyt && document.getElementById('is_depozyt')) {
+                document.getElementById('is_depozyt').checked = true;
+                hasRestoredData = true;
+            }
             if (Array.isArray(draft.items) && draft.items.length > 0) {
                 items = draft.items;
                 hasRestoredData = true;
@@ -1233,9 +1246,11 @@ input.field-data_produkcji, input.field-data_przydatnosci {
         const orderRefEl = document.getElementById('order_ref');
         const supplierEl = document.getElementById('supplier');
         const palletsCountEl = document.getElementById('pallets_count');
+        const isDepozytEl = document.getElementById('is_depozyt');
         if (orderRefEl) orderRefEl.value = '';
         if (supplierEl) supplierEl.value = '';
         if (palletsCountEl) palletsCountEl.value = '';
+        if (isDepozytEl) isDepozytEl.checked = false;
         const banner = document.getElementById('draftRestoredBanner');
         if (banner) banner.style.display = 'none';
         renderItems();
@@ -1633,6 +1648,7 @@ input.field-data_produkcji, input.field-data_przydatnosci {
             supplier: document.getElementById('supplier').value.trim(),
             delivery_date: document.getElementById('delivery_date').value,
             lokalizacja_do: document.getElementById('default_loc').value,
+            is_depozyt: Boolean(document.getElementById('is_depozyt') && document.getElementById('is_depozyt').checked),
             linia: "{{ linia }}",
             items: items,
             status: "SZKIC",
@@ -1710,7 +1726,7 @@ input.field-data_produkcji, input.field-data_przydatnosci {
         }
         document.body.appendChild(datalist);
 
-        ['order_ref', 'supplier', 'pallets_count', 'default_loc'].forEach(fieldId => {
+        ['order_ref', 'supplier', 'pallets_count', 'default_loc', 'is_depozyt'].forEach(fieldId => {
             const el = document.getElementById(fieldId);
             if (el) {
                 el.addEventListener('input', saveDraftToStorage);

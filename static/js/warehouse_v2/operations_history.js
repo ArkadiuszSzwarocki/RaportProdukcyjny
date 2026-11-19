@@ -1,11 +1,40 @@
+let _palletHistoryRequestSeq = 0;
+
+function _bindPalletHistoryDismissHandlers() {
+    const modal = document.getElementById('palletFullHistoryModal');
+    if (!modal || modal.dataset.dismissBound === '1') return;
+    modal.dataset.dismissBound = '1';
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) closePalletHistoryModal();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modal.style.display === 'flex') {
+            closePalletHistoryModal();
+        }
+    });
+}
+
 function openPalletHistoryModal() {
     const modal = document.getElementById('palletFullHistoryModal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+        _bindPalletHistoryDismissHandlers();
+        modal.style.display = 'flex';
+    }
 }
 
 function closePalletHistoryModal() {
     const modal = document.getElementById('palletFullHistoryModal');
     if (modal) modal.style.display = 'none';
+}
+
+function inferPalletTypeFromCode(displayId, explicitType) {
+    const rawType = String(explicitType || '').trim();
+    if (rawType) return rawType;
+    const code = String(displayId || '').trim().toUpperCase();
+    if (code.startsWith('SUR')) return 'Surowiec';
+    if (code.startsWith('OPK')) return 'Opakowanie';
+    if (code.startsWith('DOD')) return 'Dodatek';
+    return '';
 }
 
 function historyElement(tagName, className, text) {
@@ -79,7 +108,8 @@ function historyAppendTechnicalRow(container, label, value) {
     container.appendChild(row);
 }
 
-function historyBuildEvent(event) {
+function historyBuildEvent(event, palletCtx) {
+    const ctx = palletCtx || (typeof currentPallet !== 'undefined' ? currentPallet : {}) || {};
     const presentation = historyEventPresentation(event.typ_ruchu);
     const date = historyDateParts(event.autor_data);
     const wrapper = historyElement('article', 'pallet-history-event');
@@ -125,7 +155,7 @@ function historyBuildEvent(event) {
     let before = Number(event.quantity_before);
     let after = Number(event.quantity_after);
     let estimated = Boolean(event.quantity_is_estimated);
-    const currentAmount = Number(currentPallet.amount);
+    const currentAmount = ctx.amount !== undefined && ctx.amount !== null && ctx.amount !== '' ? Number(ctx.amount) : NaN;
     if (!hasQuantity && Number.isFinite(currentAmount)) {
         before = currentAmount;
         after = currentAmount;
@@ -133,7 +163,7 @@ function historyBuildEvent(event) {
         estimated = true;
     }
     if (hasQuantity && Number.isFinite(before) && Number.isFinite(after)) {
-        const unit = currentPallet.unit || 'kg';
+        const unit = ctx.unit || 'kg';
         const delta = after - before;
         let quantityText;
         if (delta === 0) {
@@ -172,13 +202,45 @@ function historyShowError(message) {
     empty.style.display = 'flex';
 }
 
-function fetchHistory() {
-    if (!currentPallet || (!currentPallet.id && !currentPallet.displayId)) return;
+function _syncSummaryFromLatestEvent(latestEvent, palletCtx) {
+    if (!latestEvent) return;
+    const latestRoute = historyRoute(latestEvent);
+    const resolvedLocation = latestRoute.destination || latestRoute.source;
+    if (resolvedLocation) {
+        historySetText('palletHistoryCurrentLocation', resolvedLocation);
+    }
+    const latestAfter = latestEvent.quantity_after !== null && latestEvent.quantity_after !== undefined && latestEvent.quantity_after !== ''
+        ? Number(latestEvent.quantity_after)
+        : NaN;
+    if (Number.isFinite(latestAfter)) {
+        const unit = (palletCtx && palletCtx.unit) || 'kg';
+        historySetText('palletHistoryCurrentAmount', `${latestAfter.toLocaleString('pl-PL')} ${unit}`);
+    }
+}
+
+function openPalletHistoryFor(palletContext, options) {
+    if (!palletContext || (!palletContext.id && !palletContext.displayId)) return;
+    const opts = options || {};
+    const requestSeq = ++_palletHistoryRequestSeq;
+    const resolvedType = inferPalletTypeFromCode(palletContext.displayId, palletContext.type);
+    const unit = palletContext.unit || (String(resolvedType).toLowerCase().includes('opakow') ? 'szt' : 'kg');
+    const ctx = {
+        id: palletContext.id || '',
+        displayId: palletContext.displayId && palletContext.displayId !== '-' ? String(palletContext.displayId).trim() : '',
+        productName: palletContext.productName && palletContext.productName !== '-' ? palletContext.productName : 'Nieznany produkt',
+        location: palletContext.location || '',
+        amount: palletContext.amount,
+        unit,
+        type: resolvedType,
+        linia: palletContext.linia || 'PSD'
+    };
+
     openPalletHistoryModal();
 
-    historySetText('palletHistoryModalSubtitle', `${currentPallet.displayId || ('#' + currentPallet.id)} • ${currentPallet.productName || 'Nieznany produkt'}`);
-    historySetText('palletHistoryCurrentLocation', historyNormalizeLocation(currentPallet.location));
-    historySetText('palletHistoryCurrentAmount', `${currentPallet.amount || 0} ${currentPallet.unit || 'kg'}`);
+    historySetText('palletHistoryModalSubtitle', `${ctx.displayId || ('#' + ctx.id)} • ${ctx.productName}`);
+    historySetText('palletHistoryCurrentLocation', historyNormalizeLocation(ctx.location));
+    const initialAmount = ctx.amount !== undefined && ctx.amount !== null && ctx.amount !== '' ? Number(ctx.amount) : NaN;
+    historySetText('palletHistoryCurrentAmount', Number.isFinite(initialAmount) ? `${initialAmount.toLocaleString('pl-PL')} ${ctx.unit}` : '—');
     historySetText('palletHistoryEventCount', '…');
 
     const loading = document.getElementById('palletHistoryLoading');
@@ -192,18 +254,20 @@ function fetchHistory() {
     }
 
     const queryParams = new URLSearchParams({
-        id: currentPallet.id || '',
-        sscc: currentPallet.displayId || '',
-        type: currentPallet.type || '',
-        linia: currentPallet.linia || 'PSD'
+        id: ctx.id,
+        sscc: ctx.displayId,
+        type: ctx.type,
+        linia: ctx.linia
     });
+    const endpoint = opts.endpoint || '/warehouse-v2/api/pallet/history';
 
-    fetch(`/warehouse-v2/api/pallet/history?${queryParams.toString()}`)
+    fetch(`${endpoint}?${queryParams.toString()}`, { cache: 'no-store' })
         .then(response => {
             if (!response.ok) throw new Error(`Serwer zwrócił błąd ${response.status}`);
             return response.json();
         })
         .then(data => {
+            if (requestSeq !== _palletHistoryRequestSeq) return;
             if (loading) loading.style.display = 'none';
             const events = data.success && Array.isArray(data.history) ? data.history : [];
             historySetText('palletHistoryEventCount', events.length);
@@ -211,10 +275,13 @@ function fetchHistory() {
                 if (empty) empty.style.display = 'flex';
                 return;
             }
+            if (opts.syncSummaryFromLatest || !historyNormalizeLocation(ctx.location) || !Number.isFinite(initialAmount)) {
+                _syncSummaryFromLatestEvent(events[0], ctx);
+            }
 
             let currentDay = null;
             events.forEach(event => {
-                const built = historyBuildEvent(event);
+                const built = historyBuildEvent(event, ctx);
                 if (built.date.dayKey !== currentDay) {
                     currentDay = built.date.dayKey;
                     timeline.appendChild(historyElement('div', 'pallet-history-day', built.date.dayLabel));
@@ -224,8 +291,14 @@ function fetchHistory() {
             timeline.style.display = 'block';
         })
         .catch(error => {
+            if (requestSeq !== _palletHistoryRequestSeq) return;
             if (loading) loading.style.display = 'none';
             historySetText('palletHistoryEventCount', '—');
             historyShowError(error && error.message ? error.message : 'Nie udało się połączyć z serwerem.');
         });
+}
+
+function fetchHistory() {
+    if (typeof currentPallet === 'undefined' || !currentPallet) return;
+    openPalletHistoryFor(currentPallet);
 }

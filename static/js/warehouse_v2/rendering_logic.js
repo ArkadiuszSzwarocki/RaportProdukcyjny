@@ -152,7 +152,11 @@ function filterTable(options = {}) {
             const isBlocked = Boolean(item.is_blocked) || Boolean(item.is_system_blocked) || isItemExpired(item);
             if (!isBlocked) return false;
         }
-        let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location} ${item.order_doc_label || ''} ${item.order_ref || ''} ${item.order_source || ''}`.toUpperCase();
+        if (typeof filterOnlyDeposit !== 'undefined' && filterOnlyDeposit) {
+            if (!item.is_depozyt) return false;
+        }
+        const depositTag = item.is_depozyt ? ' DEPOZYT' : '';
+        let allText = `${item.displayId} ${item.productName} ${item.amount} ${item.type} ${item.date_prod} ${item.date_exp} ${item.location} ${item.order_doc_label || ''} ${item.order_ref || ''} ${item.order_source || ''}${depositTag}`.toUpperCase();
         return isMatch(allText, item.location || '', filter, selectedLocations, item);
     });
 

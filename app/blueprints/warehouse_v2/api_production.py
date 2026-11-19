@@ -92,3 +92,9 @@ def get_station_history():
     resp.headers['Expires'] = '0'
     return resp
 
+
+@warehouse_v2_bp.route('/historia-stacji/pallet-history', methods=['GET'])
+def get_station_pallet_history():
+    from .controllers.pallet_query_controller import PalletQueryController
+    return PalletQueryController.get_history()
+

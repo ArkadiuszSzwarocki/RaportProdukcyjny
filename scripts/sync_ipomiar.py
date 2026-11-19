@@ -1,69 +1,21 @@
-"""Dedicated read-only collector. Web requests only read its atomic archives."""
+"""Dedicated read-only collector CLI. Web requests only read its atomic archives."""
 import argparse
-import json
-import os
 import sys
-import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from app.services.ipomiar_service import ZONE, archive_path, day_string, normalize, devices
+load_dotenv(override=False)
+
+from app.services.ipomiar_collector_service import collect_day  # noqa: E402
+from app.services.ipomiar_service import ZONE, day_string, devices  # noqa: E402
 
 
 def collect(day, config):
-    import requests
-    path = archive_path(day, config)
-    day = day_string(day)
-    # Only the documented provider endpoint; no configurable hosts or redirects.
-    url = 'https://www.ipomiar.pl/public-api/v1.0/devices/' + config['device'] + '/data'
-    payload = []
-    source_days = [day]
-    if config.get('timezone') == 'UTC':
-        source_days.insert(0, str(datetime.fromisoformat(day).date() - timedelta(days=1)))
-    with requests.Session() as session:
-        session.trust_env = False
-        for source_day in source_days:
-            with session.get(url, params={'date': source_day}, timeout=(3, 8),
-                             allow_redirects=False, stream=True) as response:
-                if response.status_code != 200:
-                    raise ValueError('Provider did not return measurements')
-                content = bytearray()
-                deadline = time.monotonic() + 15
-                for chunk in response.iter_content(16384):
-                    content.extend(chunk)
-                    if len(content) > 4_000_000 or time.monotonic() > deadline:
-                        raise ValueError('Provider response limit exceeded')
-                rows = json.loads(content)
-                if not isinstance(rows, list):
-                    raise ValueError('Invalid sample list')
-                payload.extend(rows)
-        samples = normalize(payload, day, config)
-    # An empty or incompatible response must not replace a useful archive.
-    if not samples:
-        raise ValueError('No matching temperature or humidity readings')
-    if path.exists():
-        previous = json.loads(path.read_text(encoding='utf-8'))
-        if previous.get('device') == config['device'] and previous.get('day') == day:
-            rows = [{'Date': r.get('utc', r['time']), 'Temperature': r.get('temperature'), 'Humidity': r.get('humidity')}
-                    for r in previous['samples']]
-            old = normalize(rows, day, {'temperature': 'Temperature', 'humidity': 'Humidity'})
-            merged = {r['utc']: r for r in old}
-            merged.update({r['utc']: r for r in samples})
-            samples = [merged[key] for key in sorted(merged)]
-    saved = {'day': day, 'device': config['device'],
-             'fetched_at': datetime.now(ZONE).isoformat(), 'samples': samples}
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(dir=path.parent, suffix='.tmp')
-    try:
-        with os.fdopen(descriptor, 'w', encoding='utf-8') as file:
-            json.dump(saved, file, ensure_ascii=False)
-        os.replace(temporary, path)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
-    return len(samples)
+    return collect_day(day, config)
 
 
 def main():

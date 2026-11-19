@@ -40,7 +40,7 @@ class WarehousePendingItemsService:
         try:
             cursor = conn.cursor(dictionary=True)
             cursor.execute("""
-                SELECT id, supplier, order_ref, lokalizacja_z, lokalizacja_do, status, created_at, items, linia
+                SELECT id, supplier, order_ref, lokalizacja_z, lokalizacja_do, status, created_at, items, linia, is_depozyt
                 FROM magazyn_dostawy
                 WHERE status IN ('OCZEKUJE', 'OPEN', 'W_STREFIE_PRZYJEC', 'PUTAWAY_IN_PROGRESS')
                 ORDER BY id DESC
@@ -104,6 +104,7 @@ class WarehousePendingItemsService:
                     item_source = it.get('sourceSpot') or it.get('originalSpot') or src_loc or 'MAGAZYN'
                     item_dest = it.get('lokalizacja_przyjecia') or it.get('targetSpot') or dst_loc or 'OCZEKUJĄCE'
 
+                    item_is_depozyt = int(bool(order.get('is_depozyt') or it.get('is_depozyt')))
                     order_meta = {
                         'order_id': order_id_full,
                         'order_ref': order_ref,
@@ -114,6 +115,8 @@ class WarehousePendingItemsService:
                         'order_dest': item_dest,
                         'is_pending_transfer': True
                     }
+                    if item_is_depozyt:
+                        order_meta['is_depozyt'] = 1
 
                     # Check if pallet already exists in stock
                     existing_match = (
@@ -204,6 +207,7 @@ class WarehousePendingItemsService:
                         'data_przydatnosci': it.get('data_przydatnosci'),
                         'nr_partii': it.get('nr_partii'),
                         'is_blocked': 1,  # In-flight pallets are pending/blocked until putaway
+                        'is_depozyt': item_is_depozyt,
                         'created_at': order.get('created_at'),
                         'typ_opakowania': raw_pkg,
                         'displayId': display_id,

@@ -1,7 +1,7 @@
 {# cspell:words wydozowań #}
 {% set reports_agro = navigation_group_allowed('reports_agro') and effective_hall in ['AGRO', 'ALL'] %}
 {% set reports_psd = navigation_group_allowed('reports_psd') and effective_hall in ['PSD', 'ALL'] %}
-{% set reports_general = navigation_group_allowed('reports_general') and role not in ['pracownik', 'agro', 'psd', 'magazynier'] %}
+{% set reports_general = navigation_group_allowed('reports_general') %}
 {% set reports_active = request.endpoint in ['agro_warehouse.raport_palet', 'agro_warehouse.raport_palet_daily', 'production.zasyp_etapy_podsumowanie', 'warehouse.podsumowanie_zasypow', 'production.raport_zasypy_dosypki', 'warehouse_v2.raport_palet', 'magazyn_dostawy.raport', 'zarzad.raporty_okresowe', 'zarzad.dosing_times_report', 'quality.jakosc_podsumowanie_zasypow'] or request.path.startswith('/agro/report') or request.path == '/zarzad' or request.path.startswith('/zarzad/') %}
 {% if reports_agro or reports_psd or reports_general or role_has_access('wyniki') or role_has_access('jakosc') %}
 <div class="nav-item-group">

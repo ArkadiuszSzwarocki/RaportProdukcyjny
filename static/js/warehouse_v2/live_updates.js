@@ -10,6 +10,7 @@
             for (const key of fields) result[key] = String(item[key] == null ? '' : item[key]);
             result.amount = Number(item.amount) || 0;
             result.is_blocked = Number(!!Number(item.is_blocked));
+            result.is_depozyt = Number(!!Number(item.is_depozyt));
             result.packaging_type ||= 'Worek (25kg)';
             for (const key of ['batch','date_prod','date_exp','date_added']) result[key] ||= '-';
             return result;

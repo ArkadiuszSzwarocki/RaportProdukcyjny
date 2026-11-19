@@ -727,7 +727,7 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "laborant": {
@@ -743,7 +743,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -995,7 +995,7 @@
       "readonly": false
     },
     "pracownik": {
-      "access": false,
+      "access": true,
       "readonly": false
     },
     "widz": {
@@ -1105,7 +1105,7 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "laborant": {
@@ -1147,7 +1147,7 @@
       "readonly": false
     },
     "planista": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "laborant": {
@@ -2199,10 +2199,18 @@
     "pracownik": {
       "access": false,
       "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
     }
   },
   "group.entry_dispatch": {
     "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "planista": {
       "access": false,
       "readonly": false
     }
@@ -2211,12 +2219,123 @@
     "pracownik": {
       "access": false,
       "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
     }
   },
   "group.entry_consumption": {
     "pracownik": {
       "access": false,
       "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
     }
+  },
+  "group.psd": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.agro": {
+    "planista": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "group.entry_split": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.agro_picking": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    }
+  },
+  "group.agro_packaging": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_printers": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_printer_logs": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_osip_expedition": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_osip_pending": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_osip_movements": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_osip_reception": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.planning": {
+    "pracownik": { "access": false, "readonly": false },
+    "magazynier": { "access": false, "readonly": false },
+    "laborant": { "access": false, "readonly": false },
+    "dur": { "access": false, "readonly": false },
+    "widz": { "access": false, "readonly": false },
+    "osip": { "access": false, "readonly": false }
+  },
+  "group.admin": {
+    "pracownik": { "access": false, "readonly": false },
+    "magazynier": { "access": false, "readonly": false },
+    "laborant": { "access": false, "readonly": false },
+    "dur": { "access": false, "readonly": false },
+    "widz": { "access": false, "readonly": false },
+    "osip": { "access": false, "readonly": false }
+  },
+  "group.entry_users": {
+    "planista": { "access": false, "readonly": false },
+    "pracownik": { "access": false, "readonly": false },
+    "magazynier": { "access": false, "readonly": false },
+    "laborant": { "access": false, "readonly": false },
+    "dur": { "access": false, "readonly": false },
+    "widz": { "access": false, "readonly": false },
+    "osip": { "access": false, "readonly": false }
+  },
+  "group.entry_email": {
+    "pracownik": { "access": false, "readonly": false },
+    "magazynier": { "access": false, "readonly": false },
+    "laborant": { "access": false, "readonly": false },
+    "dur": { "access": false, "readonly": false },
+    "widz": { "access": false, "readonly": false },
+    "osip": { "access": false, "readonly": false }
   }
 }

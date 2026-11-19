@@ -56,6 +56,37 @@
         background: #991b1b;
         color: #ffffff;
     }
+    .warehouse-btn-deposit {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        color: #475569;
+    }
+    .warehouse-btn-deposit:hover {
+        background: #eef2ff;
+        border-color: #a5b4fc;
+        color: #3730a3;
+    }
+    .warehouse-btn-deposit.active {
+        background: #e0e7ff !important;
+        border-color: #4f46e5 !important;
+        color: #312e81 !important;
+        box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+    }
+    .warehouse-btn-deposit .deposit-count-badge {
+        background: #4f46e5;
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 800;
+        padding: 1px 6px;
+        border-radius: 9999px;
+        min-width: 18px;
+        text-align: center;
+        display: inline-block;
+    }
+    .warehouse-btn-deposit.active .deposit-count-badge {
+        background: #312e81;
+        color: #ffffff;
+    }
     .warehouse-print-btn {
         height: 44px;
         min-height: 44px;
@@ -196,6 +227,15 @@
             </div>
         </div>
     </div>
+
+    <!-- FILTR: DEPOZYT -->
+    <button id="depositFilterBtn" type="button" onclick="toggleDepositFilter()"
+            class="warehouse-btn-base warehouse-btn-deposit"
+            title="Filtruj: Pokaż wyłącznie palety w depozycie" aria-pressed="false">
+        <span class="material-icons" style="font-size: 18px; color: inherit;">inventory</span>
+        <span class="filter-btn-text">Depozyt</span>
+        <span id="headerDepositCountBadge" class="deposit-count-badge" style="display: none;">0</span>
+    </button>
 
     <!-- WYSZUKIWARKA PRODUKTU -->
     <div class="warehouse-search-wrapper" style="position: relative; flex: 2; min-width: 160px;">

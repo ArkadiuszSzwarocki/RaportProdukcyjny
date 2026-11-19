@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/station_history.css') }}?v={{ static_version }}&station_history=3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/station_history.css') }}?v={{ static_version }}&station_history=4">
+{% include 'warehouse_v2/modals/_styles.html' %}
 {% endblock %}
 {% block content %}
 <section class="station-history-page">
@@ -62,7 +63,9 @@
         </div>
     </div>
 </section>
+{% include 'warehouse_v2/modals/_modal_pallet_history.html' %}
 {% endblock %}
 {% block footer_scripts %}
-<script src="{{ url_for('static', filename='js/agro_station_history.js') }}?v={{ static_version }}&station_history=3"></script>
+<script src="{{ url_for('static', filename='js/warehouse_v2/operations_history.js') }}?v={{ static_version }}&history_ui=4"></script>
+<script src="{{ url_for('static', filename='js/agro_station_history.js') }}?v={{ static_version }}&station_history=4"></script>
 {% endblock %}
