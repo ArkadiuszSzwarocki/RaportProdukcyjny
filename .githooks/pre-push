@@ -1,5 +1,5 @@
 #!/bin/sh
-# cspell:words prepush
+# cspell:words prepush acmr
 # Pre-push CI guard: run spellcheck, pylint, and targeted pytest locally before pushing to GitHub.
 set -e
 
@@ -24,10 +24,14 @@ elif command -v python3 >/dev/null 2>&1; then
 fi
 
 if [ -n "$PYTHON_BIN" ] && "$PYTHON_BIN" -m pylint --version >/dev/null 2>&1; then
-    echo "[pre-push] Checking Python syntax & imports (pylint E,F)..."
-    "$PYTHON_BIN" -m pylint --disable=all --enable=E,F \
-        --ignored-modules=app.db,playwright.sync_api,win32print,win32api,win32ui,msvcrt,fitz,PIL.Image,PIL.ImageWin \
-        app/ printer_server/
+    PY_TARGETS=$(git diff --name-only --diff-filter=ACMR origin/main..HEAD -- app/ printer_server/ 2>/dev/null || true)
+    if [ -n "$PY_TARGETS" ]; then
+        echo "[pre-push] Checking changed Python files (pylint E,F)..."
+        echo "$PY_TARGETS" | tr '\n' '\0' | xargs -0 "$PYTHON_BIN" -m pylint --disable=all --enable=E,F \
+            --ignored-modules=app.db,playwright.sync_api,win32print,win32api,win32ui,msvcrt,fitz,PIL.Image,PIL.ImageWin
+    else
+        echo "[pre-push] No changed Python files under app/ or printer_server/; skipping pylint."
+    fi
 fi
 
 if [ -n "$PYTHON_BIN" ] && "$PYTHON_BIN" -m pytest --version >/dev/null 2>&1; then

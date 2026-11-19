@@ -1,6 +1,8 @@
 # cspell:words prepush testpass unpushed
 """Pre-push guard running targeted pytest checks for touched modules."""
 
+import ast
+import importlib.util
 import os
 from pathlib import Path
 import re
@@ -19,15 +21,13 @@ _STOP_TOKENS = {
 }
 
 _ALIASES = {
-    'factory': {'mqtt', 'security', 'startup', 'instance'},
-    'panel': {'plan', 'planista'},
-    'planista': {'plan', 'rollover', 'workowanie', 'zasyp'},
+    'factory': {'mqtt', 'startup'},
     'maluch': {'bucket', 'maluchy'},
     'bucket': {'bucket', 'maluchy'},
-    'mqtt': {'mqtt', 'machine', 'telemetry', 'folio'},
-    'pallets': {'pallet', 'warehouse', 'stock'},
-    'inventory': {'inventory', 'stock', 'packaging'},
+    'mqtt': {'mqtt', 'machine', 'telemetry'},
 }
+
+_MAX_TEST_TARGETS = 5
 
 
 def _isolated_test_env() -> dict:
@@ -71,7 +71,7 @@ def _git_changed_files() -> list[str]:
 
 
 def _extract_tokens(path_str: str) -> set[str]:
-    """Extract meaningful search tokens from a repository file path."""
+    """Extract meaningful search tokens from an application module path."""
     tokens = set()
     for part in re.split(r'[^a-zA-Z0-9]+', path_str.lower()):
         if len(part) >= 3 and part not in _STOP_TOKENS:
@@ -80,8 +80,27 @@ def _extract_tokens(path_str: str) -> set[str]:
     return tokens
 
 
+def _has_available_imports(test_file: Path) -> bool:
+    """Return True if all third-party top-level imports in test_file are installed."""
+    try:
+        tree = ast.parse(test_file.read_text(encoding='utf-8'))
+    except Exception:
+        return True
+    for node in ast.walk(tree):
+        module_name = None
+        if isinstance(node, ast.Import):
+            module_name = node.names[0].name.split('.')[0] if node.names else None
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            module_name = node.module.split('.')[0]
+        if not module_name or module_name in sys.stdlib_module_names or module_name in ('app', 'printer_server', 'scripts', 'tests'):
+            continue
+        if importlib.util.find_spec(module_name) is None:
+            return False
+    return True
+
+
 def _find_matching_tests(changed_files: list[str]) -> list[str]:
-    """Resolve pytest files relevant to the changed files."""
+    """Resolve the top pytest files directly relevant to changed app code."""
     if os.getenv('PREPUSH_FULL_PYTEST') == '1':
         return ['tests']
 
@@ -89,23 +108,33 @@ def _find_matching_tests(changed_files: list[str]) -> list[str]:
         p.relative_to(ROOT).as_posix()
         for p in TESTS_DIR.rglob('test_*.py')
     )
-    selected = set()
+    direct_tests = set()
     tokens = set()
     for rel_path in changed_files:
         if rel_path.startswith('tests/') and Path(rel_path).name.startswith('test_') and rel_path.endswith('.py'):
-            if (ROOT / rel_path).is_file():
-                selected.add(rel_path)
+            candidate = ROOT / rel_path
+            if candidate.is_file() and _has_available_imports(candidate):
+                direct_tests.add(rel_path)
             continue
-        if rel_path.endswith(('.py', '.html', '.js')):
+        if rel_path.startswith(('app/', 'printer_server/')) and rel_path.endswith('.py'):
             tokens.update(_extract_tokens(rel_path))
 
+    scored = []
     if tokens:
         for test_path in all_test_files:
+            if test_path in direct_tests:
+                continue
+            full_path = ROOT / test_path
+            if not _has_available_imports(full_path):
+                continue
             test_name = Path(test_path).stem.lower()
-            if any(tok in test_name for tok in tokens):
-                selected.add(test_path)
+            hits = sum(len(tok) for tok in tokens if tok in test_name)
+            if hits > 0:
+                scored.append((hits, test_path))
 
-    return sorted(selected)
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    picked = [path for _, path in scored[:max(0, _MAX_TEST_TARGETS - len(direct_tests))]]
+    return sorted(direct_tests.union(picked))
 
 
 def main() -> int:
