@@ -1,0 +1,201 @@
+/* Top navbar application version & latest update pill + popover */
+.app-version-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-right: 8px;
+}
+
+.app-version-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: rgba(14, 165, 233, 0.14);
+    color: #e0f2fe;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+}
+
+.app-version-pill:hover {
+    background: rgba(14, 165, 233, 0.28);
+    border-color: rgba(56, 189, 248, 0.65);
+}
+
+.app-version-pill .material-icons {
+    font-size: 15px;
+    color: #38bdf8;
+}
+
+.app-version-new-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+    display: none;
+}
+
+.app-version-pill.has-unseen-update .app-version-new-dot {
+    display: inline-block;
+}
+
+.app-version-popover {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 320px;
+    max-width: calc(100vw - 24px);
+    background: #ffffff;
+    color: #0f172a;
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    box-shadow: 0 18px 40px -10px rgba(15, 23, 42, 0.28);
+    z-index: 2500;
+    overflow: hidden;
+}
+
+.app-version-popover[hidden] {
+    display: none !important;
+}
+
+.app-version-popover-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: #ffffff;
+}
+
+.app-version-popover-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.app-version-popover-title .material-icons {
+    font-size: 18px;
+    color: #38bdf8;
+}
+
+.app-version-popover-close {
+    border: 0;
+    background: rgba(255, 255, 255, 0.14);
+    color: #e2e8f0;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.app-version-popover-close:hover {
+    background: rgba(239, 68, 68, 0.85);
+    color: #ffffff;
+}
+
+.app-version-popover-body {
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 12px;
+}
+
+.app-version-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.app-version-stat {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+.app-version-stat-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-bottom: 3px;
+}
+
+.app-version-stat-value {
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+.app-version-diff-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.app-version-plus {
+    color: #15803d;
+    background: #dcfce7;
+    padding: 2px 7px;
+    border-radius: 999px;
+}
+
+.app-version-minus {
+    color: #b91c1c;
+    background: #fee2e2;
+    padding: 2px 7px;
+    border-radius: 999px;
+}
+
+.app-version-files {
+    color: #1d4ed8;
+    background: #dbeafe;
+    padding: 2px 7px;
+    border-radius: 999px;
+}
+
+.app-version-message-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 9px 11px;
+    color: #334155;
+    line-height: 1.45;
+}
+
+.app-version-message-box strong {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+
+@media (max-width: 640px) {
+    .app-version-label-text {
+        display: none;
+    }
+    .app-version-pill {
+        padding: 4px 8px;
+    }
+}

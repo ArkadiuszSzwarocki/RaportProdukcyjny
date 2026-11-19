@@ -539,15 +539,13 @@ def inject_app_into_templates():
 
 
 def inject_app_version():
-    """Inject application version from VERSION file into templates."""
+    """Inject application version and latest update metadata into templates."""
     try:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        version_path = os.path.join(project_root, 'VERSION')
-        with open(version_path, 'r', encoding='utf-8') as f:
-            version = f.read().strip()
+        from app.services.app_version_service import get_app_version_info
+        info = get_app_version_info()
+        return dict(app_version=info.get('version', 'N/A'), app_version_info=info)
     except Exception:
-        version = 'N/A'
-    return dict(app_version=version)
+        return dict(app_version='N/A', app_version_info={})
 
 
 def _fetch_bug_report_counters():

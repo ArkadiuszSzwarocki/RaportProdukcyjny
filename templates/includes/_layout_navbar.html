@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app_version_badge.css') }}?v={{ static_version }}">
 <style>
     .top-bar.connection-offline { background: #b91c1c !important; }
     .top-bar.connection-offline #topBarPageTitle { display: none !important; }
@@ -28,6 +29,62 @@
                 <span class="user-role-label text-danger d-none d-sm-inline" style="font-weight: 700;">BAZA TESTOWA:</span>
                 <strong class="user-role-name text-danger">{{ db_name }}</strong>
             </span>
+        </div>
+        {% endif %}
+
+        {% if session.get('zalogowany') and app_version_info %}
+        <div class="app-version-wrapper" id="appVersionWrapper">
+            <button type="button"
+                    id="appVersionToggleBtn"
+                    class="app-version-pill"
+                    data-version-stamp="{{ app_version_info.version }}:{{ app_version_info.commit_sha }}"
+                    aria-expanded="false"
+                    aria-controls="appVersionPopover"
+                    title="Ostatnia aktualizacja aplikacji (kliknij, aby zobaczyć szczegóły)">
+                <span class="material-icons" aria-hidden="true">system_update_alt</span>
+                <span class="app-version-label-text">Aktualizacja</span>
+                <span>v{{ app_version_info.version }}</span>
+                <span class="app-version-new-dot" aria-hidden="true"></span>
+            </button>
+
+            <div id="appVersionPopover" class="app-version-popover" role="dialog" aria-label="Informacje o ostatniej aktualizacji" hidden>
+                <div class="app-version-popover-head">
+                    <div class="app-version-popover-title">
+                        <span class="material-icons" aria-hidden="true">new_releases</span>
+                        <span>Aktualizacja v{{ app_version_info.version }}</span>
+                    </div>
+                    <button type="button" id="appVersionCloseBtn" class="app-version-popover-close" aria-label="Zamknij">&times;</button>
+                </div>
+                <div class="app-version-popover-body">
+                    <div class="app-version-grid">
+                        <div class="app-version-stat">
+                            <span class="app-version-stat-label">Data aktualizacji</span>
+                            <span class="app-version-stat-value">{{ app_version_info.commit_date }}</span>
+                        </div>
+                        <div class="app-version-stat">
+                            <span class="app-version-stat-label">Rozmiar aktualizacji</span>
+                            <span class="app-version-stat-value">{{ app_version_info.diff_size_human }}</span>
+                        </div>
+                        <div class="app-version-stat">
+                            <span class="app-version-stat-label">Commit</span>
+                            <span class="app-version-stat-value">{{ app_version_info.commit_sha }}</span>
+                        </div>
+                        <div class="app-version-stat">
+                            <span class="app-version-stat-label">Autor</span>
+                            <span class="app-version-stat-value">{{ app_version_info.author }}</span>
+                        </div>
+                    </div>
+                    <div class="app-version-diff-stats">
+                        <span class="app-version-files">Pliki: {{ app_version_info.files_changed }}</span>
+                        <span class="app-version-plus">+{{ app_version_info.insertions }} linii</span>
+                        <span class="app-version-minus">-{{ app_version_info.deletions }} linii</span>
+                    </div>
+                    <div class="app-version-message-box">
+                        <strong>Ostatnia zmiana</strong>
+                        {{ app_version_info.commit_message }}
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
 
@@ -161,3 +218,4 @@
         </div>
     </div>
 </div>
+<script src="{{ url_for('static', filename='js/app_version_badge.js') }}?v={{ static_version }}" defer></script>

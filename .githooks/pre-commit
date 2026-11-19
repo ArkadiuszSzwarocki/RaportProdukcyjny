@@ -1,0 +1,21 @@
+#!/bin/sh
+# Automatically bump PATCH version and record update size on every commit.
+set -e
+
+if [ "${SKIP_VERSION_BUMP:-0}" = "1" ]; then
+    exit 0
+fi
+
+# Skip if there are no staged changes other than VERSION / version_info.json
+STAGED_NON_VERSION=$(git diff --cached --name-only -- . ':!VERSION' ':!version_info.json')
+if [ -z "$STAGED_NON_VERSION" ]; then
+    exit 0
+fi
+
+PYTHON_BIN="python"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+fi
+
+"$PYTHON_BIN" scripts/update_version.py --bump --staged
+git add VERSION version_info.json
