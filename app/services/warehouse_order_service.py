@@ -49,7 +49,17 @@ class WarehouseOrderService:
             operator_login=operator_login,
             komentarz=komentarz.strip() if komentarz else None
         )
+        self._reconcile_pending_deliveries()
         return True, f"Zamówienie #{order_id} utworzone pomyślnie.", order_id
+
+    @staticmethod
+    def _reconcile_pending_deliveries():
+        """Run open-order reconciliation without failing order reads/creation."""
+        try:
+            from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
+            WarehouseOrderFulfillment.reconcile_open_orders()
+        except Exception:
+            pass
 
     def get_all_orders(self, status_filter=None):
         """Pobiera listę zamówień.
@@ -60,6 +70,7 @@ class WarehouseOrderService:
         Returns:
             list[dict]: Lista zamówień.
         """
+        self._reconcile_pending_deliveries()
         valid_statuses = ('NOWE', 'ZAMKNIETE', 'ANULOWANE')
         if status_filter and status_filter.upper() not in valid_statuses:
             status_filter = None

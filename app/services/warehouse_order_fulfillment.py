@@ -24,7 +24,11 @@ class WarehouseOrderFulfillment:
         revokes its contribution; completed historical orders are left intact.
         """
         transfer_id = str(transfer_id)
-        active = {str(item.get('id')): item for item in items if not item.get('rejected')}
+        active = {
+            str(item.get('id') if item.get('id') not in (None, '') else f'idx_{idx}'): item
+            for idx, item in enumerate(items)
+            if isinstance(item, dict) and not item.get('rejected')
+        }
         cursor.execute('SELECT id,items,status FROM magazyn_zamowienia ORDER BY created_at,id FOR UPDATE')
         orders = cursor.fetchall()
         if not orders:
@@ -69,17 +73,17 @@ class WarehouseOrderFulfillment:
             submitted = float(item.get('netWeight') or item.get('quantity') or available)
             if not math.isfinite(submitted) or abs(submitted-available) > 0.001:
                 raise ValueError('Ilość transferu musi odpowiadać palecie; dla części ilości najpierw podziel paletę')
-            target_line = str(linia or 'AGRO').upper()
-            if target_line == 'ALL':
-                target_line = str(physical.get('linia') or 'AGRO').upper()
+            raw_target_line = str(linia or 'AGRO').upper()
             material = str(physical.get('nazwa') or '').strip().casefold()
             for order,entries,_ in states:
                 # Old manually closed orders are history, not pending requests.
                 if order['status'] == 'ZAMKNIETE' and not any(entry.get('transfer_allocations') for entry in entries):
                     continue
                 for entry in entries:
-                    if str(entry.get('linia') or 'AGRO').upper() != target_line or str(
-                            entry.get('surowiec_nazwa') or '').strip().casefold() != material:
+                    entry_line = str(entry.get('linia') or 'AGRO').upper()
+                    if raw_target_line != 'ALL' and entry_line not in (raw_target_line, 'ALL'):
+                        continue
+                    if str(entry.get('surowiec_nazwa') or '').strip().casefold() != material:
                         continue
                     requested = cls.requested(entry)
                     assigned = sum(float(allocation['kg']) for allocation in entry['transfer_allocations'])
@@ -109,3 +113,50 @@ class WarehouseOrderFulfillment:
                            'confirmed_at=IF(%s,NOW(),NULL) WHERE id=%s',
                            (json.dumps(entries,ensure_ascii=False),status,
                             login if complete else None,complete,order['id']))
+
+    @classmethod
+    def reconcile_open_orders(cls):
+        """Allocate pending deliveries and recent transfers to open orders."""
+        from app.db import get_db_connection
+        conn = get_db_connection()
+        if not conn:
+            return
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT MIN(created_at) AS min_created "
+                "FROM magazyn_zamowienia WHERE status = 'NOWE'"
+            )
+            row = cursor.fetchone() or {}
+            min_created = row.get('min_created')
+            if not min_created:
+                return
+            cursor.execute(
+                "SELECT id, items, linia, created_by FROM magazyn_dostawy "
+                "WHERE status IN ('SZKIC', 'AWIZOWANE', 'OCZEKUJE', "
+                "'PUTAWAY_IN_PROGRESS', 'IN_PROGRESS', 'OPEN', 'W_STREFIE_PRZYJEC') "
+                "OR (status = 'COMPLETED' AND created_at >= %s) "
+                "ORDER BY created_at ASC, id ASC",
+                (min_created,),
+            )
+            deliveries = cursor.fetchall()
+            conn.commit()
+            for delivery in deliveries:
+                raw_items = delivery.get('items') or []
+                items = json.loads(raw_items) if isinstance(raw_items, str) else raw_items
+                if not isinstance(items, list) or not items:
+                    continue
+                try:
+                    cls.sync_transfer(
+                        cursor,
+                        delivery['id'],
+                        items,
+                        delivery.get('linia') or 'ALL',
+                        delivery.get('created_by') or 'system',
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+        finally:
+            cursor.close()
+            conn.close()
