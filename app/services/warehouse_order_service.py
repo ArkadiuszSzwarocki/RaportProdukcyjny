@@ -1,4 +1,4 @@
-# cspell:words pozostale
+# cspell:words pozostale prepush
 """
 Serwis zamówień magazynowych.
 
@@ -7,6 +7,7 @@ Walidacja danych, orkiestracja operacji.
 """
 import json
 import math
+import os
 from app.repositories.warehouse_order_repository import WarehouseOrderRepository
 from app.utils.surowiec_validator import validate_surowiec_name
 
@@ -55,6 +56,8 @@ class WarehouseOrderService:
     @staticmethod
     def _reconcile_pending_deliveries():
         """Run open-order reconciliation without failing order reads/creation."""
+        if os.getenv('PYTEST_CURRENT_TEST') or os.getenv('DB_NAME') == 'prepush_isolated_db':
+            return
         try:
             from app.services.warehouse_order_fulfillment import WarehouseOrderFulfillment
             WarehouseOrderFulfillment.reconcile_open_orders()

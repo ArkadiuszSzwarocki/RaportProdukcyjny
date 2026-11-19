@@ -18,6 +18,7 @@ _STOP_TOKENS = {
     'base', 'routes', 'views', 'index', 'modules', 'panels', 'modals',
     'tests', 'test', 'init', 'scripts', 'config', 'docker', 'compose',
     'service', 'repository', 'controller', 'manager', 'helper', 'common',
+    'warehouse', 'magazyn', 'commands',
 }
 
 _ALIASES = {

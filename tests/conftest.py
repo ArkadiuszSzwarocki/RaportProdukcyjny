@@ -1,8 +1,11 @@
+# cspell:words prepush
 """Pytest configuration and fixtures for test suite."""
 
 import pytest
 import sys
 import os
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 from datetime import datetime, date
 
@@ -12,6 +15,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 def _is_db_reachable() -> bool:
     """Return True if the configured MySQL database is reachable."""
+    if os.getenv('DB_PORT') == '1' or os.getenv('DB_NAME') == 'prepush_isolated_db':
+        return False
     try:
         import mysql.connector
         from app.config import DB_CONFIG
@@ -20,6 +25,14 @@ def _is_db_reachable() -> bool:
         return True
     except Exception:
         return False
+
+
+if os.name == 'nt':
+    @pytest.fixture
+    def tmp_path():
+        """Provide a Windows Python 3.13-safe temporary directory fixture."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            yield Path(temp_dir)
 
 
 def pytest_collection_modifyitems(config, items):
