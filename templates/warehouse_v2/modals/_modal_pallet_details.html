@@ -126,7 +126,16 @@
                     </select>
                     <label class="modal-print-copies-wrap" for="printCopiesInput">
                         <span class="modal-print-copies-label">Kopie:</span>
-                        <input type="number" id="printCopiesInput" class="modal-print-copies" value="2" min="1" max="100" title="Liczba etykiet" aria-label="Liczba etykiet">
+                        <select id="printCopiesInput" class="modal-print-copies" title="Liczba etykiet" aria-label="Liczba etykiet">
+                            <option value="1">1</option>
+                            <option value="2" selected>2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="8">8</option>
+                            <option value="10">10</option>
+                        </select>
                     </label>
                     <div class="modal-print-btn-group" style="display: flex; gap: 8px;">
                         <button type="button" onclick="if (typeof printCurrentPallet === 'function') { printCurrentPallet(this); } else { AppDialog.alert('Błąd klienta: brak funkcji druku. Odśwież stronę (Ctrl+F5).'); }" class="btn-print-action print">
