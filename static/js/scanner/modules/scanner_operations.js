@@ -130,7 +130,9 @@ function submitLP01Modal() {
         closeLP01Modal();
         if (d.split_info && d.split_info.is_split && d.split_info.new_sscc &&
             !isPackaging && !['LP01', 'MASZYNA'].includes(pendingLP01Loc || 'LP01')) {
-          window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
+          if (typeof window.printSplitPalletLabel === 'function') {
+            window.printSplitPalletLabel(d.split_info.new_sscc, typeof LINIA !== 'undefined' ? LINIA : 'AGRO');
+          }
         }
         resetScanner({ silent: true });
         refreshSidebarBadgesSilently();

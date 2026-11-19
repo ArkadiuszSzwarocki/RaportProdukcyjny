@@ -424,8 +424,10 @@ async function doMoveFromMainInput(loc) {
         );
         if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
           if (!isPkg) {
-            showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram etykietę...`, 'success');
-            window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(typeof LINIA !== 'undefined' ? LINIA : 'AGRO')}&autoprint=1`, '_blank');
+            showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Drukowanie etykiety...`, 'success');
+            if (typeof window.printSplitPalletLabel === 'function') {
+              window.printSplitPalletLabel(d.split_info.new_sscc, typeof LINIA !== 'undefined' ? LINIA : 'AGRO');
+            }
           } else {
             showToast(`✅ Pobrano ${d.split_info.moved_qty || ''} szt. opakowania.`, 'success');
           }

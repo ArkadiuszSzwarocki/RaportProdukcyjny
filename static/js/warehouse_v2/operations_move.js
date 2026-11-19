@@ -159,8 +159,10 @@ function submitMoveLocation() {
             const remainingQty = data.split_info && data.split_info.remaining_qty;
 
             if (isSplit && newSSCC && !isPkg) {
-                showToast(`✅ Odcięto ${movedQty} kg na nową paletę (SSCC: ${newSSCC}). Pozostało: ${remainingQty} kg. Otwieram nową etykietę...`, 'success');
-                window.open(`/agro/scanner/label/${encodeURIComponent(newSSCC)}?linia=${encodeURIComponent(currentPallet.linia || 'PSD')}&autoprint=1`, '_blank');
+                showToast(`✅ Odcięto ${movedQty} kg na nową paletę (SSCC: ${newSSCC}). Pozostało: ${remainingQty} kg. Drukowanie etykiety...`, 'success');
+                if (typeof window.printSplitPalletLabel === 'function') {
+                    window.printSplitPalletLabel(newSSCC, currentPallet.linia || 'PSD');
+                }
             } else if (isSplit) {
                 showToast(`Pomyślnie odcięto ${amountToMove} ${isPkg ? 'szt.' : 'kg'} na nową paletę na lokalizację: ${newLoc}`, 'success');
             } else {

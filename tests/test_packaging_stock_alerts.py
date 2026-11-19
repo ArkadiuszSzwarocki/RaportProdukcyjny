@@ -21,6 +21,7 @@ def test_comma_and_duplicate_addresses():
 class MemoryCursor:
     def __init__(self):
         self.stock = 9
+        self.lastrowid = 1
         self.rule = dict(id=1, material='Etykiety', minimum=10, unit='szt.',
                          recipients='zakupy@firma.pl', notified=0, retry_ready=1, group_id=1)
         self.result = []
@@ -42,6 +43,8 @@ class MemoryCursor:
             self.rule['notified'] = 1
         elif 'last_error=%s' in statement:
             self.rule['retry_ready'] = 0
+        else:
+            self.result = []
 
     def fetchone(self):
         return self.result[0] if self.result else None
@@ -77,10 +80,10 @@ def test_one_alert_until_stock_recovers_then_rearms():
         run_check()
         run_check()
         assert send.call_count == 1
-        connection.query.stock = 10  # Equality is safe and rearms.
+        connection.query.stock = 11  # Above minimum is safe and rearms.
         run_check()
         assert send.call_count == 1
-        connection.query.stock = 0
+        connection.query.stock = 10  # Reaching minimum triggers alert.
         run_check()
         assert send.call_count == 2
     assert any('RELEASE_LOCK' in sql for sql in connection.query.sql)
@@ -187,13 +190,13 @@ def test_manual_summary_does_not_send_when_stock_is_safe():
     from app.services.packaging_stock_alerts import send_summary
     connection = MemoryConnection()
     connection.query = SummaryCursor()
-    connection.query.stock = 10
+    connection.query.stock = 11
     with patch('app.core.instance_mode.is_test_instance',return_value=False), patch(
         'app.services.email_service.EmailService.send_report_email') as send, patch(
         'app.services.email_log_service.EmailLogService.log_email_attempt') as log:
         success,message = send_summary(connection,1)
     assert not success
-    assert 'Brak opakowań' in message
+    assert 'Brak pozycji' in message
     send.assert_not_called()
 
     assert log.call_args.kwargs['status'] == 'SKIPPED'

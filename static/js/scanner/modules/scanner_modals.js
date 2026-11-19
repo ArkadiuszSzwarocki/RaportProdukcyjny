@@ -291,8 +291,10 @@ function submitScannerSplit() {
       const targetPalletCode = currentPallet ? (currentPallet.nr_palety || 'SUR-' + currentPallet.id) : null;
       if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
         if (!isPkg) {
-          showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Otwieram nową etykietę...`, 'success');
-          window.open(`/agro/scanner/label/${encodeURIComponent(d.split_info.new_sscc)}?linia=${encodeURIComponent(LINIA)}&autoprint=1`, '_blank');
+          showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Drukowanie etykiety...`, 'success');
+          if (typeof window.printSplitPalletLabel === 'function') {
+            window.printSplitPalletLabel(d.split_info.new_sscc, typeof LINIA !== 'undefined' ? LINIA : 'AGRO');
+          }
         } else {
           showToast(`✅ Pomyślnie odcięto ${d.split_info.moved_qty} szt. opakowania (${d.split_info.new_sscc}).`, 'success');
         }
