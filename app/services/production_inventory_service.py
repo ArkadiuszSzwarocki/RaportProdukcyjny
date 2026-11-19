@@ -153,32 +153,36 @@ class ProductionInventoryService:
                 weight = float(update['waga_faktyczna'])
                 if not math.isfinite(weight) or weight < 0:
                     raise ValueError('Podaj poprawny stan faktyczny.')
+                cursor.execute(
+                    "SELECT zbiornik, surowiec_nazwa FROM magazyn_inwentaryzacja_produkcji_wpisy "
+                    "WHERE id = %s AND sesja_id = %s",
+                    (update['id'], sesja_id),
+                )
+                station = cursor.fetchone()
+                if not station:
+                    raise ValueError('Stacja nie należy do tej sesji.')
+                expected = station['surowiec_nazwa'] or ''
+                tank_code = str(station.get('zbiornik') or '').upper()
+                is_empty_station = expected in ('', 'PUSTY ZBIORNIK')
+                is_bb_mz = inventory_session['lokalizacja'] == 'BB+MZ' or tank_code.startswith(('BB', 'MZ'))
+                if is_bb_mz and is_empty_station and (inventory_session['lokalizacja'] == 'BB+MZ' or weight != 0):
+                    raise ValueError('Zbiornik jest pusty — nie można wprowadzać danych.')
                 if inventory_session['lokalizacja'] == 'BB+MZ':
-                    cursor.execute(
-                        "SELECT surowiec_nazwa FROM magazyn_inwentaryzacja_produkcji_wpisy "
-                        "WHERE id = %s AND sesja_id = %s",
-                        (update['id'], sesja_id),
-                    )
-                    station = cursor.fetchone()
-                    if not station:
-                        raise ValueError('Stacja nie należy do tej sesji.')
-                    expected = station['surowiec_nazwa'] or ''
                     code = ScannerCodeNormalizer.normalize_scanned_code(update.get('kod_palety') or '')
-                    if not (weight == 0 and not code and expected in ('', 'PUSTY ZBIORNIK')):
-                        if not code:
-                            raise ValueError('Najpierw zeskanuj paletę.')
-                        table = get_table_name('magazyn_surowce', inventory_session['linia'])
-                        prefix, pallet_id = ScannerCodeNormalizer.extract_prefixed_id(code)
-                        if prefix == 'SUR':
-                            cursor.execute(f"SELECT nazwa FROM {table} WHERE id = %s", (pallet_id,))
-                        else:
-                            cursor.execute(f"SELECT nazwa FROM {table} WHERE UPPER(nr_palety) = %s", (code,))
-                        pallet = cursor.fetchone()
-                        if not pallet:
-                            raise ValueError('Nie znaleziono surowca z zeskanowanej palety.')
-                        actual = pallet['nazwa'] or ''
-                        if not expected or ' '.join(expected.casefold().split()) != ' '.join(actual.casefold().split()):
-                            raise ValueError(f'Surowiec niezgodny. Stacja: {expected or "pusta"}. Paleta: {actual}.')
+                    if not code:
+                        raise ValueError('Najpierw zeskanuj paletę.')
+                    table = get_table_name('magazyn_surowce', inventory_session['linia'])
+                    prefix, pallet_id = ScannerCodeNormalizer.extract_prefixed_id(code)
+                    if prefix == 'SUR':
+                        cursor.execute(f"SELECT nazwa FROM {table} WHERE id = %s", (pallet_id,))
+                    else:
+                        cursor.execute(f"SELECT nazwa FROM {table} WHERE UPPER(nr_palety) = %s", (code,))
+                    pallet = cursor.fetchone()
+                    if not pallet:
+                        raise ValueError('Nie znaleziono surowca z zeskanowanej palety.')
+                    actual = pallet['nazwa'] or ''
+                    if not expected or ' '.join(expected.casefold().split()) != ' '.join(actual.casefold().split()):
+                        raise ValueError(f'Surowiec niezgodny. Stacja: {expected or "pusta"}. Paleta: {actual}.')
                 cursor.execute(
                     "UPDATE magazyn_inwentaryzacja_produkcji_wpisy SET waga_faktyczna = %s, user_login = %s, data_wpisu = GREATEST(CURRENT_TIMESTAMP, created_at + INTERVAL 1 SECOND) WHERE id = %s AND sesja_id = %s",
                     (weight, user_login, update['id'], sesja_id)

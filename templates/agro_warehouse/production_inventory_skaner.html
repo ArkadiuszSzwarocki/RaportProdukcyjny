@@ -353,24 +353,42 @@ function openTankDetailModal(entryId, tank, surowiec, sscc, partia, wSystemowa, 
     document.getElementById('td-wSystemowa').textContent = wSystemowa + ' kg';
     
     const wInput = document.getElementById('td-weightInput');
-    wInput.value = wFaktyczna;
+    const saveBtn = document.getElementById('td-saveBtn');
+    const clearBtn = document.getElementById('td-clearBtn');
+    const emptyNotice = document.getElementById('td-emptyNotice');
+    const isEmptyTank = !surowiec || surowiec === 'PUSTY ZBIORNIK';
+    wInput.value = isEmptyTank ? '0' : wFaktyczna;
     verifiedPalletCode = '';
     const palletInput = document.getElementById('td-pallet-code');
-    const requiresPallet = Boolean(palletInput && surowiec && surowiec !== 'PUSTY ZBIORNIK');
+    const requiresPallet = Boolean(palletInput && !isEmptyTank);
     if (palletInput) {
         palletInput.value = '';
         document.getElementById('td-pallet-verification').textContent = '';
         palletInput.closest('.tank-pallet-scan').hidden = !requiresPallet;
-        wInput.disabled = requiresPallet;
+    }
+    wInput.disabled = isEmptyTank || requiresPallet;
+    if (saveBtn) {
+        saveBtn.disabled = isEmptyTank;
+        saveBtn.style.opacity = isEmptyTank ? '0.45' : '1';
+        saveBtn.style.cursor = isEmptyTank ? 'not-allowed' : 'pointer';
+    }
+    if (clearBtn) {
+        clearBtn.disabled = isEmptyTank;
+        clearBtn.style.opacity = isEmptyTank ? '0.45' : '1';
+        clearBtn.style.cursor = isEmptyTank ? 'not-allowed' : 'pointer';
+    }
+    if (emptyNotice) {
+        emptyNotice.style.display = isEmptyTank ? 'block' : 'none';
     }
 
-    
     document.getElementById('tankDetailModal').style.display = 'flex';
-    setTimeout(() => {
-        const nextInput = requiresPallet ? palletInput : wInput;
-        nextInput.focus();
-        nextInput.select();
-    }, 100);
+    if (!isEmptyTank) {
+        setTimeout(() => {
+            const nextInput = requiresPallet ? palletInput : wInput;
+            nextInput.focus();
+            nextInput.select();
+        }, 100);
+    }
 }
 
 // Bind Enter key on tank detail weight input
@@ -432,6 +450,11 @@ let savingTank = false;
 async function saveWeightFromDetail() {
     if (!currentEntryId || savingTank) return;
     const id = currentEntryId;
+    const surowiecText = (document.getElementById('td-surowiec')?.textContent || '').trim();
+    if (!surowiecText || surowiecText === 'PUSTY ZBIORNIK') {
+        alert('Zbiornik jest pusty — nie można wprowadzać danych.');
+        return;
+    }
     if (document.getElementById('td-weightInput').disabled) {
         alert('Najpierw zeskanuj i sprawdź paletę.');
         return;
@@ -613,17 +636,20 @@ function changeMaterial(entryId, materialName, palId, nrPalety, nrPartii, dProd,
                         <option>kg</option>
                     </select>
                 </div>
-                <button type="button" onclick="saveWeightFromDetail()" title="Potwierdź surowiec i ilość" aria-label="Potwierdź surowiec i ilość"
+                <button type="button" id="td-saveBtn" onclick="saveWeightFromDetail()" title="Potwierdź surowiec i ilość" aria-label="Potwierdź surowiec i ilość"
                         style="background:#10b981; color: white; border: none; padding: 12px 16px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                     <span class="material-icons">save</span>
                 </button>
+            </div>
+            <div id="td-emptyNotice" style="display:none; margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-size: 12px; font-weight: 700;">
+                Zbiornik jest pusty — wprowadzanie danych jest zablokowane.
             </div>
         </div>
 
         
         <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <button onclick="openChangeMaterialModalFromDetail()" style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:10px; color:#64748b; font-size:12px; font-weight:700; cursor:pointer;">ZMIEŃ SUROWIEC</button>
-            <button onclick="setEmpty(currentEntryId)" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700; cursor:pointer;">WYCZYŚĆ (PUSTE)</button>
+            <button id="td-clearBtn" onclick="setEmpty(currentEntryId)" style="background:#fef2f2; border:1px solid #fee2e2; padding:10px; border-radius:10px; color:#ef4444; font-size:12px; font-weight:700; cursor:pointer;">WYCZYŚĆ (PUSTE)</button>
         </div>
     </div>
 </div>
