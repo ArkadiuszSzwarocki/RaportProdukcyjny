@@ -1,7 +1,7 @@
 {# cspell:words preheader #}
 <!doctype html>
 <html lang="pl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Niski stan opakowań — {{ material }}</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Niski stan magazynowy — {{ material }}</title></head>
 <body style="margin:0;padding:0;background-color:#f1f5f9;color:#183247;font-family:Arial,Helvetica,sans-serif;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">{% block preheader %}{{ material }}: stan {{ stock }} {{ unit }}, minimum {{ minimum }} {{ unit }}. Do minimum brakuje {{ shortage }} {{ unit }}.{% endblock %}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f1f5f9" style="width:100%;background-color:#f1f5f9;">
@@ -48,7 +48,7 @@
         <tr><td bgcolor="#ffffff" style="padding:0 26px 26px;background-color:#ffffff;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#f0f7ff" style="padding:16px;background-color:#f0f7ff;border-left:3px solid #3b82f6;">
             <strong style="font-size:13px;color:#20374b;">Co obejmuje ten stan?</strong>
-            <p style="margin:7px 0 0;font-size:12px;line-height:1.7;color:#52667a;">Dostępny zapas we wspólnym magazynie opakowań. Bez materiału na LP01 i maszynie, oczekującego na przyjęcie, zużytego, bez lokalizacji oraz zablokowanego.</p>
+            <p style="margin:7px 0 0;font-size:12px;line-height:1.7;color:#52667a;">Dostępny zapas magazynowy (surowce, dodatki, opakowania, taśmy i wyroby gotowe). Bez materiału na LP01 i maszynie, oczekującego na przyjęcie, zużytego, bez lokalizacji oraz zablokowanego.</p>
           </td></tr></table>
           <p style="margin:19px 0 0;font-size:12px;line-height:1.8;color:#64748b;">Sprawdzono: <strong>{{ checked_at }}</strong>{% if group %}<br>Odbiorcy: <strong>{{ group }}</strong>{% endif %}</p>
         </td></tr>

@@ -258,6 +258,7 @@ def inject_role_permissions():
         return page
 
     def role_has_access(page):
+        from app.core.shared_inventory_permissions import WAREHOUSE_PAGES, shared_material_access
         try:
             r = _normalize_role_name(session.get('rola'))
             # 0. MasterAdmin Bypasses EVERYTHING - has access to every single page/API
@@ -288,6 +289,9 @@ def inject_role_permissions():
                         return bool(user_override.get('access', False))
                 except Exception:
                     pass
+
+            if page in WAREHOUSE_PAGES:
+                return shared_material_access()
             
             # Normalize common role name variants/synonyms (support numeric roles from DB)
             if r.isdigit():
@@ -372,6 +376,7 @@ def inject_role_permissions():
             return False
 
     def role_is_readonly(page):
+        from app.core.shared_inventory_permissions import WAREHOUSE_PAGES
         try:
             r = _normalize_role_name(session.get('rola'))
             if r == 'masteradmin':
@@ -393,6 +398,9 @@ def inject_role_permissions():
                         return bool(user_override.get('readonly', False))
                 except Exception:
                     pass
+
+            if page in WAREHOUSE_PAGES:
+                return False
             
             # Normalize common role name variants/synonyms
             if r.isdigit():

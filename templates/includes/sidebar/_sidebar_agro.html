@@ -54,7 +54,7 @@
         </a>
         {% endif %}
 
-        {% if navigation_group_allowed('agro_station_history') %}
+        {% if navigation_group_allowed('agro_station_history') and role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('production.agro_station_history') }}"
             class="nav-sub-item {% if request.endpoint == 'production.agro_station_history' %}active{% endif %}">
             Historia Stacji (BB/MZ/WZ)
@@ -68,7 +68,7 @@
             Surowce w produkcji
         </a>
         {% endif %}
-        {% if navigation_group_allowed('agro_picking') %}
+        {% if navigation_group_allowed('agro_picking') and role not in ['laborant', 'laboratorium'] %}
         <a href="{{ url_for('warehouse_v2.kompletacja', linia='AGRO') }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.kompletacja' %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Dyspozycje Kompletacji</span>

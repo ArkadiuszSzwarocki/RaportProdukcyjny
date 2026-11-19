@@ -12,11 +12,11 @@
 @media(max-width:600px){.stock-dialog-header,.stock-dialog-footer,.stock-dialog-body{padding:14px}.stock-dialog-footer{flex-wrap:wrap}.stock-dialog-header h2{font-size:17px}}
 </style>
 <section class="stock-card">
-  <h2>Stany minimalne opakowań</h2>
-  <p class="stock-note">Wybierz materiały, które chcesz monitorować: taśmy, kalki, etykiety, przekładki, stretch i inne opakowania z ewidencji. Powiadomienie trafi do wybranych odbiorców po spadku <strong>poniżej</strong> minimum.</p>
-  <p class="stock-note">Sprawdzanie co 5 minut przez proces serwerowy. Jeden e-mail na okres niedoboru. Uzupełnienie do minimum ponownie uzbraja alarm. Błąd wysyłki jest ponawiany po 30 minutach. Nadawca: systemowe konto SMTP z zakładki „Konta SMTP i odbiorcy”.</p>
+  <h2>Stany minimalne magazynu</h2>
+  <p class="stock-note">Wybierz dowolne pozycje magazynowe, które chcesz monitorować: <strong>surowce, dodatki, taśmy, opakowania oraz wyroby gotowe</strong>. Powiadomienie e-mail trafi automatycznie do wybranych odbiorców po osiągnięciu lub spadku <strong>do/poniżej</strong> stanu minimalnego.</p>
+  <p class="stock-note">Sprawdzanie co 5 minut w tle. Jeden e-mail na okres niedoboru. Uzupełnienie zapasu powyżej minimum ponownie uzbraja alarm. Błąd wysyłki jest ponawiany po 30 minutach. Nadawca: systemowe konto SMTP z zakładki „Konta SMTP i odbiorcy”.</p>
   {% if local_instance %}<p class="stock-note">Automatyczne powiadomienia działają również na lokalnej kopii i wysyłają prawdziwe e-maile do zapisanych odbiorców.</p>{% endif %}
-  <p class="stock-note">Stan obejmuje wspólny magazyn opakowań bez podziału na hale. Nie obejmuje LP01, maszyny, materiałów zużytych, oczekujących, bez lokalizacji i zablokowanych. Jednostka progu musi odpowiadać jednostce ilości w magazynie — system nie przelicza sztuk na rolki ani kilogramy.</p>
+  <p class="stock-note">Stan obejmuje dostępny zapas magazynowy bez pozycji na LP01/maszynie, zużytych, zarchiwizowanych, oczekujących na przyjęcie, bez lokalizacji oraz zablokowanych.</p>
 </section>
 <section class="stock-card">
   <h2>1. Odbiorcy e-mail</h2>
@@ -38,9 +38,9 @@
   </div>
 </section>
 <section class="stock-card">
-  <h2>2. Wybierz opakowania i ustaw minima</h2>
-  <p class="stock-note">Zaznacz wybrane lub wszystkie materiały, ustaw osobne minimum dla każdego i wskaż odbiorców jednym zapisem.</p>
-  <button type="button" class="btn btn-primary" id="stock-bulk-open">Wybierz materiały i ustaw minima</button>
+  <h2>2. Wybierz pozycje magazynowe i ustaw stany minimalne</h2>
+  <p class="stock-note">Zaznacz surowce, opakowania, dodatki lub wyroby gotowe, ustaw osobne minimum dla każdej pozycji i wskaż odbiorców jednym zapisem.</p>
+  <button type="button" class="btn btn-primary" id="stock-bulk-open">Wybierz pozycje i ustaw minima</button>
 </section>
 <dialog class="stock-dialog" id="stock-bulk-dialog" aria-labelledby="stock-bulk-title">
   <form method="post" action="{{ url_for('admin.packaging_alerts') }}" id="stock-bulk-form">
@@ -48,30 +48,34 @@
     <header class="stock-dialog-header"><h2 id="stock-bulk-title">Zbiorcze ustawianie stanów minimalnych</h2><button type="button" class="stock-dialog-close" data-close-stock aria-label="Zamknij">×</button></header>
     <div class="stock-dialog-body">
       <div class="stock-form">
-        <label>Odbiorcy dla zaznaczonych materiałów<select name="group_id" required><option value="">Wybierz odbiorców</option>{% for group in groups %}<option value="{{ group.id }}" data-to="{{ group.recipients }}" data-cc="{{ group.cc_recipients or '' }}">Do: {{ group.recipients }}{% if group.cc_recipients %} · DW: {{ group.cc_recipients }}{% endif %}</option>{% endfor %}</select></label>
+        <label>Odbiorcy dla zaznaczonych pozycji<select name="group_id" required><option value="">Wybierz odbiorców</option>{% for group in groups %}<option value="{{ group.id }}" data-to="{{ group.recipients }}" data-cc="{{ group.cc_recipients or '' }}">Do: {{ group.recipients }}{% if group.cc_recipients %} · DW: {{ group.cc_recipients }}{% endif %}</option>{% endfor %}</select></label>
         <label class="stock-checkbox"><input type="checkbox" name="enabled" checked>Włącz powiadomienia</label>
       </div>
       <p class="stock-note" id="stock-bulk-recipients">Wybierz odbiorców, aby zobaczyć odbiorców Do i DW.</p>
-      <div class="stock-bulk-toolbar"><label><input type="checkbox" id="stock-select-all">Zaznacz wszystkie materiały</label><span id="stock-bulk-count" aria-live="polite">Zaznaczono: 0</span></div>
-      <div class="stock-scroll"><table class="stock-bulk-table"><thead><tr><th>Wybierz</th><th>Materiał</th><th>Stan</th><th>Minimum</th><th>Jednostka</th></tr></thead><tbody>
-      {% for item in materials %}{% set rule = rules_by_material.get(item.material) %}
-      {% if loop.first or item.category != loop.previtem.category %}<tr class="stock-category"><td colspan="5"><label><input type="checkbox" class="stock-category-check" data-category="{{ item.category }}">{{ item.category }}</label></td></tr>{% endif %}
+      <div class="stock-form" style="margin-top: 12px;">
+        <label>Szukaj pozycji<input type="search" id="stock-bulk-search" placeholder="Wpisz nazwę surowca, opakowania, wyrobu…" autocomplete="off"></label>
+        <label>Kategoria<select id="stock-bulk-category-filter"><option value="ALL">Wszystkie kategorie</option>{% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}</select></label>
+      </div>
+      <div class="stock-bulk-toolbar"><label><input type="checkbox" id="stock-select-all">Zaznacz wszystkie widoczne</label><span id="stock-bulk-count" aria-live="polite">Zaznaczono: 0</span></div>
+      <div class="stock-scroll"><table class="stock-bulk-table"><thead><tr><th>Wybierz</th><th>Pozycja</th><th>Stan</th><th>Minimum</th><th>Jednostka</th></tr></thead><tbody>
+      {% for item in materials %}{% set rule = rules_by_material.get(item.material) %}{% set chosen_unit = rule.unit if rule else (item.default_unit or 'kg') %}
+      {% if loop.first or item.category != loop.previtem.category %}<tr class="stock-category" data-category-header="{{ item.category }}"><td colspan="5"><label><input type="checkbox" class="stock-category-check" data-category="{{ item.category }}">{{ item.category }}</label></td></tr>{% endif %}
       <tr class="stock-bulk-row" data-material="{{ item.material }}" data-category="{{ item.category }}">
         <td><input type="checkbox" class="stock-bulk-check" name="selected" value="{{ loop.index0 }}" aria-label="Wybierz {{ item.material }}"><input type="hidden" name="material_{{ loop.index0 }}" value="{{ item.material }}"></td>
         <td><strong>{{ item.material }}</strong>{% if rule %}<br><small class="stock-note">Odbiorcy: {{ rule.group_name }}</small>{% endif %}</td><td>{{ stock_number(item.stock) }}</td>
         <td><input type="number" name="minimum_{{ loop.index0 }}" min="0" max="99999999999.999" step="0.001" value="{{ stock_number(rule.minimum, true) if rule else '' }}" placeholder="Wpisz minimum" aria-label="Minimum dla {{ item.material }}" required disabled></td>
-        <td><select name="unit_{{ loop.index0 }}" aria-label="Jednostka dla {{ item.material }}" disabled>{% for unit in ['szt.','kg','m','rolki'] %}<option{% if rule and rule.unit == unit %} selected{% endif %}>{{ unit }}</option>{% endfor %}</select></td>
+        <td><select name="unit_{{ loop.index0 }}" aria-label="Jednostka dla {{ item.material }}" disabled>{% for unit in ['kg','szt.','m','rolki'] %}<option{% if chosen_unit == unit %} selected{% endif %}>{{ unit }}</option>{% endfor %}</select></td>
       </tr>
-      {% else %}<tr><td colspan="5">Brak materiałów w ewidencji opakowań.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="5">Brak pozycji w ewidencji magazynowej.</td></tr>{% endfor %}
       </tbody></table></div>
-      <p class="stock-note">Zapis dotyczy wyłącznie zaznaczonych materiałów. Każdemu wpisz minimum w jego jednostce magazynowej. Istniejące reguły zostaną zaktualizowane.</p>
+      <p class="stock-note">Zapis dotyczy wyłącznie zaznaczonych pozycji. Każdej wpisz minimum w jej jednostce magazynowej. Istniejące reguły zostaną zaktualizowane.</p>
     </div>
     <footer class="stock-dialog-footer"><span>Jeden zapis dla wszystkich zaznaczonych pozycji</span><div><button type="button" class="btn btn-secondary" data-close-stock>Anuluj</button><button type="submit" class="btn btn-primary" id="stock-bulk-save" disabled>Zapisz zaznaczone</button></div></footer>
   </form>
 </dialog>
 <section class="stock-card">
   <h2>Wyślij zbiorcze zestawienie niskich stanów</h2>
-  <p class="stock-note">Jedna wiadomość ze wszystkimi aktywnie monitorowanymi opakowaniami poniżej minimum, także wcześniej zgłoszonymi. Wybrane adresy „Do” i „DW” określają, do kogo wysłać zestawienie. Kopia do innych adresów nie wyłącza alarmów automatycznych dla przypisanych odbiorców.</p>
+  <p class="stock-note">Jedna wiadomość ze wszystkimi aktywnie monitorowanymi pozycjami (surowce, opakowania, dodatki, wyroby) na poziomie lub poniżej minimum, także wcześniej zgłoszonymi.</p>
   <form method="post" action="{{ url_for('admin.packaging_alerts') }}" class="stock-form" id="stock-summary-form">
     <input type="hidden" name="action" value="summary">
     <label>Odbiorcy e-mail<select name="group_id" required><option value="">Wybierz odbiorców</option>{% for group in groups %}<option value="{{ group.id }}">Do: {{ group.recipients }}{% if group.cc_recipients %} · DW: {{ group.cc_recipients }}{% endif %}</option>{% endfor %}</select></label>
@@ -79,16 +83,16 @@
   </form>
 </section>
 <section class="stock-card">
-  <h2>Monitorowane opakowania</h2>
-  <div class="stock-scroll"><table class="stock-table"><thead><tr><th>Opakowanie</th><th>Stan / minimum</th><th>Odbiorcy</th><th>Powiadomienie</th><th>Ostatnie sprawdzenie</th><th>Akcja</th></tr></thead><tbody>
+  <h2>Monitorowane pozycje magazynowe</h2>
+  <div class="stock-scroll"><table class="stock-table"><thead><tr><th>Pozycja</th><th>Stan / minimum</th><th>Odbiorcy</th><th>Powiadomienie</th><th>Ostatnie sprawdzenie</th><th>Akcja</th></tr></thead><tbody>
   {% for rule in rules %}
   {% if loop.first or rule.category != loop.previtem.category %}<tr class="stock-category"><td colspan="6">{{ rule.category }}</td></tr>{% endif %}
   <tr>
-    <td>{{ rule.material }}</td><td class="{% if rule.stock < rule.minimum %}stock-low{% endif %}">{{ stock_number(rule.stock) }} / {{ stock_number(rule.minimum) }} {{ rule.unit }}</td><td>Do: {{ rule.group_name }}{% if rule.cc_recipients %}<br>DW: {{ rule.cc_recipients }}{% endif %}</td>
-    <td>{% if not rule.enabled %}Wyłączone{% elif rule.last_error %}<span class="stock-low">{{ rule.last_error }}</span><br>Próba: {{ rule.next_attempt }}{% elif rule.notified %}Wysłano: {{ rule.sent_at }}{% elif rule.stock < rule.minimum %}Niedobór — oczekuje na wysyłkę{% else %}Stan prawidłowy{% endif %}</td>
+    <td>{{ rule.material }}</td><td class="{% if rule.stock <= rule.minimum %}stock-low{% endif %}">{{ stock_number(rule.stock) }} / {{ stock_number(rule.minimum) }} {{ rule.unit }}</td><td>Do: {{ rule.group_name }}{% if rule.cc_recipients %}<br>DW: {{ rule.cc_recipients }}{% endif %}</td>
+    <td>{% if not rule.enabled %}Wyłączone{% elif rule.last_error %}<span class="stock-low">{{ rule.last_error }}</span><br>Próba: {{ rule.next_attempt }}{% elif rule.notified %}Wysłano: {{ rule.sent_at }}{% elif rule.stock <= rule.minimum %}Niedobór — oczekuje na wysyłkę{% else %}Stan prawidłowy{% endif %}</td>
     <td>{{ rule.checked_at or 'Jeszcze nie sprawdzano' }}</td>
-    <td><button type="button" class="btn btn-secondary stock-edit" data-material="{{ rule.material }}" data-minimum="{{ stock_number(rule.minimum, true) }}" data-unit="{{ rule.unit }}" data-group="{{ rule.group_id }}" data-enabled="{{ rule.enabled }}">Edytuj</button><form method="post" action="{{ url_for('admin.packaging_alerts') }}"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ rule.id }}"><button class="btn btn-secondary">{{ 'Wyłącz' if rule.enabled else 'Włącz' }}</button></form></td>
-  </tr>{% else %}<tr><td colspan="6">Brak reguł. Dodaj odbiorców odbiorców i pierwsze opakowanie.</td></tr>{% endfor %}
+    <td style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary stock-edit" data-material="{{ rule.material }}" data-minimum="{{ stock_number(rule.minimum, true) }}" data-unit="{{ rule.unit }}" data-group="{{ rule.group_id }}" data-enabled="{{ rule.enabled }}">Edytuj</button><form method="post" action="{{ url_for('admin.packaging_alerts') }}"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ rule.id }}"><button class="btn btn-secondary">{{ 'Wyłącz' if rule.enabled else 'Włącz' }}</button></form><form method="post" action="{{ url_for('admin.packaging_alerts') }}" onsubmit="return confirm('Usunąć regułę stanu minimalnego dla {{ rule.material }}?');"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="{{ rule.id }}"><button class="btn btn-secondary" style="color:#b91c1c;">Usuń</button></form></td>
+  </tr>{% else %}<tr><td colspan="6">Brak reguł. Dodaj odbiorców e-mail i wybierz pierwsze pozycje magazynowe.</td></tr>{% endfor %}
   </tbody></table></div>
 </section>
 <script>
@@ -132,8 +136,31 @@ document.getElementById('stock-bulk-open').addEventListener('click', () => {
   stockDialog.showModal();
 });
 stockDialog.querySelectorAll('[data-close-stock]').forEach(button => button.addEventListener('click', () => stockDialog.close()));
+const bulkSearch = document.getElementById('stock-bulk-search');
+const bulkCategoryFilter = document.getElementById('stock-bulk-category-filter');
+function applyBulkFilter() {
+  const query = String(bulkSearch ? bulkSearch.value : '').trim().toLowerCase();
+  const cat = bulkCategoryFilter ? bulkCategoryFilter.value : 'ALL';
+  const visiblePerCategory = {};
+  bulkForm.querySelectorAll('.stock-bulk-row').forEach(row => {
+    const matchesCat = cat === 'ALL' || row.dataset.category === cat;
+    const matchesQuery = !query || String(row.dataset.material || '').toLowerCase().includes(query);
+    const visible = matchesCat && matchesQuery;
+    row.style.display = visible ? '' : 'none';
+    if (visible) visiblePerCategory[row.dataset.category] = (visiblePerCategory[row.dataset.category] || 0) + 1;
+  });
+  bulkForm.querySelectorAll('tr[data-category-header]').forEach(header => {
+    header.style.display = visiblePerCategory[header.dataset.categoryHeader] ? '' : 'none';
+  });
+}
+if (bulkSearch) bulkSearch.addEventListener('input', applyBulkFilter);
+if (bulkCategoryFilter) bulkCategoryFilter.addEventListener('change', applyBulkFilter);
+
 selectAll.addEventListener('change', () => {
-  stockChecks.forEach(check => { check.checked = selectAll.checked; });
+  stockChecks.forEach(check => {
+    const row = check.closest('tr');
+    if (row && row.style.display !== 'none') check.checked = selectAll.checked;
+  });
   syncStockSelection();
 });
 stockChecks.forEach(check => check.addEventListener('change', syncStockSelection));

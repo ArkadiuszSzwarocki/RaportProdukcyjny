@@ -62,6 +62,12 @@ def register_admin_system_routes(admin_bp, *, list_online_users):
     def admin_ustawienia():
         return render_template('ustawienia_index.html')
 
+    @admin_bp.route('/admin/api/github-image-check', methods=['GET'])
+    @dynamic_role_required('ustawienia')
+    def admin_github_image_check():
+        from app.services.github_release_check_service import check_github_image_status
+        return jsonify(check_github_image_status())
+
     @admin_bp.route('/admin/ustawienia/qr-generator')
     @dynamic_role_required('ustawienia')
     def admin_qr_generator():

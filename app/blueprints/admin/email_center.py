@@ -5,7 +5,7 @@ from app.decorators import login_required, roles_required
 EMAIL_TABS = {
     'mapa': ('Konta i wysyłki', 'admin.mail_routing'),
     'dzienne': ('Raporty dzienne', 'admin.daily_mail_reports'),
-    'stany': ('Stany minimalne opakowań', 'admin.packaging_alerts'),
+    'stany': ('Stany minimalne', 'admin.packaging_alerts'),
     'konta': ('Konta SMTP i odbiorcy', 'admin.admin_ustawienia_email'),
     'magazyn': ('Magazyn i OSIP', 'admin.admin_ustawienia_email_magazyn'),
     'historia': ('Historia wysyłek', 'admin.admin_email_history_page'),

@@ -2,7 +2,9 @@
 from flask import flash, redirect, render_template, request, url_for
 from app.decorators import login_required, roles_required
 from app.db import get_db_connection
-from app.services.packaging_stock_alerts import catalog, ensure_schema, parse_minimum, parse_recipients, send_summary
+from app.services.packaging_stock_alerts import (
+    CATEGORY_ORDER, catalog, ensure_schema, parse_minimum, parse_recipients, send_summary,
+)
 
 
 def prepare_bulk_rules(form, materials):
@@ -41,9 +43,6 @@ def register_packaging_alert_routes(bp):
             ensure_schema(connection)
             cursor = connection.cursor(dictionary=True)
             materials = catalog(cursor)
-            for item in materials:
-                item['category'] = 'Taśmy' if item.get('is_tape') else 'Pozostałe materiały'
-            materials.sort(key=lambda item: (item['category'] != 'Taśmy', item['material'].casefold()))
             if request.method == 'POST':
                 try:
                     action = request.form.get('action')
@@ -66,7 +65,7 @@ def register_packaging_alert_routes(bp):
                         group_id = int(request.form.get('group_id', '0'))
                         cursor.execute('SELECT id FROM packaging_alert_groups WHERE id=%s', (group_id,))
                         if not cursor.fetchone():
-                            raise ValueError('Wybierz adresy odbiorców dla zaznaczonych materiałów.')
+                            raise ValueError('Wybierz adresy odbiorców dla zaznaczonych pozycji.')
                         connection.commit()
                         connection.start_transaction()
                         for material, minimum, unit in rows:
@@ -77,7 +76,7 @@ def register_packaging_alert_routes(bp):
                     elif action == 'rule':
                         material = request.form.get('material', '')
                         if material not in {row['material'] for row in materials}:
-                            raise ValueError('Wybierz opakowanie z magazynu.')
+                            raise ValueError('Wybierz pozycję z ewidencji magazynowej.')
                         minimum = parse_minimum(request.form.get('minimum', ''))
                         unit = request.form.get('unit', '')
                         if unit not in ('szt.', 'kg', 'm', 'rolki'):
@@ -93,6 +92,9 @@ def register_packaging_alert_routes(bp):
                     elif action == 'toggle':
                         cursor.execute('UPDATE packaging_alert_rules SET enabled=1-enabled WHERE id=%s',
                                        (int(request.form.get('id', '0')),))
+                    elif action == 'delete':
+                        cursor.execute('DELETE FROM packaging_alert_rules WHERE id=%s',
+                                       (int(request.form.get('id', '0')),))
                     else:
                         raise ValueError('Nieznana operacja.')
                     connection.commit()
@@ -107,11 +109,20 @@ def register_packaging_alert_routes(bp):
                 JOIN packaging_alert_groups g ON g.id=r.group_id ORDER BY r.material''')
             rules = cursor.fetchall()
             stocks = {row['material']: row['stock'] for row in materials}
+            categories_by_mat = {row['material']: row['category'] for row in materials}
+            order_map = {cat: idx for idx, cat in enumerate(CATEGORY_ORDER)}
             for rule in rules:
                 rule['stock'] = stocks.get(rule['material'], 0)
-                rule['category'] = next((item['category'] for item in materials if item['material'] == rule['material']), 'Pozostałe materiały')
-            rules.sort(key=lambda rule: (rule['category'] != 'Taśmy', rule['material'].casefold()))
-            return render_template('admin/packaging_alerts.html', groups=groups, rules=rules, materials=materials, rules_by_material={rule['material']: rule for rule in rules})
+                rule['category'] = categories_by_mat.get(rule['material'], 'Pozostałe')
+            rules.sort(key=lambda rule: (order_map.get(rule['category'], 99), rule['material'].casefold()))
+            return render_template(
+                'admin/packaging_alerts.html',
+                groups=groups,
+                rules=rules,
+                materials=materials,
+                categories=list(CATEGORY_ORDER),
+                rules_by_material={rule['material']: rule for rule in rules},
+            )
         finally:
             if cursor is not None:
                 cursor.close()

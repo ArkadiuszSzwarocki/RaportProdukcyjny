@@ -224,6 +224,13 @@ def _maybe_start_background_daemons(app, is_reloader_parent):
         except Exception:
             app.logger.exception('Failed to start iPomiar collector daemon')
 
+    if _env_bool('ENABLE_STOCK_ALERTS', True):
+        from app.core.packaging_alert_daemon import start_packaging_alerts
+        try:
+            start_packaging_alerts(app)
+        except Exception:
+            app.logger.exception('Failed to start stock minimum alerts daemon')
+
     default_enabled = not _is_production()
     if _env_bool('ENABLE_MQTT_BRIDGE', _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)):
         from app.services.mqtt_service import start_mqtt_bridge

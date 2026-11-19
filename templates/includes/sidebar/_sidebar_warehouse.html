@@ -66,8 +66,12 @@
         {% if role_has_access('magazyn.agro_total') %}
         <a href="{{ url_for('agro_warehouse.index') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.index' %}active{% endif %}">Suma surowców</a>
         {% endif %}
+        {% if role in ['admin', 'masteradmin', 'zarzad', 'lider'] or navigation_group_allowed('entry_email') %}
+        <a href="{{ url_for('admin.email_center', tab='stany') }}" class="nav-sub-item {% if request.endpoint == 'admin.packaging_alerts' or (request.endpoint == 'admin.email_center' and request.args.get('tab') == 'stany') %}active{% endif %}">Stany minimalne</a>
+        {% endif %}
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
+        {% if role not in ['laborant', 'laboratorium'] %}
         {% set podzial_palety_endpoint = 'magazyn_dostawy.podzial_palety_view' if app.view_functions.get('magazyn_dostawy.podzial_palety_view') else ('magazyn_dostawy.lista_dostaw' if app.view_functions.get('magazyn_dostawy.lista_dostaw') else 'magazyn_dostawy.podglad_etykiety') %}
         {% if navigation_group_allowed('entry_split') %}
         <a href="{{ url_for(podzial_palety_endpoint, linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' %}active{% elif request.endpoint == podzial_palety_endpoint and podzial_palety_endpoint != 'magazyn_dostawy.podzial_palety_view' %}active{% endif %}">Podział Palety</a>
@@ -113,11 +117,12 @@
         </a>
         {% endif %}
         {% endif %}
+        {% endif %}
     </div>
 </div>
 {% endif %}
 
-{% if navigation_group_allowed('osip') %}
+{% if navigation_group_allowed('osip') and role not in ['laborant', 'laboratorium'] %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0, 'OSIP': 0} %}
     {% set pending_osip = pending_map.get('OSIP', 0)|int %}

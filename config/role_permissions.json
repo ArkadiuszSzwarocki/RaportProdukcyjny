@@ -2237,7 +2237,7 @@
   },
   "group.psd": {
     "planista": {
-      "access": false,
+      "access": true,
       "readonly": false
     }
   },
@@ -2306,7 +2306,6 @@
     }
   },
   "group.planning": {
-    "pracownik": { "access": false, "readonly": false },
     "magazynier": { "access": false, "readonly": false },
     "laborant": { "access": false, "readonly": false },
     "dur": { "access": false, "readonly": false },
@@ -2315,7 +2314,6 @@
   },
   "group.admin": {
     "pracownik": { "access": false, "readonly": false },
-    "magazynier": { "access": false, "readonly": false },
     "laborant": { "access": false, "readonly": false },
     "dur": { "access": false, "readonly": false },
     "widz": { "access": false, "readonly": false },

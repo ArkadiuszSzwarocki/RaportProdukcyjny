@@ -61,20 +61,125 @@ def parse_minimum(value):
         raise ValueError('Stan minimalny musi być nieujemną liczbą, do 3 miejsc po przecinku.') from None
 
 
+_AVAILABLE_STOCK_PREDICATE = """
+    stan_magazynowy > 0 AND COALESCE(is_blocked,0)=0
+    AND TRIM(COALESCE(lokalizacja,'')) <> ''
+    AND UPPER(TRIM(lokalizacja)) NOT IN ('LP01','MASZYNA','ZUŻYTE','ZUZYTE','ARCHIWUM')
+    AND UPPER(TRIM(lokalizacja)) NOT LIKE 'OCZEK%'
+"""
+
+CATEGORY_ORDER = ('Surowce', 'Dodatki', 'Taśmy', 'Opakowania', 'Wyroby gotowe')
+
+
 def catalog(cursor):
-    # Shared inventory: never restrict packaging to a production hall.
-    cursor.execute("""SELECT nazwa AS material,
-        MAX(CASE WHEN UPPER(COALESCE(typ_opakowania,'')) LIKE 'TAŚM%'
-          OR UPPER(COALESCE(typ_opakowania,'')) LIKE 'TASM%'
-          OR UPPER(nazwa) LIKE '%TAŚM%' OR UPPER(nazwa) LIKE '%TASM%'
-          THEN 1 ELSE 0 END) AS is_tape,
-        COALESCE(SUM(CASE WHEN stan_magazynowy > 0 AND COALESCE(is_blocked,0)=0
-          AND TRIM(COALESCE(lokalizacja,'')) <> ''
-          AND UPPER(TRIM(lokalizacja)) NOT IN ('LP01','MASZYNA','ZUŻYTE','ZUZYTE','ARCHIWUM')
-          AND UPPER(TRIM(lokalizacja)) NOT LIKE 'OCZEK%'
-          THEN stan_magazynowy ELSE 0 END),0) AS stock
-        FROM magazyn_opakowania GROUP BY nazwa ORDER BY nazwa""")
-    return cursor.fetchall()
+    """Return unified available stock across raw materials, additives, packaging, tapes and finished goods."""
+    items_by_material = {}
+
+    def _merge(material_name, stock_val, category, default_unit, is_tape=0):
+        name = str(material_name or '').strip()
+        if not name:
+            return
+        stock_dec = Decimal(str(stock_val or 0))
+        existing = items_by_material.get(name)
+        if existing:
+            existing['stock'] = existing['stock'] + stock_dec
+            if is_tape:
+                existing['is_tape'] = 1
+        else:
+            items_by_material[name] = {
+                'material': name,
+                'stock': stock_dec,
+                'category': category,
+                'default_unit': default_unit,
+                'is_tape': int(bool(is_tape)),
+            }
+
+    # 1. Surowce (active stock + dictionary items so 0-stock raw materials can also be monitored)
+    try:
+        cursor.execute(f"""
+            SELECT nazwa AS material,
+                   COALESCE(SUM(CASE WHEN {_AVAILABLE_STOCK_PREDICATE} THEN stan_magazynowy ELSE 0 END), 0) AS stock
+            FROM magazyn_surowce
+            WHERE nazwa IS NOT NULL AND TRIM(nazwa) <> ''
+            GROUP BY nazwa
+        """)
+        for row in cursor.fetchall() or []:
+            _merge(row['material'], row['stock'], 'Surowce', 'kg')
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) <> ''")
+        for row in cursor.fetchall() or []:
+            name = str(row['nazwa']).strip()
+            if name and name not in items_by_material:
+                _merge(name, Decimal(0), 'Surowce', 'kg')
+    except Exception:
+        pass
+
+    # 2. Dodatki
+    try:
+        cursor.execute(f"""
+            SELECT nazwa AS material,
+                   COALESCE(SUM(CASE WHEN {_AVAILABLE_STOCK_PREDICATE} THEN stan_magazynowy ELSE 0 END), 0) AS stock
+            FROM magazyn_dodatki
+            WHERE nazwa IS NOT NULL AND TRIM(nazwa) <> ''
+            GROUP BY nazwa
+        """)
+        for row in cursor.fetchall() or []:
+            _merge(row['material'], row['stock'], 'Dodatki', 'kg')
+    except Exception:
+        pass
+
+    # 3. Opakowania i taśmy (shared inventory across halls)
+    try:
+        cursor.execute(f"""
+            SELECT nazwa AS material,
+                   MAX(CASE WHEN UPPER(COALESCE(typ_opakowania,'')) LIKE 'TAŚM%'
+                     OR UPPER(COALESCE(typ_opakowania,'')) LIKE 'TASM%'
+                     OR UPPER(nazwa) LIKE '%TAŚM%' OR UPPER(nazwa) LIKE '%TASM%'
+                     THEN 1 ELSE 0 END) AS is_tape,
+                   COALESCE(SUM(CASE WHEN {_AVAILABLE_STOCK_PREDICATE} THEN stan_magazynowy ELSE 0 END), 0) AS stock
+            FROM magazyn_opakowania
+            WHERE nazwa IS NOT NULL AND TRIM(nazwa) <> ''
+            GROUP BY nazwa
+        """)
+        for row in cursor.fetchall() or []:
+            is_tape = bool(row.get('is_tape'))
+            _merge(
+                row['material'],
+                row['stock'],
+                'Taśmy' if is_tape else 'Opakowania',
+                'rolki' if is_tape else 'szt.',
+                is_tape=1 if is_tape else 0,
+            )
+    except Exception:
+        pass
+
+    # 4. Wyroby gotowe (PSD + AGRO)
+    for finished_table in ('magazyn_palety', 'magazyn_palety_agro'):
+        try:
+            cursor.execute(f"""
+                SELECT produkt AS material,
+                       COALESCE(SUM(CASE WHEN waga_netto > 0 AND COALESCE(is_blocked,0)=0
+                         AND TRIM(COALESCE(lokalizacja,'')) <> ''
+                         AND UPPER(TRIM(lokalizacja)) NOT IN ('ZUŻYTE','ZUZYTE','ARCHIWUM')
+                         AND UPPER(TRIM(lokalizacja)) NOT LIKE 'OCZEK%'
+                         THEN waga_netto ELSE 0 END), 0) AS stock
+                FROM {finished_table}
+                WHERE produkt IS NOT NULL AND TRIM(produkt) <> ''
+                GROUP BY produkt
+            """)
+            for row in cursor.fetchall() or []:
+                _merge(row['material'], row['stock'], 'Wyroby gotowe', 'kg')
+        except Exception:
+            pass
+
+    order_map = {cat: idx for idx, cat in enumerate(CATEGORY_ORDER)}
+    return sorted(
+        items_by_material.values(),
+        key=lambda item: (order_map.get(item['category'], 99), item['material'].casefold()),
+    )
 
 
 def build_alert_email(rule, stock, minimum):
@@ -120,7 +225,7 @@ def run_check():
         for rule in cursor.fetchall():
             stock = stocks.get(rule['material'], Decimal(0))
             minimum = Decimal(str(rule['minimum']))
-            if stock >= minimum:
+            if stock > minimum:
                 cursor.execute("""UPDATE packaging_alert_rules SET notified=0, next_attempt=NULL,
                     last_error=NULL, checked_at=NOW() WHERE id=%s""", (rule['id'],))
             elif not rule['notified'] and rule['retry_ready']:
@@ -128,9 +233,9 @@ def run_check():
                 body = build_alert_email(rule, stock, minimum)
                 success, message = EmailService().send_report_email(
                     parse_recipients(rule['recipients']),
-                    'Niski stan opakowań: ' + rule['material'], body,
+                    'Niski stan magazynowy: ' + rule['material'], body,
                     cc_emails=parse_recipients(rule.get('cc_recipients') or '', optional=True),
-                    log_connection=connection, log_source='Niskie stany — automat')
+                    log_connection=connection, log_source='Stany minimalne — automat')
                 if success:
                     cursor.execute("""UPDATE packaging_alert_rules SET notified=1, sent_at=NOW(),
                         checked_at=NOW(), last_error=NULL, next_attempt=NULL WHERE id=%s""", (rule['id'],))
@@ -174,17 +279,17 @@ def send_summary(connection, group_id):
         for rule in cursor.fetchall():
             stock = stocks.get(rule['material'], Decimal(0))
             minimum = Decimal(str(rule['minimum']))
-            if stock < minimum:
-                rows.append(dict(rule, stock=stock, shortage=minimum-stock))
+            if stock <= minimum:
+                rows.append(dict(rule, stock=stock, shortage=max(Decimal(0), minimum - stock)))
         if not rows:
             from app.services.email_log_service import EmailLogService
-            message = 'Brak opakowań poniżej minimum we wszystkich aktywnych regułach. Nie wysłano e-maila.'
+            message = 'Brak pozycji na poziomie lub poniżej stanu minimalnego. Nie wysłano e-maila.'
             cursor.execute('SELECT smtp_username FROM uzytkownik_email_settings WHERE user_id=0')
             sender = cursor.fetchone() or {}
             EmailLogService.log_email_attempt(
                 sender=sender.get('smtp_username') or 'Konto systemowe',
                 recipients=parse_recipients(group['recipients']) + parse_recipients(group.get('cc_recipients') or '', optional=True),
-                subject='Zestawienie niskich stanów opakowań', source='Niskie stany — ręcznie',
+                subject='Zestawienie niskich stanów magazynowych', source='Stany minimalne — ręcznie',
                 success=False, status='SKIPPED', error_message=message, connection=connection)
             return False, message
         environment = Environment(
@@ -193,14 +298,14 @@ def send_summary(connection, group_id):
         )
         environment.filters['stock_quantity'] = lambda value: format(Decimal(str(value)), ',.3f').rstrip('0').rstrip('.').replace(',', ' ').replace('.', ',')
         body = environment.get_template('emails/packaging_stock_summary.html').render(
-            rows=rows, group='Do: ' + group['recipients'] + (' · DW: ' + group['cc_recipients'] if group.get('cc_recipients') else ''), material='Zestawienie niskich stanów',
+            rows=rows, group='Do: ' + group['recipients'] + (' · DW: ' + group['cc_recipients'] if group.get('cc_recipients') else ''), material='Zestawienie niskich stanów magazynowych',
             checked_at=datetime.now(ZoneInfo('Europe/Warsaw')).strftime('%d.%m.%Y · %H:%M'),
         )
         success, message = EmailService().send_report_email(
             parse_recipients(group['recipients']),
-            'Zestawienie niskich stanów opakowań', body,
+            'Zestawienie niskich stanów magazynowych', body,
             cc_emails=parse_recipients(group.get('cc_recipients') or '', optional=True),
-            log_connection=connection, log_source='Niskie stany — ręcznie',
+            log_connection=connection, log_source='Stany minimalne — ręcznie',
         )
         if success:
             for row in rows:
@@ -210,7 +315,7 @@ def send_summary(connection, group_id):
                 cursor.execute('''UPDATE packaging_alert_rules SET notified=1, sent_at=NOW(),
                     checked_at=NOW(), last_error=NULL, next_attempt=NULL WHERE id=%s''', (row['id'],))
             connection.commit()
-            return True, f'Wysłano e-mail zbiorczy: {len(rows)} opakowań. Do: {group["recipients"]}.'
+            return True, f'Wysłano e-mail zbiorczy: {len(rows)} pozycji. Do: {group["recipients"]}.'
         return False, message
     finally:
         try:
