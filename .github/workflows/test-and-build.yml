@@ -33,7 +33,7 @@ jobs:
         # Keep all other E/F diagnostics enabled.
         run: >-
           pylint --disable=all --enable=E,F
-          --ignored-modules=app.db,playwright.sync_api,win32print,win32api,win32ui,fitz,PIL.Image,PIL.ImageWin
+          --ignored-modules=app.db,playwright.sync_api,win32print,win32api,win32ui,msvcrt,fitz,PIL.Image,PIL.ImageWin
           app/ printer_server/
 
       - name: Type check with mypy

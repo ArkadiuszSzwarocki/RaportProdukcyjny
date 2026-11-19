@@ -1,0 +1,30 @@
+#!/bin/sh
+# Pre-push CI guard: run spellcheck and pylint locally before pushing to GitHub.
+set -e
+
+if [ "${SKIP_CI_GUARD:-0}" = "1" ]; then
+    exit 0
+fi
+
+if command -v node >/dev/null 2>&1 && [ -d "node_modules/cspell" ]; then
+    echo "[pre-push] Checking spelling (cSpell)..."
+    node scripts/check_spelling.mjs
+fi
+
+PYTHON_BIN=""
+if [ -x ".venv/Scripts/python.exe" ]; then
+    PYTHON_BIN=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+    PYTHON_BIN=".venv/bin/python"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+fi
+
+if [ -n "$PYTHON_BIN" ] && "$PYTHON_BIN" -m pylint --version >/dev/null 2>&1; then
+    echo "[pre-push] Checking Python syntax & imports (pylint E,F)..."
+    "$PYTHON_BIN" -m pylint --disable=all --enable=E,F \
+        --ignored-modules=app.db,playwright.sync_api,win32print,win32api,win32ui,msvcrt,fitz,PIL.Image,PIL.ImageWin \
+        app/ printer_server/
+fi
