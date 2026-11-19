@@ -85,7 +85,8 @@ class BucketMaluchService:
         kod_wiadra: str,
         plan_id: int,
         linia: str = 'PSD',
-        operator_login: Optional[str] = None
+        operator_login: Optional[str] = None,
+        oczekiwana_ilosc_surowcow: Optional[int] = None
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """Starts a new bucket or re-opens an existing active bucket for a plan."""
         filling = None
@@ -134,7 +135,13 @@ class BucketMaluchService:
                 if not existing.get('nr_sscc'):
                     BucketMaluchRepository.update_bucket_sscc(existing['id'], nr_sscc, data_produkcji, data_przydatnosci)
                     existing = BucketMaluchRepository.find_by_id(existing['id'])
+                if not existing.get('oczekiwana_ilosc_surowcow') and oczekiwana_ilosc_surowcow:
+                    BucketMaluchRepository.update_expected_count(existing['id'], int(oczekiwana_ilosc_surowcow))
+                    existing = BucketMaluchRepository.find_by_id(existing['id'])
                 return True, f"Kontynuacja naważania wiadra {norm_code}", existing
+
+            if not oczekiwana_ilosc_surowcow or int(oczekiwana_ilosc_surowcow) < 1:
+                return False, "Podaj ile surowców ma się znajdować w wiadrze (minimum 1).", None
 
             # Create new bucket record
             bucket_id = BucketMaluchRepository.create_bucket(
@@ -144,12 +151,89 @@ class BucketMaluchService:
                 operator_login=operator_login,
                 nr_sscc=nr_sscc,
                 data_produkcji=data_produkcji,
-                data_przydatnosci=data_przydatnosci
+                data_przydatnosci=data_przydatnosci,
+                oczekiwana_ilosc_surowcow=int(oczekiwana_ilosc_surowcow)
             )
             created = BucketMaluchRepository.find_by_id(bucket_id)
             return True, f"Rozpoczęto naważanie wiadra {norm_code}", created
         finally:
             conn.close()
+
+    @classmethod
+    def copy_bucket(
+        cls,
+        source_bucket_id: int,
+        target_kod_wiadra: str,
+        target_plan_id: Optional[int] = None,
+        operator_login: Optional[str] = None,
+    ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        """Copy an existing bucket's items and weight to a newly numbered bucket for MasterAdmin."""
+        norm_code = cls.normalize_bucket_code(target_kod_wiadra)
+        if not norm_code:
+            return False, "Nieprawidłowy kod wiadra (np. W04, 04)", None
+
+        source = BucketMaluchRepository.find_by_id(source_bucket_id)
+        if not source:
+            return False, "Źródłowe wiadro nie istnieje", None
+
+        plan_id = int(target_plan_id or source['plan_id'])
+        linia = str(source.get('linia') or 'PSD').strip().upper() or 'PSD'
+
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor(dictionary=True)
+            table_plan = get_table_name('plan_produkcji', linia)
+            cur.execute(f"SELECT id, status FROM {table_plan} WHERE id = %s", (plan_id,))
+            plan = cur.fetchone()
+            if not plan:
+                alt_linia = 'AGRO' if linia == 'PSD' else 'PSD'
+                alt_table = get_table_name('plan_produkcji', alt_linia)
+                cur.execute(f"SELECT id, status FROM {alt_table} WHERE id = %s", (plan_id,))
+                alt_plan = cur.fetchone()
+                if alt_plan:
+                    plan = alt_plan
+                    linia = alt_linia
+            if not plan:
+                return False, f"Zlecenie #{plan_id} nie istnieje", None
+            if str(plan['status']).strip().lower() not in ('w toku', 'zaplanowane'):
+                return False, f"Zlecenie #{plan_id} nie jest aktywne (status: {plan['status']})", None
+        finally:
+            conn.close()
+
+        existing = BucketMaluchRepository.find_active_or_completed_by_code(norm_code, linia)
+        if existing:
+            return False, f"Wiadro {norm_code} jest już aktywne (zlecenie #{existing['plan_id']}). Podaj inny numer wiadra.", None
+
+        items = source.get('pozycje') or []
+        expected_copy = source.get('oczekiwana_ilosc_surowcow') or (len(items) if items else None)
+        now = datetime.now()
+        nr_sscc = cls.generate_bucket_sscc(norm_code, plan_id, now)
+        new_bucket_id = BucketMaluchRepository.create_bucket(
+            kod_wiadra=norm_code,
+            plan_id=plan_id,
+            linia=linia,
+            operator_login=operator_login,
+            nr_sscc=nr_sscc,
+            data_produkcji=now,
+            data_przydatnosci=now + timedelta(hours=24),
+            oczekiwana_ilosc_surowcow=expected_copy,
+        )
+
+        for item in items:
+            BucketMaluchRepository.add_item(
+                new_bucket_id,
+                item['stacja_kod'],
+                item['surowiec_nazwa'],
+                float(item.get('waga') or 0.0),
+                operator_login=operator_login,
+            )
+
+        total_weight = float(source.get('waga_calkowita') or 0.0)
+        if items and total_weight > 0 and source.get('status') in ('skompletowane', 'wrzucone_do_mieszalnika'):
+            cls.complete_bucket(new_bucket_id, operator_login=operator_login, waga_calkowita=total_weight)
+
+        created = BucketMaluchRepository.find_by_id(new_bucket_id)
+        return True, f"Skopiowano wiadro {source.get('kod_wiadra', '')} do wiadra {norm_code}", created
 
     @classmethod
     def get_assigned_station_materials(cls, linia: str = 'PSD') -> Dict[str, str]:
@@ -206,6 +290,15 @@ class BucketMaluchService:
         if bucket['status'] == 'wrzucone_do_mieszalnika':
             return False, "Wiadro zostało już wsypane do mieszalnika!", None
 
+        expected_count = bucket.get('oczekiwana_ilosc_surowcow')
+        current_items = bucket.get('pozycje') or []
+        if expected_count is not None and len(current_items) >= int(expected_count):
+            return (
+                False,
+                f"Za dużo surowców w wiadrze! Zadeklarowano: {int(expected_count)}, nie można dodać kolejnego.",
+                bucket,
+            )
+
         norm_station = cls.normalize_station_code(stacja_kod)
         if not norm_station or not cls.VALID_STATION_REGEX.match(norm_station):
             return False, f"Nieprawidłowy kod stacji/zbiornika: {stacja_kod}. Dozwolone: KO01-KO40, BB01-BB06, BB11-BB22, MZ07-MZ10, MZ23-MZ24", None
@@ -232,6 +325,14 @@ class BucketMaluchService:
             operator_login=operator_login,
         )
         updated_bucket = BucketMaluchRepository.find_by_id(bucket_id)
+        if expected_count is not None:
+            actual_count = len((updated_bucket or {}).get('pozycje') or [])
+            if actual_count == int(expected_count):
+                return (
+                    True,
+                    f"Brawo! W cel ({actual_count}/{int(expected_count)}) — dodano ostatni składnik: {norm_station} ({surowiec_nazwa})",
+                    updated_bucket,
+                )
         return True, f"Dodano: {norm_station} ({surowiec_nazwa})", updated_bucket
 
     @classmethod
@@ -255,6 +356,15 @@ class BucketMaluchService:
             return False, "Wiadro nie istnieje", None
         if not bucket.get('pozycje'):
             return False, "Nie można skompletować pustego wiadra! Dodaj przynajmniej jeden składnik ze stacji KO.", None
+
+        expected_count = bucket.get('oczekiwana_ilosc_surowcow')
+        actual_count = len(bucket.get('pozycje') or [])
+        if expected_count is not None:
+            expected_int = int(expected_count)
+            if actual_count < expected_int:
+                return False, f"Za mało surowców w wiadrze! Dodano {actual_count} z {expected_int}.", None
+            if actual_count > expected_int:
+                return False, f"Za dużo surowców w wiadrze! Dodano {actual_count} z {expected_int}.", None
 
         BucketMaluchRepository.complete_bucket(bucket_id, waga_calkowita=waga_calkowita)
         updated = BucketMaluchRepository.find_by_id(bucket_id)

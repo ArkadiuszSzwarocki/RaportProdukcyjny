@@ -7,30 +7,59 @@ from app.db import get_db_connection
 class BucketMaluchRepository:
     """Repository for database operations on wiaderka_maluchy and wiaderka_maluchy_pozycje."""
 
-    @staticmethod
+    _expected_col_ensured = False
+
+    @classmethod
+    def _ensure_expected_count_column(cls, cur) -> None:
+        if cls._expected_col_ensured:
+            return
+        cur.execute("SHOW COLUMNS FROM wiaderka_maluchy LIKE 'oczekiwana_ilosc_surowcow'")
+        if not cur.fetchone():
+            cur.execute("ALTER TABLE wiaderka_maluchy ADD COLUMN oczekiwana_ilosc_surowcow INT NULL")
+        cls._expected_col_ensured = True
+
+    @classmethod
     def create_bucket(
+        cls,
         kod_wiadra: str, 
         plan_id: int, 
         linia: str = 'PSD', 
         operator_login: Optional[str] = None,
         nr_sscc: Optional[str] = None,
         data_produkcji: Optional[datetime] = None,
-        data_przydatnosci: Optional[datetime] = None
+        data_przydatnosci: Optional[datetime] = None,
+        oczekiwana_ilosc_surowcow: Optional[int] = None
     ) -> int:
         conn = get_db_connection()
         try:
             cur = conn.cursor()
+            cls._ensure_expected_count_column(cur)
             cur.execute(
                 """
                 INSERT INTO wiaderka_maluchy 
-                (kod_wiadra, nr_sscc, plan_id, linia, status, waga_calkowita, operator_nawazyl_login, data_produkcji, data_przydatnosci, data_rozpoczecia)
-                VALUES (%s, %s, %s, %s, 'w_trakcie_nawazania', 0, %s, %s, %s, NOW())
+                (kod_wiadra, nr_sscc, plan_id, linia, status, oczekiwana_ilosc_surowcow, waga_calkowita, operator_nawazyl_login, data_produkcji, data_przydatnosci, data_rozpoczecia)
+                VALUES (%s, %s, %s, %s, 'w_trakcie_nawazania', %s, 0, %s, %s, %s, NOW())
                 """,
-                (kod_wiadra.strip().upper(), nr_sscc, plan_id, linia.upper(), operator_login, data_produkcji, data_przydatnosci),
+                (kod_wiadra.strip().upper(), nr_sscc, plan_id, linia.upper(), oczekiwana_ilosc_surowcow, operator_login, data_produkcji, data_przydatnosci),
             )
             bucket_id = cur.lastrowid
             conn.commit()
             return bucket_id
+        finally:
+            conn.close()
+
+    @classmethod
+    def update_expected_count(cls, bucket_id: int, oczekiwana_ilosc_surowcow: Optional[int]) -> bool:
+        conn = get_db_connection()
+        try:
+            cur = conn.cursor()
+            cls._ensure_expected_count_column(cur)
+            cur.execute(
+                "UPDATE wiaderka_maluchy SET oczekiwana_ilosc_surowcow = %s WHERE id = %s",
+                (oczekiwana_ilosc_surowcow, bucket_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
         finally:
             conn.close()
 

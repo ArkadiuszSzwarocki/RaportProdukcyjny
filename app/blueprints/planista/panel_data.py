@@ -15,7 +15,7 @@ def load_primary_plan_rows(cursor, wybrana_data, wybrana_linia):
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci,
                COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
                COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
-               zasyp_id, data_produkcji,
+               zasyp_id, data_produkcji, created_at,
                COALESCE(rodzaj_palety, 'krajowa') AS rodzaj_palety
         FROM {table_plan}
         WHERE data_planu = %s AND LOWER(sekcja) IN ('zasyp','czyszczenie')
@@ -30,7 +30,7 @@ def load_primary_plan_rows(cursor, wybrana_data, wybrana_linia):
         SELECT id, sekcja, produkt, tonaz, status, kolejnosc, real_start, real_stop, tonaz_rzeczywisty, typ_produkcji, wyjasnienie_rozbieznosci,
                COALESCE(uszkodzone_worki, 0) AS uszkodzone_worki,
                COALESCE(nazwa_zlecenia, '') AS nazwa_zlecenia,
-               zasyp_id, data_produkcji,
+               zasyp_id, data_produkcji, created_at,
                COALESCE(rodzaj_palety, 'krajowa') AS rodzaj_palety
         FROM {table_plan}
         WHERE data_planu = %s AND LOWER(sekcja) = 'workowanie'
@@ -67,6 +67,13 @@ def load_primary_plan_rows(cursor, wybrana_data, wybrana_linia):
             plan['data_produkcji'] = plan['data_produkcji'].strftime('%Y-%m-%d')
         elif not plan.get('data_produkcji'):
             plan['data_produkcji'] = ''
+        created_val = plan.get('created_at')
+        if created_val and hasattr(created_val, 'strftime'):
+            plan['data_wstawienia'] = created_val.strftime('%d.%m.%Y %H:%M')
+        elif created_val:
+            plan['data_wstawienia'] = str(created_val)[:16]
+        else:
+            plan['data_wstawienia'] = '-'
 
     return plany_list
 
@@ -214,7 +221,7 @@ def load_agro_plan_rows(cursor, wybrana_data):
         SELECT p.id, p.sekcja, p.produkt, p.tonaz, p.status, p.kolejnosc, p.real_start, p.real_stop, p.tonaz_rzeczywisty, p.typ_produkcji, p.wyjasnienie_rozbieznosci,
                COALESCE(p.uszkodzone_worki, 0) AS uszkodzone_worki,
                COALESCE(p.nazwa_zlecenia, '') AS nazwa_zlecenia,
-               p.zasyp_id, p.data_produkcji, p.opakowanie_id, p.etykieta_id,
+               p.zasyp_id, p.data_produkcji, p.created_at, p.opakowanie_id, p.etykieta_id,
                o.nazwa AS opakowanie_nazwa,
                e.nazwa AS etykieta_nazwa
         FROM {t_pp_agro} p
@@ -246,6 +253,13 @@ def load_agro_plan_rows(cursor, wybrana_data):
             plan['data_produkcji'] = plan['data_produkcji'].strftime('%Y-%m-%d')
         elif not plan.get('data_produkcji'):
             plan['data_produkcji'] = ''
+        created_val = plan.get('created_at')
+        if created_val and hasattr(created_val, 'strftime'):
+            plan['data_wstawienia'] = created_val.strftime('%d.%m.%Y %H:%M')
+        elif created_val:
+            plan['data_wstawienia'] = str(created_val)[:16]
+        else:
+            plan['data_wstawienia'] = '-'
 
     return plany_agro
 

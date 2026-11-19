@@ -14,6 +14,7 @@ def api_start_bucket():
     plan_id = data.get('plan_id')
     linia = data.get('linia') or session.get('selected_hall_view') or 'PSD'
     operator_login = session.get('login') or session.get('imie_nazwisko') or 'operator'
+    expected_raw = data.get('oczekiwana_ilosc_surowcow')
 
     if not kod_wiadra:
         return jsonify({'success': False, 'message': 'Podaj numer lub zeskanuj kod wiadra!'}), 400
@@ -25,11 +26,21 @@ def api_start_bucket():
     except (ValueError, TypeError):
         return jsonify({'success': False, 'message': 'Nieprawidłowe ID zlecenia'}), 400
 
+    expected_count = None
+    if expected_raw not in (None, ''):
+        try:
+            expected_count = int(expected_raw)
+            if expected_count < 1 or expected_count > 100:
+                return jsonify({'success': False, 'message': 'Liczba surowców w wiadrze musi wynosić od 1 do 100.'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Nieprawidłowa liczba surowców w wiadrze.'}), 400
+
     success, msg, bucket = BucketMaluchService.start_bucket(
         kod_wiadra=kod_wiadra,
         plan_id=plan_id,
         linia=linia,
-        operator_login=operator_login
+        operator_login=operator_login,
+        oczekiwana_ilosc_surowcow=expected_count
     )
     status_code = 200 if success else 400
     return jsonify({'success': success, 'message': msg, 'bucket': bucket}), status_code
@@ -158,6 +169,43 @@ def api_delete_bucket():
     success, msg = BucketMaluchService.delete_bucket(bucket_id, operator_login, force=force)
     status_code = 200 if success else 400
     return jsonify({'success': success, 'message': msg}), status_code
+
+
+@maluchy_bp.route('/api/copy', methods=['POST'])
+@login_required
+def api_copy_bucket():
+    """Copy an existing bucket to a newly numbered bucket (MasterAdmin only)."""
+    if str(session.get('rola') or '').strip().lower() != 'masteradmin':
+        return jsonify({'success': False, 'message': 'Tylko MasterAdmin może kopiować wiadra.'}), 403
+
+    data = request.get_json(silent=True) or request.form
+    source_bucket_id = data.get('source_bucket_id')
+    kod_wiadra = (data.get('kod_wiadra') or '').strip()
+    plan_id_raw = data.get('plan_id')
+
+    if not source_bucket_id or not kod_wiadra:
+        return jsonify({'success': False, 'message': 'Podaj źródłowe wiadro oraz nowy numer wiadra.'}), 400
+
+    try:
+        source_bucket_id = int(source_bucket_id)
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': 'Nieprawidłowe ID źródłowego wiadra.'}), 400
+
+    target_plan_id = None
+    if plan_id_raw not in (None, '', 0, '0'):
+        try:
+            target_plan_id = int(plan_id_raw)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Nieprawidłowe ID zlecenia.'}), 400
+
+    operator_login = session.get('login') or session.get('imie_nazwisko') or 'MasterAdmin'
+    success, msg, bucket = BucketMaluchService.copy_bucket(
+        source_bucket_id=source_bucket_id,
+        target_kod_wiadra=kod_wiadra,
+        target_plan_id=target_plan_id,
+        operator_login=operator_login,
+    )
+    return jsonify({'success': success, 'message': msg, 'bucket': bucket}), (200 if success else 400)
 
 
 @maluchy_bp.route('/api/dump-to-mixer', methods=['POST'])

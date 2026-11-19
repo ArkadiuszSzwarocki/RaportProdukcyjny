@@ -137,6 +137,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <th>⏱️ Estymacja</th>
                 <th>✅ Wykonanie</th>
                 <th>🧵 {{ _('uszkodzone_worki') }}</th>
+                <th>📅 Data wstawienia</th>
                 <th>📊 Status</th>
                 <th class="text-right">⚙️ Akcje</th>
             </tr>
@@ -192,6 +193,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <strong class="text-danger">{{ p.uszkodzone_worki|int }} szt.</strong>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
+                <td data-label="Data wstawienia"><span class="text-muted" style="font-size: 0.85em; white-space: nowrap;">{{ p.data_wstawienia or '-' }}</span></td>
                 <td data-label="Status">
                     {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
                     {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
@@ -241,7 +243,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </tr>
             {% else %}
             <tr>
-                <td colspan="10" class="text-center p-20">Brak planu AGRO na ten dzień.</td>
+                <td colspan="11" class="text-center p-20">Brak planu AGRO na ten dzień.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -352,6 +354,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 <th>✅ {{ _('wykonanie') }}</th>
                 <th>📚 {{ _('palet') }}</th>
                 <th>🧵 {{ _('uszkodzone_worki') }}</th>
+                <th>📅 Data wstawienia</th>
                 <th>📊 {{ _('status') }}</th>
                 <th class="text-right">⚙️ {{ _('akcje') }}</th>
             </tr>
@@ -407,6 +410,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     <strong class="text-danger">{{ p.uszkodzone_worki|int }} szt.</strong>
                     {% else %}<span class="text-muted">-</span>{% endif %}
                 </td>
+                <td data-label="Data wstawienia"><span class="text-muted" style="font-size: 0.85em; white-space: nowrap;">{{ p.data_wstawienia or '-' }}</span></td>
                 <td data-label="Status">
                     {% if p.status == 'zakonczone' %}<span class="status-badge status-zakonczone">✔ ZAKOŃCZONE</span>
                     {% elif p.status == 'w toku' %}<span class="status-badge status-wtoku">⏳ W TOKU</span>
@@ -477,7 +481,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             {% if palety_mapa[p.id] %}
             <tr id="details-{{ p.id }}" class="details-row">
-                <td colspan="11" class="p-0">
+                <td colspan="12" class="p-0">
                     <div class="p-10">
                         <table class="modern-table small">
                             <thead>
@@ -506,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </tr>
             {% endif %}
             {% else %}<tr>
-                <td colspan="11" class="text-center p-20">Brak planu.</td>
+                <td colspan="12" class="text-center p-20">Brak planu.</td>
             </tr>{% endfor %}
         </tbody>
     </table>

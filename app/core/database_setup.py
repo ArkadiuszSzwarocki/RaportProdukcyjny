@@ -108,7 +108,8 @@ def _create_tables(cursor):
             wyjasnienie_rozbieznosci TEXT,
             data_produkcji DATE DEFAULT NULL,
             rodzaj_palety VARCHAR(50) DEFAULT 'krajowa',
-            nr_partii VARCHAR(100) DEFAULT NULL
+            nr_partii VARCHAR(100) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -436,6 +437,7 @@ def _create_tables(cursor):
             plan_id INT,
             szarza_id INT,
             status VARCHAR(50),
+            oczekiwana_ilosc_surowcow INT NULL,
             waga_calkowita DECIMAL(10,2) DEFAULT 0,
             operator_nawazyl_login VARCHAR(100),
             data_produkcji DATETIME,
@@ -1521,6 +1523,7 @@ def _migrate_columns(cursor):
     _add_column_if_missing(cursor, "osip_transfers", "email_sent_to", "VARCHAR(255) NULL", "Dodawanie kolumny 'email_sent_to' do osip_transfers")
     _add_column_if_missing(cursor, "plan_produkcji", "typ_zlecenia", "VARCHAR(50) DEFAULT ''", "Dodawanie kolumny 'typ_zlecenia' do plan_produkcji")
     _add_column_if_missing(cursor, "wiaderka_maluchy", "data_skompletowania", "DATETIME NULL", "Dodawanie kolumny 'data_skompletowania' do wiaderka_maluchy")
+    _add_column_if_missing(cursor, "wiaderka_maluchy", "oczekiwana_ilosc_surowcow", "INT NULL", "Dodawanie kolumny 'oczekiwana_ilosc_surowcow' do wiaderka_maluchy")
     
     # Inwentaryzacja wpisy packaging type
     _add_column_if_missing(cursor, "magazyn_inwentaryzacja_wpisy", "typ_opakowania", "VARCHAR(50) DEFAULT 'brak'", "Dodawanie kolumny 'typ_opakowania' do wpisów inwentaryzacyjnych")
@@ -1712,6 +1715,14 @@ def _migrate_columns(cursor):
     except Exception as e:
         print(f"[WARN] Failed to add column nr_palety_lp to magazyn_palety_agro: {e}")
 
+
+    try:
+        cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'created_at'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE plan_produkcji ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+            print("[OK] Added column created_at to plan_produkcji")
+    except Exception as e:
+        print(f"[WARN] Failed to add column created_at to plan_produkcji: {e}")
 
     try:
         cursor.execute("SHOW COLUMNS FROM plan_produkcji LIKE 'rodzaj_palety'")

@@ -9,11 +9,14 @@
     'use strict';
 
     let currentBucket = null;
+    let lastRenderedBucketId = null;
 
     const container = document.getElementById('maluchyAppContainer');
     const linia = (container && container.getAttribute('data-linia')) || 'PSD';
+    const isMasterAdmin = Boolean(container && container.getAttribute('data-is-masteradmin') === '1');
 
     const inputKodWiadra = document.getElementById('inputKodWiadra');
+    const inputExpectedCount = document.getElementById('inputExpectedCount');
     const selectPlanId = document.getElementById('selectPlanId');
     const btnStartBucket = document.getElementById('btnStartBucket');
     const cardNawazanie = document.getElementById('cardNawazanie');
@@ -106,12 +109,23 @@
 
     // ── 1. SCANNER AUTO-ENTER ON BUCKET CODE ──
     let bucketInputTimeout = null;
+    function focusExpectedOrStartBucket() {
+        const val = (inputKodWiadra && inputKodWiadra.value || '').trim();
+        const expVal = inputExpectedCount ? String(inputExpectedCount.value || '').trim() : '';
+        if (inputExpectedCount && !val.toUpperCase().startsWith('MAL') && (!expVal || parseInt(expVal, 10) < 1)) {
+            inputExpectedCount.focus();
+            inputExpectedCount.select();
+            return;
+        }
+        btnStartBucket.click();
+    }
+
     if (inputKodWiadra) {
         inputKodWiadra.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 clearTimeout(bucketInputTimeout);
-                btnStartBucket.click();
+                focusExpectedOrStartBucket();
             }
         });
 
@@ -121,8 +135,17 @@
             const val = (this.value || '').trim();
             if (/^\d{2}$/.test(val) || /^w\d{2}$/i.test(val)) {
                 bucketInputTimeout = setTimeout(() => {
-                    btnStartBucket.click();
+                    focusExpectedOrStartBucket();
                 }, 120);
+            }
+        });
+    }
+
+    if (inputExpectedCount) {
+        inputExpectedCount.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                btnStartBucket.click();
             }
         });
     }
@@ -131,6 +154,8 @@
     btnStartBucket.addEventListener('click', async function () {
         const kod_wiadra = (inputKodWiadra.value || '').trim();
         const plan_id = selectPlanId.value;
+        const expectedRaw = inputExpectedCount ? String(inputExpectedCount.value || '').trim() : '';
+        const oczekiwana_ilosc_surowcow = expectedRaw ? parseInt(expectedRaw, 10) : null;
 
         if (!kod_wiadra) {
             showToast('Zeskanuj lub wpisz kod wiadra (01–99)!', 'error');
@@ -141,6 +166,14 @@
             showToast('Wybierz aktywne zlecenie produkcyjne!', 'error');
             return;
         }
+        if (!kod_wiadra.toUpperCase().startsWith('MAL') && (!Number.isInteger(oczekiwana_ilosc_surowcow) || oczekiwana_ilosc_surowcow < 1)) {
+            showToast('Podaj ile surowców ma się znajdować w wiadrze (minimum 1)!', 'error');
+            if (inputExpectedCount) {
+                inputExpectedCount.focus();
+                inputExpectedCount.select();
+            }
+            return;
+        }
 
         try {
             btnStartBucket.disabled = true;
@@ -149,7 +182,7 @@
             const res = await fetch('/maluchy/api/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ kod_wiadra, plan_id, linia })
+                body: JSON.stringify({ kod_wiadra, plan_id, linia, oczekiwana_ilosc_surowcow })
             });
             const data = await res.json();
 
@@ -231,9 +264,14 @@
             showToast('Błąd połączenia z serwerem', 'error');
         } finally {
             if (inputStacjaKod) {
-                inputStacjaKod.disabled = false;
                 inputStacjaKod.value = '';
-                inputStacjaKod.focus();
+                updateRequiredInputsState();
+                if (!inputStacjaKod.disabled) {
+                    inputStacjaKod.focus();
+                } else if (inputBucketTotalWeight) {
+                    inputBucketTotalWeight.focus();
+                    inputBucketTotalWeight.select();
+                }
             }
         }
     }
@@ -264,6 +302,19 @@
             showToast('Zeskanuj przynajmniej jeden zbiornik KO przed skompletowaniem!', 'error');
             if (inputStacjaKod) inputStacjaKod.focus();
             return;
+        }
+
+        const expectedCount = parseInt(currentBucket.oczekiwana_ilosc_surowcow, 10) || 0;
+        if (expectedCount > 0) {
+            if (count < expectedCount) {
+                showToast(`❌ Za mało surowców w wiadrze! Dodano ${count} z ${expectedCount}.`, 'error');
+                if (inputStacjaKod) inputStacjaKod.focus();
+                return;
+            }
+            if (count > expectedCount) {
+                showToast(`❌ Za dużo surowców w wiadrze! Dodano ${count} z ${expectedCount}.`, 'error');
+                return;
+            }
         }
 
         const weightInput = document.getElementById('inputBucketTotalWeight');
@@ -299,9 +350,11 @@
             if (res.ok && data.success) {
                 showToast(`Wiadro ${data.bucket.kod_wiadra} (${weightVal.toFixed(2)} kg) zostało skompletowane! Można je wsypać na Zasypie.`, 'success');
                 currentBucket = null;
+                lastRenderedBucketId = null;
                 cardNawazanie.style.display = 'none';
                 cardBucketDetails.style.display = 'none';
                 if (weightInput) weightInput.value = '';
+                if (inputExpectedCount) inputExpectedCount.value = '';
                 inputKodWiadra.value = '';
                 inputKodWiadra.focus();
                 loadPlanBuckets(selectPlanId.value);
@@ -314,6 +367,7 @@
         } finally {
             btnCompleteBucket.disabled = false;
             btnCompleteBucket.textContent = '📦 ZAKOŃCZ KOMPLETACJĘ WIADRA';
+            updateRequiredInputsState();
         }
     });
 
@@ -340,6 +394,7 @@
                 if (res.ok && data.success) {
                     showToast(data.message || `Usunięto wiadro ${currentBucket.kod_wiadra}`, 'info');
                     currentBucket = null;
+                    lastRenderedBucketId = null;
                     cardNawazanie.style.display = 'none';
                     cardBucketDetails.style.display = 'none';
                     inputKodWiadra.value = '';
@@ -383,14 +438,47 @@
         }
 
         const items = bucket.pozycje || [];
+        const expectedCount = parseInt(bucket.oczekiwana_ilosc_surowcow, 10) || 0;
         if (detailsItemsCount) {
-            detailsItemsCount.textContent = `${items.length} pozycji`;
+            detailsItemsCount.textContent = expectedCount > 0
+                ? `${items.length} / ${expectedCount} pozycji`
+                : `${items.length} pozycji`;
+        }
+
+        const valBanner = document.getElementById('detailsValidationBanner');
+        if (valBanner) {
+            if (expectedCount > 0) {
+                valBanner.style.display = 'block';
+                if (items.length < expectedCount) {
+                    valBanner.style.background = '#fef3c7';
+                    valBanner.style.border = '1px solid #f59e0b';
+                    valBanner.style.color = '#92400e';
+                    valBanner.textContent = `⚠️ Za mało surowców: dodano ${items.length} z ${expectedCount} (brakuje ${expectedCount - items.length}).`;
+                } else if (items.length > expectedCount) {
+                    valBanner.style.background = '#fee2e2';
+                    valBanner.style.border = '1px solid #ef4444';
+                    valBanner.style.color = '#991b1b';
+                    valBanner.textContent = `⛔ Błąd — za dużo surowców: dodano ${items.length} z ${expectedCount}. Usuń nadmiarowe pozycje!`;
+                } else {
+                    valBanner.style.background = '#dcfce7';
+                    valBanner.style.border = '1px solid #22c55e';
+                    valBanner.style.color = '#166534';
+                    valBanner.textContent = `🎯 Brawo! W cel — dodano dokładnie ${items.length} / ${expectedCount} surowców.`;
+                }
+            } else {
+                valBanner.style.display = 'none';
+            }
         }
 
         if (inputBucketTotalWeight) {
             const curWeight = parseFloat(bucket.waga_calkowita || 0);
-            inputBucketTotalWeight.value = curWeight > 0 ? curWeight : '';
+            if (lastRenderedBucketId !== bucket.id || curWeight > 0) {
+                inputBucketTotalWeight.value = curWeight > 0 ? curWeight : '';
+            }
         }
+        lastRenderedBucketId = bucket.id;
+
+        updateRequiredInputsState();
 
         if (items.length === 0) {
             bucketItemsBody.innerHTML = '<tr><td colspan="3" class="text-center text-muted" style="padding: 16px;">Brak dodanych pozycji. Zeskanuj pierwszy zbiornik KO!</td></tr>';
@@ -452,6 +540,12 @@
         const resumeBtn = canResume
             ? `<button type="button" class="btn-resume-bucket" data-bucket-id="${escapeBucketText(b.id)}"
                       style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-size: 12px; font-weight: 800; cursor: pointer; padding: 4px 8px; border-radius: 6px; margin-left: 6px;">▶ Wznów</button>`
+            : '';
+
+        const copyBtn = isMasterAdmin
+            ? `<button type="button" class="btn-copy-bucket" data-bucket-id="${escapeBucketText(b.id)}" data-bucket-code="${escapeBucketText(b.kod_wiadra)}" data-plan-id="${escapeBucketText(b.plan_id || '')}"
+                      title="Skopiuj wiadro ${escapeBucketText(b.kod_wiadra)} do nowego numeru wiadra"
+                      style="background: #f0fdf4; border: 1px solid #86efac; color: #15803d; font-size: 12px; font-weight: 800; cursor: pointer; padding: 4px 8px; border-radius: 6px; margin-left: 6px;">📋 Kopiuj</button>`
             : '';
 
         const planBadge = showPlan && b.plan_id
@@ -530,6 +624,7 @@
                     </div>
                     <div style="display: flex; align-items: center;">
                         <span class="status-badge ${escapeBucketText(badgeClass)}">${escapeBucketText(statusLabel)}</span>
+                        ${copyBtn}
                         ${resumeBtn}
                         ${deleteBtn}
                     </div>
@@ -555,6 +650,7 @@
             card.addEventListener('click', function (e) {
                 if (e.target.closest('.btn-delete-bucket')) return;
                 if (e.target.closest('.btn-resume-bucket')) return;
+                if (e.target.closest('.btn-copy-bucket')) return;
 
                 const previewEl = this.querySelector('.m-bucket-items-preview');
                 const indicator = this.querySelector('.m-toggle-indicator');
@@ -579,6 +675,92 @@
                     renderActiveBucket(selected);
                     if (inputStacjaKod) inputStacjaKod.focus();
                 }
+            });
+        });
+
+        // Copy bucket (MasterAdmin only - always asks for target bucket number)
+        containerEl.querySelectorAll('.btn-copy-bucket').forEach(btn => {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const sourceBucketId = this.getAttribute('data-bucket-id');
+                const sourceCode = this.getAttribute('data-bucket-code') || '';
+                const sourcePlanId = this.getAttribute('data-plan-id') || '';
+                const targetPlanId = (selectPlanId && selectPlanId.value) ? selectPlanId.value : sourcePlanId;
+
+                const modal = document.getElementById('mCopyBucketModal');
+                const labelEl = document.getElementById('mCopySourceLabel');
+                const codeInput = document.getElementById('mCopyBucketCodeInput');
+                const btnOk = document.getElementById('mCopyOk');
+                const btnCancel = document.getElementById('mCopyCancel');
+                if (!modal || !codeInput || !btnOk || !btnCancel) return;
+
+                if (labelEl) {
+                    labelEl.textContent = `Kopiujesz składniki z wiadra ${sourceCode}${targetPlanId ? ` do zlecenia #${targetPlanId}` : ''}.`;
+                }
+                codeInput.value = '';
+                modal.style.display = 'flex';
+                setTimeout(() => { codeInput.focus(); }, 50);
+
+                function closeCopyModal() {
+                    modal.style.display = 'none';
+                    btnOk.removeEventListener('click', onConfirm);
+                    btnCancel.removeEventListener('click', onCancel);
+                    codeInput.removeEventListener('keydown', onKeyDown);
+                }
+
+                function onCancel() {
+                    closeCopyModal();
+                }
+
+                function onKeyDown(ev) {
+                    if (ev.key === 'Enter') {
+                        ev.preventDefault();
+                        onConfirm();
+                    } else if (ev.key === 'Escape') {
+                        ev.preventDefault();
+                        onCancel();
+                    }
+                }
+
+                async function onConfirm() {
+                    const targetCode = codeInput.value.trim();
+                    if (!targetCode) {
+                        showToast('Podaj numer nowego wiadra (np. 05 lub W05).', 'warning');
+                        codeInput.focus();
+                        return;
+                    }
+                    btnOk.disabled = true;
+                    try {
+                        const res = await fetch('/maluchy/api/copy', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                            body: JSON.stringify({
+                                source_bucket_id: sourceBucketId,
+                                kod_wiadra: targetCode,
+                                plan_id: targetPlanId || null
+                            })
+                        });
+                        const data = await res.json();
+                        if (res.ok && data.success) {
+                            closeCopyModal();
+                            showToast(data.message || `Skopiowano wiadro do ${targetCode}`, 'success');
+                            refreshAllBucketsViews();
+                        } else {
+                            showToast(data.message || 'Nie udało się skopiować wiadra', 'error');
+                            codeInput.focus();
+                            codeInput.select();
+                        }
+                    } catch (err) {
+                        console.error('Error copying bucket:', err);
+                        showToast('Błąd połączenia z serwerem', 'error');
+                    } finally {
+                        btnOk.disabled = false;
+                    }
+                }
+
+                btnOk.addEventListener('click', onConfirm);
+                btnCancel.addEventListener('click', onCancel);
+                codeInput.addEventListener('keydown', onKeyDown);
             });
         });
 
@@ -608,6 +790,7 @@
                         showToast(data.message || `Usunięto wiadro ${bCode}`, 'info');
                         if (currentBucket && currentBucket.id == bId) {
                             currentBucket = null;
+                            lastRenderedBucketId = null;
                             cardNawazanie.style.display = 'none';
                             cardBucketDetails.style.display = 'none';
                         }
@@ -827,6 +1010,88 @@
             updateHistoryCount();
         });
     }
+
+    function updateRequiredInputsState() {
+        const kodVal = inputKodWiadra ? String(inputKodWiadra.value || '').trim() : '';
+        const isMalSscc = kodVal.toUpperCase().startsWith('MAL');
+        if (inputKodWiadra) {
+            inputKodWiadra.classList.toggle('m-input-required-empty', !kodVal);
+        }
+        if (inputExpectedCount) {
+            const expRaw = String(inputExpectedCount.value || '').trim();
+            const expNum = parseInt(expRaw, 10);
+            const expInvalid = !isMalSscc && (!expRaw || !Number.isInteger(expNum) || expNum < 1);
+            inputExpectedCount.classList.toggle('m-input-required-empty', expInvalid);
+        }
+
+        const stationsGrid = document.querySelector('.m-stations-grid');
+        const stationButtons = document.querySelectorAll('.m-st-btn');
+        if (!currentBucket || !currentBucket.id) {
+            if (inputStacjaKod) {
+                inputStacjaKod.disabled = false;
+                inputStacjaKod.classList.remove('m-input-required-empty');
+            }
+            if (inputBucketTotalWeight) {
+                inputBucketTotalWeight.classList.remove('m-input-required-empty');
+            }
+            if (stationsGrid) stationsGrid.classList.remove('m-stations-disabled');
+            stationButtons.forEach(b => { b.disabled = false; });
+            return;
+        }
+
+        const itemsCount = (currentBucket.pozycje || []).length;
+        const expectedCount = parseInt(currentBucket.oczekiwana_ilosc_surowcow, 10) || 0;
+        const isMaxReached = expectedCount > 0 && itemsCount >= expectedCount;
+        const isItemsCountValid = expectedCount > 0 ? (itemsCount === expectedCount) : (itemsCount > 0);
+
+        if (inputStacjaKod) {
+            inputStacjaKod.disabled = isMaxReached;
+            if (isMaxReached) {
+                inputStacjaKod.classList.remove('m-input-required-empty');
+                inputStacjaKod.placeholder = 'Osiągnięto maksymalną liczbę surowców (zablokowane)';
+                inputStacjaKod.style.background = '#f1f5f9';
+                inputStacjaKod.style.borderColor = '#cbd5e1';
+                inputStacjaKod.style.color = '#94a3b8';
+                inputStacjaKod.style.cursor = 'not-allowed';
+            } else {
+                inputStacjaKod.placeholder = 'np. KO04, 04, KO12 (Skaner)';
+                inputStacjaKod.style.background = '#ffffff';
+                inputStacjaKod.style.borderColor = '#2563eb';
+                inputStacjaKod.style.color = '#0f172a';
+                inputStacjaKod.style.cursor = 'text';
+                const needsMoreItems = expectedCount > 0 ? (itemsCount < expectedCount) : (itemsCount === 0);
+                inputStacjaKod.classList.toggle('m-input-required-empty', needsMoreItems);
+            }
+        }
+
+        if (stationsGrid) stationsGrid.classList.toggle('m-stations-disabled', isMaxReached);
+        stationButtons.forEach(b => { b.disabled = isMaxReached; });
+
+        let weightVal = 0;
+        if (inputBucketTotalWeight) {
+            const wRaw = String(inputBucketTotalWeight.value || '').trim().replace(',', '.');
+            weightVal = parseFloat(wRaw);
+            const weightInvalid = !wRaw || isNaN(weightVal) || weightVal <= 0;
+            inputBucketTotalWeight.classList.toggle('m-input-required-empty', weightInvalid);
+        }
+
+        if (btnCompleteBucket) {
+            const canComplete = isItemsCountValid && weightVal > 0;
+            btnCompleteBucket.disabled = !canComplete;
+            btnCompleteBucket.classList.toggle('m-btn-disabled-grey', !canComplete);
+        }
+    }
+
+    if (inputKodWiadra) {
+        inputKodWiadra.addEventListener('input', updateRequiredInputsState);
+    }
+    if (inputExpectedCount) {
+        inputExpectedCount.addEventListener('input', updateRequiredInputsState);
+    }
+    if (inputBucketTotalWeight) {
+        inputBucketTotalWeight.addEventListener('input', updateRequiredInputsState);
+    }
+    updateRequiredInputsState();
 
     // On plan change, reload buckets
     if (selectPlanId) {
