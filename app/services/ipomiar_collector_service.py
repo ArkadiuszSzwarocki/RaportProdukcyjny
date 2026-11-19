@@ -49,7 +49,7 @@ def _try_acquire_process_lock(directory: Path):
             handle.seek(0)
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
         else:
-            import fcntl
+            import fcntl  # pylint: disable=import-error
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         handle.seek(0)
         handle.truncate()
