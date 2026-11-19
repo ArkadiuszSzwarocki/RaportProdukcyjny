@@ -124,7 +124,10 @@
                             <option value="db:{{ printer.id }}">{{ printer.nazwa }} ({{ printer.lokalizacja or printer.ip }})</option>
                         {% endfor %}
                     </select>
-                    <input type="number" id="printCopiesInput" value="2" min="1" max="100" title="Liczba etykiet" aria-label="Liczba etykiet" style="width: 64px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; text-align: center; font-weight: 700;">
+                    <label class="modal-print-copies-wrap" for="printCopiesInput">
+                        <span class="modal-print-copies-label">Kopie:</span>
+                        <input type="number" id="printCopiesInput" class="modal-print-copies" value="2" min="1" max="100" title="Liczba etykiet" aria-label="Liczba etykiet">
+                    </label>
                     <div class="modal-print-btn-group" style="display: flex; gap: 8px;">
                         <button type="button" onclick="if (typeof printCurrentPallet === 'function') { printCurrentPallet(this); } else { AppDialog.alert('Błąd klienta: brak funkcji druku. Odśwież stronę (Ctrl+F5).'); }" class="btn-print-action print">
                             <span class="material-icons" style="font-size: 17px;">print</span> DRUKUJ
