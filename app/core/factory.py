@@ -232,7 +232,7 @@ def _maybe_start_background_daemons(app, is_reloader_parent):
             app.logger.exception('Failed to start stock minimum alerts daemon')
 
     default_enabled = not _is_production()
-    if _env_bool('ENABLE_MQTT_BRIDGE', _env_bool('ENABLE_BACKGROUND_DAEMONS', default_enabled)):
+    if _env_bool('ENABLE_MQTT_BRIDGE', True):
         from app.services.mqtt_service import start_mqtt_bridge
         try:
             start_mqtt_bridge()

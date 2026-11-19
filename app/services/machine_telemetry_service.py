@@ -21,8 +21,9 @@ class MachineTelemetryService:
         now = time.time()
         last_update = raw_data.get("last_update", 0)
         time_since_update = round(now - last_update, 1) if last_update > 0 else 9999
-
-        is_connected = time_since_update <= MachineTelemetryService.HEARTBEAT_TIMEOUT_SECONDS and last_update > 0
+        broker_connected = bool(raw_data.get("broker_connected", False))
+        has_fresh_telemetry = time_since_update <= MachineTelemetryService.HEARTBEAT_TIMEOUT_SECONDS and last_update > 0
+        is_connected = broker_connected or has_fresh_telemetry
 
         # 1. WAGOPAKOWACZKA (Bagger)
         bpm = float(raw_data.get("bpm") or 0.0)
@@ -32,6 +33,8 @@ class MachineTelemetryService:
         bagger_status = raw_data.get("status", "OFFLINE")
         if not is_connected:
             bagger_status = "OFFLINE"
+        elif bagger_status == "OFFLINE" and broker_connected:
+            bagger_status = "CZUWANIE"
 
         jaws_closed = bool(raw_data.get("bagger_jaws_closed", False))
 
@@ -293,6 +296,8 @@ class MachineTelemetryService:
         # 6. BROKER & LOGS
         broker = {
             "is_connected": is_connected,
+            "broker_connected": broker_connected,
+            "has_fresh_telemetry": has_fresh_telemetry,
             "host": "HiveMQ Cloud TLS (s1.eu.hivemq.cloud)",
             "port": 8883,
             "last_update_ts": last_update,

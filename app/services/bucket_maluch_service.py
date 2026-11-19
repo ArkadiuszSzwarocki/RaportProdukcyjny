@@ -140,7 +140,7 @@ class BucketMaluchService:
                     existing = BucketMaluchRepository.find_by_id(existing['id'])
                 return True, f"Kontynuacja naważania wiadra {norm_code}", existing
 
-            if not oczekiwana_ilosc_surowcow or int(oczekiwana_ilosc_surowcow) < 1:
+            if oczekiwana_ilosc_surowcow is not None and int(oczekiwana_ilosc_surowcow) < 1:
                 return False, "Podaj ile surowców ma się znajdować w wiadrze (minimum 1).", None
 
             # Create new bucket record
@@ -152,7 +152,7 @@ class BucketMaluchService:
                 nr_sscc=nr_sscc,
                 data_produkcji=data_produkcji,
                 data_przydatnosci=data_przydatnosci,
-                oczekiwana_ilosc_surowcow=int(oczekiwana_ilosc_surowcow)
+                oczekiwana_ilosc_surowcow=int(oczekiwana_ilosc_surowcow) if oczekiwana_ilosc_surowcow is not None else None
             )
             created = BucketMaluchRepository.find_by_id(bucket_id)
             return True, f"Rozpoczęto naważanie wiadra {norm_code}", created

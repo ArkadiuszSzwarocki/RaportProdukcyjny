@@ -1,18 +1,22 @@
+# cspell:words hivemq lstech
 import json
 import os
 import time
 import paho.mqtt.client as mqtt
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Konfiguracja identyczna jak w aplikacji
-MQTT_HOST = os.getenv("MQTT_BROKER_HOST", "").strip()
-MQTT_PORT = int(os.getenv("MQTT_BROKER_PORT", "8883"))
-MQTT_USER = os.getenv("MQTT_BROKER_USERNAME", "").strip()
-MQTT_PW = os.getenv("MQTT_BROKER_PASSWORD", "").strip()
+MQTT_HOST = (os.getenv("MQTT_BROKER_HOST") or "").strip() or "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
+MQTT_PORT = int((os.getenv("MQTT_BROKER_PORT") or "").strip() or "8883")
+MQTT_USER = (os.getenv("MQTT_BROKER_USERNAME") or "").strip() or "Lstech"
+MQTT_PW = (os.getenv("MQTT_BROKER_PASSWORD") or "").strip()
 TOPIC = "iot-2/type/cMT2108X2/id/agroOwijarka"
 
 if not MQTT_HOST or not MQTT_USER or not MQTT_PW:
     raise RuntimeError(
-        "Ustaw MQTT_BROKER_HOST, MQTT_BROKER_USERNAME i MQTT_BROKER_PASSWORD przed uruchomieniem symulacji."
+        "Ustaw MQTT_BROKER_HOST, MQTT_BROKER_USERNAME i MQTT_BROKER_PASSWORD w pliku .env przed uruchomieniem symulacji."
     )
 
 def trigger_pallet():

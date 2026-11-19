@@ -1,11 +1,11 @@
 {
-  "version": "2.2.14",
-  "commit_sha": "de22158",
-  "commit_date": "2026-11-19 22:47",
+  "version": "2.2.15",
+  "commit_sha": "63fb1fa",
+  "commit_date": "2026-11-19 23:11",
   "author": "ArkadiuszSzwarocki",
   "commit_message": "Aktualizacja aplikacji",
-  "files_changed": 8,
-  "insertions": 543,
-  "deletions": 24,
-  "diff_size_bytes": 49770
+  "files_changed": 6,
+  "insertions": 235,
+  "deletions": 87,
+  "diff_size_bytes": 29062
 }

@@ -1,3 +1,4 @@
+# cspell:words agroowijarka agropakowaczka agropaletyzator hivemq lstech palletizer pelny stolu sygnal
 import json
 import logging
 import os
@@ -7,6 +8,8 @@ from copy import deepcopy
 
 # Global storage for latest machine data
 _latest_machine_data = {
+    "broker_connected": False,
+    "broker_connected_at": 0,
     "bpm": 0,
     "counter": 0,
     "local_counter": 0,
@@ -63,9 +66,68 @@ _data_lock = threading.Lock()
 _latest_machine_data["subscribed_topics"] = list(_SUBSCRIBE_TOPICS)
 
 
+def _load_or_sync_db_mqtt_password(env_password: str) -> str:
+    """Persist env MQTT password into MySQL or load it when container env omits it."""
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return env_password
+    try:
+        from app.db import get_db_connection
+        conn = get_db_connection()
+    except Exception:
+        return env_password
+
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS konfiguracja_mqtt (
+                id INT PRIMARY KEY,
+                broker_host VARCHAR(255) NOT NULL DEFAULT '',
+                broker_port INT NOT NULL DEFAULT 8883,
+                broker_username VARCHAR(255) NOT NULL DEFAULT '',
+                broker_password VARCHAR(255) NOT NULL DEFAULT '',
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+        host = (os.getenv("MQTT_BROKER_HOST") or "").strip() or "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
+        port = _safe_env_int("MQTT_BROKER_PORT", 8883)
+        username = (os.getenv("MQTT_BROKER_USERNAME") or "").strip() or "Lstech"
+        if env_password:
+            cur.execute(
+                """
+                INSERT INTO konfiguracja_mqtt (id, broker_host, broker_port, broker_username, broker_password)
+                VALUES (1, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    broker_host = VALUES(broker_host),
+                    broker_port = VALUES(broker_port),
+                    broker_username = VALUES(broker_username),
+                    broker_password = VALUES(broker_password)
+                """,
+                (host, port, username, env_password),
+            )
+            conn.commit()
+            return env_password
+
+        cur.execute("SELECT broker_password FROM konfiguracja_mqtt WHERE id = 1 LIMIT 1")
+        row = cur.fetchone()
+        conn.commit()
+        if row and row[0]:
+            return str(row[0]).strip()
+    except Exception:
+        pass
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return env_password
+
+
 def _get_required_mqtt_password():
-    """Return the MQTT password or fail closed when it is not configured."""
-    mqtt_password = (os.getenv("MQTT_BROKER_PASSWORD") or "").strip()
+    """Return the MQTT password from env or database, or fail closed if missing."""
+    env_password = (os.getenv("MQTT_BROKER_PASSWORD") or "").strip()
+    mqtt_password = _load_or_sync_db_mqtt_password(env_password)
     if not mqtt_password:
         raise RuntimeError(
             "Brak wymaganej zmiennej MQTT_BROKER_PASSWORD. "
@@ -78,6 +140,31 @@ def _first_or_default(value, default):
     if isinstance(value, list):
         return value[0] if value else default
     return value if value is not None else default
+
+
+def _pick_field(payload_data: dict, *keys, default=None):
+    """Return the first present (non-None) field value, preserving False, 0, and ''."""
+    for key in keys:
+        if key in payload_data:
+            val = _first_or_default(payload_data.get(key), None)
+            if val is not None:
+                return val
+    return default
+
+
+def _to_bool(value) -> bool:
+    """Convert PLC/JSON scalar values cleanly to bool."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("1", "true", "tak", "on", "yes"):
+            return True
+        if cleaned in ("0", "false", "nie", "off", "no", ""):
+            return False
+    return bool(value)
 
 
 def _append_error(message):
@@ -117,6 +204,9 @@ def _append_error(message):
 
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
+        with _data_lock:
+            _latest_machine_data["broker_connected"] = True
+            _latest_machine_data["broker_connected_at"] = time.time()
         print("[MQTT-SERVER] POLACZONO z HiveMQ Cloud")
         for topic in _SUBSCRIBE_TOPICS:
             try:
@@ -133,7 +223,18 @@ def on_connect(client, userdata, flags, rc, properties=None):
                 print(f"[MQTT-SERVER] {err_msg}")
                 _append_error(err_msg)
     else:
+        with _data_lock:
+            _latest_machine_data["broker_connected"] = False
+        err_msg = f"connect failed, rc={rc}"
         print(f"[MQTT-SERVER] Blad polaczenia, kod: {rc}")
+        _append_error(err_msg)
+
+
+def on_disconnect(client, userdata, disconnect_flags=None, rc=None, properties=None):
+    with _data_lock:
+        _latest_machine_data["broker_connected"] = False
+    if rc not in (0, None):
+        _append_error(f"mqtt disconnected rc={rc}")
 
 
 def on_message(client, userdata, msg):
@@ -185,63 +286,85 @@ def on_message(client, userdata, msg):
             except Exception:
                 pass
 
-            if "agroPakowaczka" in topic:
-                _latest_machine_data["bpm"] = _first_or_default(payload_data.get("wydajnoscAktualna"), 0)
+            topic_lower = topic.lower()
+            is_bagger_topic = ("agropakowaczka" in topic_lower) or any(
+                k in payload_data for k in ("wydajnoscAktualna", "licznikGlobalny", "szczekiZamkniete", "wagaOstatniegoWorka")
+            )
+            is_wrapper_topic = ("agroowijarka" in topic_lower) or any(
+                k in payload_data for k in ("wyjazdPaletaOwinieta", "postepOwijania", "obrotyStolu", "etapOwijania")
+            )
+            is_palletizer_topic = ("agropaletyzator" in topic_lower) or any(
+                k in payload_data for k in ("licznikPalet_global", "nrWarstwy", "nrWorka", "oproznianie", "sygnalDoOwijarkiStart")
+            )
+
+            if is_bagger_topic:
+                bpm_val = _pick_field(payload_data, "wydajnoscAktualna", default=None)
+                if bpm_val is not None:
+                    _latest_machine_data["bpm"] = bpm_val
                 
-                real_counter = _first_or_default(payload_data.get("licznikGlobalny"), None)
+                real_counter = _pick_field(payload_data, "licznikGlobalny", default=None)
                 if real_counter is not None:
                     _latest_machine_data["counter"] = int(real_counter) + _simulated_offsets["counter"]
 
-                local_counter = _first_or_default(payload_data.get("licznikLokalny"), None)
+                local_counter = _pick_field(payload_data, "licznikLokalny", default=None)
                 if local_counter is not None:
                     _latest_machine_data["local_counter"] = int(local_counter)
 
-                status_val = _first_or_default(payload_data.get("status"), 0)
-                _latest_machine_data["status"] = "PRACA" if status_val == 4 else ("STOP" if status_val == 0 else str(status_val))
+                status_val = _pick_field(payload_data, "status", default=None)
+                if status_val is not None:
+                    _latest_machine_data["status"] = "PRACA" if status_val == 4 else ("STOP" if status_val == 0 else str(status_val))
 
-                receptura_val = _first_or_default(payload_data.get("nazwaReceptury"), "Brak danych")
+                receptura_val = _pick_field(payload_data, "nazwaReceptury", default="Brak danych")
                 _latest_machine_data["receptura"] = receptura_val or "Brak danych"
 
                 # Form-Fill-Seal Sealing Jaws Telemetry (Szczęki zgrzewające worki)
-                jaws_val = _first_or_default(
-                    payload_data.get("szczekiZamkniete") or payload_data.get("szczeki") or payload_data.get("szczekiZgrzewajace") or payload_data.get("zgrzewanieWorka") or payload_data.get("szczeki_zamkniete"),
-                    False
+                jaws_val = _pick_field(
+                    payload_data,
+                    "szczekiZamkniete", "szczeki", "szczekiZgrzewajace", "zgrzewanieWorka", "szczeki_zamkniete",
+                    default=None,
                 )
-                _latest_machine_data["bagger_jaws_closed"] = bool(jaws_val)
+                if jaws_val is not None:
+                    _latest_machine_data["bagger_jaws_closed"] = _to_bool(jaws_val)
 
                 # Checkweigher (Waga Dynamiczna & Klapa Zrzutu) Telemetry
-                weight_val = _first_or_default(
-                    payload_data.get("wagaOstatniegoWorka") or payload_data.get("wagaWorka") or payload_data.get("wagaAktualna") or payload_data.get("waga"),
-                    None
+                weight_val = _pick_field(
+                    payload_data,
+                    "wagaOstatniegoWorka", "wagaWorka", "wagaAktualna", "waga",
+                    default=None,
                 )
                 if weight_val is not None:
                     _latest_machine_data["checkweigher_weight"] = float(weight_val)
 
-                target_w = _first_or_default(payload_data.get("wagaZadana") or payload_data.get("wagaNominalna"), 25.0)
+                target_w = _pick_field(payload_data, "wagaZadana", "wagaNominalna", default=25.0)
                 _latest_machine_data["checkweigher_target_weight"] = float(target_w)
 
-                reject_flap = _first_or_default(
-                    payload_data.get("klapaZrzutuOtwarta") or payload_data.get("zrzutAktywny") or payload_data.get("odrzutPraca") or payload_data.get("zrzutOdrzut"),
-                    False
+                reject_flap = _pick_field(
+                    payload_data,
+                    "klapaZrzutuOtwarta", "zrzutAktywny", "odrzutPraca", "zrzutOdrzut",
+                    default=None,
                 )
-                _latest_machine_data["checkweigher_reject_active"] = bool(reject_flap)
+                reject_flap_bool = _to_bool(reject_flap) if reject_flap is not None else False
+                if reject_flap is not None:
+                    _latest_machine_data["checkweigher_reject_active"] = reject_flap_bool
 
-                reject_reason = _first_or_default(
-                    payload_data.get("powodOdrzutu") or payload_data.get("kodBleduWagi") or payload_data.get("rejectReason"),
-                    None
+                reject_reason = _pick_field(
+                    payload_data,
+                    "powodOdrzutu", "kodBleduWagi", "rejectReason",
+                    default=None,
                 )
                 if reject_reason:
                     _latest_machine_data["checkweigher_reject_reason"] = str(reject_reason)
 
-                reject_count_val = _first_or_default(
-                    payload_data.get("licznikOdrzutow") or payload_data.get("licznikZrzutow") or payload_data.get("rejectCount"),
-                    None
+                reject_count_val = _pick_field(
+                    payload_data,
+                    "licznikOdrzutow", "licznikZrzutow", "rejectCount",
+                    default=None,
                 )
                 if reject_count_val is not None:
                     _latest_machine_data["checkweigher_reject_count"] = int(reject_count_val)
 
                 # Trigger reject logger if reject flap is active
-                if reject_flap:
+                if reject_flap_bool:
                     try:
                         from app.services.machine_reject_log_service import MachineRejectLogService
                         cur_w = float(weight_val) if weight_val is not None else 24.10
@@ -257,96 +380,107 @@ def on_message(client, userdata, msg):
                     except Exception:
                         pass
 
-            elif "agroOwijarka" in topic:
-                wrapped = _first_or_default(payload_data.get("wyjazdPaletaOwinieta"), False)
-                _latest_machine_data["is_wrapped"] = bool(wrapped)
+            if is_wrapper_topic:
+                wrapped = _pick_field(payload_data, "wyjazdPaletaOwinieta", default=None)
+                if wrapped is not None:
+                    _latest_machine_data["is_wrapped"] = _to_bool(wrapped)
                 
                 # Wrapping cycle telemetry
-                progress_val = _first_or_default(payload_data.get("postepOwijania") or payload_data.get("progress"), None)
+                progress_val = _pick_field(payload_data, "postepOwijania", "progress", default=None)
                 if progress_val is not None:
                     _latest_machine_data["wrapping_progress"] = float(progress_val)
                     
-                top_sheet_val = _first_or_default(payload_data.get("kapturekZalozony") or payload_data.get("top_sheet"), None)
+                top_sheet_val = _pick_field(payload_data, "kapturekZalozony", "top_sheet", default=None)
                 if top_sheet_val is not None:
-                    _latest_machine_data["top_sheet_applied"] = bool(top_sheet_val)
+                    _latest_machine_data["top_sheet_applied"] = _to_bool(top_sheet_val)
                     
-                rotations_val = _first_or_default(payload_data.get("obrotyStolu") or payload_data.get("rotations"), None)
+                rotations_val = _pick_field(payload_data, "obrotyStolu", "rotations", default=None)
                 if rotations_val is not None:
                     _latest_machine_data["wrapper_rotations"] = int(rotations_val)
                     
-                phase_val = _first_or_default(payload_data.get("etapOwijania") or payload_data.get("phase"), None)
-                if phase_val:
+                phase_val = _pick_field(payload_data, "etapOwijania", "phase", default=None)
+                if phase_val is not None:
                     _latest_machine_data["wrapper_phase"] = str(phase_val)
 
-            elif "agroPaletyzator" in topic:
-                real_pallets = _first_or_default(payload_data.get("licznikPalet_global"), None)
+            if is_palletizer_topic:
+                real_pallets = _pick_field(payload_data, "licznikPalet_global", default=None)
                 if real_pallets is not None:
                     _latest_machine_data["pallet_counter"] = int(real_pallets) + _simulated_offsets["pallet_counter"]
                 
-                current_layer = _first_or_default(payload_data.get("nrWarstwy"), 0)
-                current_bag = _first_or_default(payload_data.get("nrWorka"), 0)
+                current_layer = _pick_field(payload_data, "nrWarstwy", default=0)
+                current_bag = _pick_field(payload_data, "nrWorka", default=0)
                 
                 _latest_machine_data["nrWarstwy"] = current_layer
                 _latest_machine_data["nrWorka"] = current_bag
                 
                 # Bag turner / rotation angle if provided by PLC
-                rotation_val = _first_or_default(
-                    payload_data.get("obrotWorka") or payload_data.get("katObrotu") or payload_data.get("orientacja") or payload_data.get("obracak"),
-                    None
+                rotation_val = _pick_field(
+                    payload_data,
+                    "obrotWorka", "katObrotu", "orientacja", "obracak",
+                    default=None,
                 )
                 if rotation_val is not None:
                     _latest_machine_data["bag_rotation_deg"] = rotation_val
                 
-                turner_active = _first_or_default(payload_data.get("obracakPraca") or payload_data.get("obracakAktywny"), None)
+                turner_active = _pick_field(payload_data, "obracakPraca", "obracakAktywny", default=None)
                 if turner_active is not None:
-                    _latest_machine_data["turner_active"] = bool(turner_active)
+                    _latest_machine_data["turner_active"] = _to_bool(turner_active)
 
-                pusher_active = _first_or_default(payload_data.get("popychaczPraca") or payload_data.get("popychaczAktywny"), None)
+                pusher_active = _pick_field(payload_data, "popychaczPraca", "popychaczAktywny", default=None)
                 if pusher_active is not None:
-                    _latest_machine_data["pusher_active"] = bool(pusher_active)
+                    _latest_machine_data["pusher_active"] = _to_bool(pusher_active)
                 
                 # Pallet dispenser / infeed magazine telemetry
-                dispenser_count = _first_or_default(
-                    payload_data.get("magazynekPaletIlosc") or payload_data.get("magazynekIloscPalet") or payload_data.get("liczbaPaletMagazynek"),
-                    None
+                dispenser_count = _pick_field(
+                    payload_data,
+                    "magazynekPaletIlosc", "magazynekIloscPalet", "liczbaPaletMagazynek",
+                    default=None,
                 )
                 if dispenser_count is not None:
                     _latest_machine_data["dispenser_pallet_count"] = int(dispenser_count)
 
-                dispenser_active = _first_or_default(
-                    payload_data.get("podawaniePalety") or payload_data.get("podajnikPaletPraca") or payload_data.get("podawaniePaletyAktywne"),
-                    None
+                dispenser_active = _pick_field(
+                    payload_data,
+                    "podawaniePalety", "podajnikPaletPraca", "podawaniePaletyAktywne",
+                    default=None,
                 )
                 if dispenser_active is not None:
-                    _latest_machine_data["dispenser_active"] = bool(dispenser_active)
+                    _latest_machine_data["dispenser_active"] = _to_bool(dispenser_active)
 
-                oproznianie = _first_or_default(payload_data.get("oproznianie"), False)
-                _latest_machine_data["oproznianie"] = bool(oproznianie)
-                _latest_machine_data["is_emptying"] = bool(oproznianie)
-                if oproznianie:
-                    _latest_machine_data["last_oproznianie_ts"] = time.time()
+                oproznianie = _pick_field(payload_data, "oproznianie", default=None)
+                if oproznianie is not None:
+                    oproznianie_bool = _to_bool(oproznianie)
+                    _latest_machine_data["oproznianie"] = oproznianie_bool
+                    _latest_machine_data["is_emptying"] = oproznianie_bool
+                    if oproznianie_bool:
+                        _latest_machine_data["last_oproznianie_ts"] = time.time()
                 
-                sygnal_owijarki = _first_or_default(payload_data.get("sygnalDoOwijarkiStart"), False)
-                _latest_machine_data["sygnal_do_owijarki_start"] = bool(sygnal_owijarki)
+                sygnal_owijarki = _pick_field(payload_data, "sygnalDoOwijarkiStart", default=None)
+                if sygnal_owijarki is not None:
+                    _latest_machine_data["sygnal_do_owijarki_start"] = _to_bool(sygnal_owijarki)
                 
                 # Czujniki rolek buforowych (transport -> magazyn)
-                rolki1_zajete = _first_or_default(payload_data.get("rolki1zajete"), False)
-                _latest_machine_data["rolki1zajete"] = bool(rolki1_zajete)
+                rolki1_zajete = _pick_field(payload_data, "rolki1zajete", default=None)
+                if rolki1_zajete is not None:
+                    _latest_machine_data["rolki1zajete"] = _to_bool(rolki1_zajete)
                 
-                rolki2_zajete = _first_or_default(payload_data.get("rolki2zajete"), False)
-                _latest_machine_data["rolki2zajete"] = bool(rolki2_zajete)
+                rolki2_zajete = _pick_field(payload_data, "rolki2zajete", default=None)
+                if rolki2_zajete is not None:
+                    _latest_machine_data["rolki2zajete"] = _to_bool(rolki2_zajete)
                 
-                bufor_pelny = _first_or_default(payload_data.get("buforPelny"), False)
-                _latest_machine_data["buforPelny"] = bool(bufor_pelny)
+                bufor_pelny = _pick_field(payload_data, "buforPelny", default=None)
+                if bufor_pelny is not None:
+                    _latest_machine_data["buforPelny"] = _to_bool(bufor_pelny)
                 
                 # Snapshot values when oproznianie becomes active
-                if oproznianie and "oproznianie_snapshot" not in _latest_machine_data:
+                is_emptying_now = bool(_latest_machine_data.get("oproznianie"))
+                if is_emptying_now and "oproznianie_snapshot" not in _latest_machine_data:
                     _latest_machine_data["oproznianie_snapshot"] = {
                         "nrWarstwy": current_layer,
                         "nrWorka": current_bag,
                         "timestamp": time.time()
                     }
-                elif not oproznianie and "oproznianie_snapshot" in _latest_machine_data:
+                elif not is_emptying_now and "oproznianie_snapshot" in _latest_machine_data:
                     del _latest_machine_data["oproznianie_snapshot"]
 
     except Exception as exc:
@@ -361,9 +495,9 @@ def _run_mqtt_client():
         _append_error(f"paho-mqtt missing: {exc}")
         return
 
-    mqtt_host = os.getenv("MQTT_BROKER_HOST", "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud")
-    mqtt_port = int(os.getenv("MQTT_BROKER_PORT", "8883"))
-    mqtt_username = os.getenv("MQTT_BROKER_USERNAME", "Lstech")
+    mqtt_host = (os.getenv("MQTT_BROKER_HOST") or "").strip() or "4a85c6c2e2d343e8b6798f1124ffe230.s1.eu.hivemq.cloud"
+    mqtt_port = _safe_env_int("MQTT_BROKER_PORT", 8883)
+    mqtt_username = (os.getenv("MQTT_BROKER_USERNAME") or "").strip() or "Lstech"
     mqtt_password = _get_required_mqtt_password()
 
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
@@ -376,6 +510,7 @@ def _run_mqtt_client():
         client.tls_set()
 
     client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.on_message = on_message
 
     while not _stop_event.is_set():
@@ -384,6 +519,8 @@ def _run_mqtt_client():
             client.connect(mqtt_host, mqtt_port, 60)
             client.loop_forever()
         except Exception as exc:
+            with _data_lock:
+                _latest_machine_data["broker_connected"] = False
             print(f"[MQTT-SERVER] Wyjatek: {exc}. Reconnect za 10s...")
             _append_error(f"mqtt reconnect loop exception: {exc}")
             time.sleep(10)
