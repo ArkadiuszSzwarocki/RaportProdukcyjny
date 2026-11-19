@@ -51,7 +51,11 @@ function showStation(station) {
     station.items.forEach(item => {
       const itemEl = document.createElement('div');
       itemEl.className = 'station-item';
-      itemEl.onclick = () => showPallet(item);
+      itemEl.style.cursor = 'default';
+      itemEl.onclick = () => {
+        showToast('⚠️ Aby wydać lub przenieść paletę, zeskanuj etykietę bezpośrednio z palety (SSCC).', 'warn');
+        if (scanInput) scanInput.focus();
+      };
       itemEl.innerHTML = `
         <div class="station-item-name">${scannerEscapeHtml(item.nazwa)}</div>
         <div class="station-item-details">
