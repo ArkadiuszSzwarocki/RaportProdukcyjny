@@ -115,7 +115,7 @@
             <!-- MODUŁ DRUKOWANIA ETYKIETY (RESPONSIVE) -->
             <div id="modalPrintBox" class="modal-print-box">
                 <div class="modal-print-header">
-                    <span class="material-icons" style="font-size: 20px;">print</span> DRUKOWANIE & PODGLĄD ETYKIETY (ZPL)
+                    <span class="material-icons" style="font-size: 20px;">print</span> DRUKOWANIE ETYKIETY (ZPL)
                 </div>
                 <div class="modal-print-controls">
                     <select id="printerSelect" class="modal-printer-select">
@@ -140,9 +140,6 @@
                     <div class="modal-print-btn-group" style="display: flex; gap: 8px;">
                         <button type="button" onclick="if (typeof printCurrentPallet === 'function') { printCurrentPallet(this); } else { AppDialog.alert('Błąd klienta: brak funkcji druku. Odśwież stronę (Ctrl+F5).'); }" class="btn-print-action print">
                             <span class="material-icons" style="font-size: 17px;">print</span> DRUKUJ
-                        </button>
-                        <button type="button" onclick="if (typeof previewCurrentPallet === 'function') { previewCurrentPallet(); } else { AppDialog.alert('Brak funkcji podglądu.'); }" class="btn-print-action preview">
-                            <span class="material-icons" style="font-size: 17px;">visibility</span> PODGLĄD
                         </button>
                     </div>
                 </div>
