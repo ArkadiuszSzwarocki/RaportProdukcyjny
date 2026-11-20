@@ -1,5 +1,6 @@
 # cspell:words TINYINT
 """Persistent, database-scoped packaging shortage notifications."""
+import os
 import re
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
@@ -25,6 +26,11 @@ SCHEMA = [
 ]
 
 
+def normalize_material_key(value) -> str:
+    """Normalize material names for whitespace- and case-insensitive matching."""
+    return str(value or '').strip().casefold()
+
+
 def ensure_schema(connection):
     cursor = connection.cursor()
     try:
@@ -33,6 +39,24 @@ def ensure_schema(connection):
         cursor.execute("SHOW COLUMNS FROM packaging_alert_groups LIKE 'cc_recipients'")
         if not cursor.fetchone():
             cursor.execute('ALTER TABLE packaging_alert_groups ADD COLUMN cc_recipients TEXT NULL')
+        cursor.execute(
+            "SELECT id, material FROM packaging_alert_rules "
+            "WHERE CHAR_LENGTH(material) != CHAR_LENGTH(TRIM(material))"
+        )
+        for row in cursor.fetchall() or []:
+            rule_id, raw_material = (row['id'], row['material']) if isinstance(row, dict) else (row[0], row[1])
+            trimmed = str(raw_material or '').strip()
+            if not trimmed:
+                continue
+            cursor.execute(
+                "SELECT id FROM packaging_alert_rules WHERE material = %s AND id <> %s LIMIT 1",
+                (trimmed, rule_id),
+            )
+            if not cursor.fetchone():
+                cursor.execute(
+                    "UPDATE packaging_alert_rules SET material = %s WHERE id = %s",
+                    (trimmed, rule_id),
+                )
         connection.commit()
     finally:
         cursor.close()
@@ -71,7 +95,7 @@ _AVAILABLE_STOCK_PREDICATE = """
 CATEGORY_ORDER = ('Surowce', 'Dodatki', 'Taśmy', 'Opakowania', 'Wyroby gotowe')
 
 
-def catalog(cursor):
+def catalog(cursor, strict=False):
     """Return unified available stock across raw materials, additives, packaging, tapes and finished goods."""
     items_by_material = {}
 
@@ -79,14 +103,15 @@ def catalog(cursor):
         name = str(material_name or '').strip()
         if not name:
             return
+        key = normalize_material_key(name)
         stock_dec = Decimal(str(stock_val or 0))
-        existing = items_by_material.get(name)
+        existing = items_by_material.get(key)
         if existing:
             existing['stock'] = existing['stock'] + stock_dec
             if is_tape:
                 existing['is_tape'] = 1
         else:
-            items_by_material[name] = {
+            items_by_material[key] = {
                 'material': name,
                 'stock': stock_dec,
                 'category': category,
@@ -105,17 +130,19 @@ def catalog(cursor):
         """)
         for row in cursor.fetchall() or []:
             _merge(row['material'], row['stock'], 'Surowce', 'kg')
-    except Exception:
-        pass
+    except Exception as exc:
+        if strict and getattr(exc, 'errno', None) != 1146:
+            raise
 
     try:
         cursor.execute("SELECT DISTINCT nazwa FROM slownik_surowcow WHERE nazwa IS NOT NULL AND TRIM(nazwa) <> ''")
         for row in cursor.fetchall() or []:
             name = str(row['nazwa']).strip()
-            if name and name not in items_by_material:
+            if name and normalize_material_key(name) not in items_by_material:
                 _merge(name, Decimal(0), 'Surowce', 'kg')
-    except Exception:
-        pass
+    except Exception as exc:
+        if strict and getattr(exc, 'errno', None) != 1146:
+            raise
 
     # 2. Dodatki
     try:
@@ -128,8 +155,9 @@ def catalog(cursor):
         """)
         for row in cursor.fetchall() or []:
             _merge(row['material'], row['stock'], 'Dodatki', 'kg')
-    except Exception:
-        pass
+    except Exception as exc:
+        if strict and getattr(exc, 'errno', None) != 1146:
+            raise
 
     # 3. Opakowania i taśmy (shared inventory across halls)
     try:
@@ -153,8 +181,9 @@ def catalog(cursor):
                 'rolki' if is_tape else 'szt.',
                 is_tape=1 if is_tape else 0,
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        if strict and getattr(exc, 'errno', None) != 1146:
+            raise
 
     # 4. Wyroby gotowe (PSD + AGRO)
     for finished_table in ('magazyn_palety', 'magazyn_palety_agro'):
@@ -172,8 +201,9 @@ def catalog(cursor):
             """)
             for row in cursor.fetchall() or []:
                 _merge(row['material'], row['stock'], 'Wyroby gotowe', 'kg')
-        except Exception:
-            pass
+        except Exception as exc:
+            if strict and getattr(exc, 'errno', None) != 1146:
+                raise
 
     order_map = {cat: idx for idx, cat in enumerate(CATEGORY_ORDER)}
     return sorted(
@@ -193,7 +223,7 @@ def build_alert_email(rule, stock, minimum):
         autoescape=select_autoescape(['html']),
     )
     return environment.get_template('emails/packaging_stock_alert.html').render(
-        material=rule['material'], unit=rule['unit'], group=rule.get('group_name', ''),
+        material=str(rule['material']).strip(), unit=rule['unit'], group=rule.get('group_name', ''),
         stock=quantity(stock), minimum=quantity(minimum),
         shortage=quantity(max(Decimal(0), minimum - stock)),
         checked_at=datetime.now(ZoneInfo('Europe/Warsaw')).strftime('%d.%m.%Y · %H:%M'),
@@ -217,23 +247,31 @@ def run_check():
         cursor.execute("SHOW TABLES LIKE 'packaging_alert_rules'")
         if not cursor.fetchone():
             return  # Configuration has not been opened yet; no implicit migration in worker.
-        stocks = {row['material']: Decimal(str(row['stock'])) for row in catalog(cursor)}
+        stocks = {normalize_material_key(row['material']): Decimal(str(row['stock'])) for row in catalog(cursor, strict=True)}
+        if not stocks:
+            return
+        try:
+            cooldown_hours = max(1, int(os.getenv('STOCK_ALERT_MIN_COOLDOWN_HOURS', '6')))
+        except (TypeError, ValueError):
+            cooldown_hours = 6
         cursor.execute("""SELECT r.*, g.name AS group_name, g.recipients, g.cc_recipients,
-            (r.next_attempt IS NULL OR r.next_attempt <= NOW()) AS retry_ready
+            (r.next_attempt IS NULL OR r.next_attempt <= NOW()) AS retry_ready,
+            (r.sent_at IS NOT NULL AND r.sent_at > DATE_SUB(NOW(), INTERVAL %s HOUR)) AS in_send_cooldown
             FROM packaging_alert_rules r JOIN packaging_alert_groups g ON g.id=r.group_id
-            WHERE r.enabled=1""")
+            WHERE r.enabled=1""", (cooldown_hours,))
         for rule in cursor.fetchall():
-            stock = stocks.get(rule['material'], Decimal(0))
+            stock = stocks.get(normalize_material_key(rule['material']), Decimal(0))
             minimum = Decimal(str(rule['minimum']))
             if stock > minimum:
                 cursor.execute("""UPDATE packaging_alert_rules SET notified=0, next_attempt=NULL,
                     last_error=NULL, checked_at=NOW() WHERE id=%s""", (rule['id'],))
-            elif not rule['notified'] and rule['retry_ready']:
+            elif not rule['notified'] and rule['retry_ready'] and not rule.get('in_send_cooldown'):
+                material_name = str(rule['material']).strip()
                 rule['group_name'] = 'Do: ' + rule['recipients'] + (' · DW: ' + rule['cc_recipients'] if rule.get('cc_recipients') else '')
                 body = build_alert_email(rule, stock, minimum)
                 success, message = EmailService().send_report_email(
                     parse_recipients(rule['recipients']),
-                    'Niski stan magazynowy: ' + rule['material'], body,
+                    'Niski stan magazynowy: ' + material_name, body,
                     cc_emails=parse_recipients(rule.get('cc_recipients') or '', optional=True),
                     log_connection=connection, log_source='Stany minimalne — automat')
                 if success:
@@ -273,14 +311,14 @@ def send_summary(connection, group_id):
         group = cursor.fetchone()
         if not group:
             return False, 'Nie znaleziono adresów odbiorców.'
-        stocks = {row['material']: Decimal(str(row['stock'])) for row in catalog(cursor)}
+        stocks = {normalize_material_key(row['material']): Decimal(str(row['stock'])) for row in catalog(cursor)}
         cursor.execute('SELECT * FROM packaging_alert_rules WHERE enabled=1 ORDER BY material')
         rows = []
         for rule in cursor.fetchall():
-            stock = stocks.get(rule['material'], Decimal(0))
+            stock = stocks.get(normalize_material_key(rule['material']), Decimal(0))
             minimum = Decimal(str(rule['minimum']))
             if stock <= minimum:
-                rows.append(dict(rule, stock=stock, shortage=max(Decimal(0), minimum - stock)))
+                rows.append(dict(rule, material=str(rule['material']).strip(), stock=stock, shortage=max(Decimal(0), minimum - stock)))
         if not rows:
             from app.services.email_log_service import EmailLogService
             message = 'Brak pozycji na poziomie lub poniżej stanu minimalnego. Nie wysłano e-maila.'

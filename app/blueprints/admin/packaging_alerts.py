@@ -3,7 +3,7 @@ from flask import flash, redirect, render_template, request, url_for
 from app.decorators import login_required, roles_required
 from app.db import get_db_connection
 from app.services.packaging_stock_alerts import (
-    CATEGORY_ORDER, catalog, ensure_schema, parse_minimum, parse_recipients, send_summary,
+    CATEGORY_ORDER, catalog, ensure_schema, normalize_material_key, parse_minimum, parse_recipients, send_summary,
 )
 
 
@@ -11,16 +11,17 @@ def prepare_bulk_rules(form, materials):
     selected = list(dict.fromkeys(form.getlist('selected')))
     if not selected:
         raise ValueError('Zaznacz przynajmniej jeden materiał.')
-    known = {row['material'] for row in materials}
+    known = {normalize_material_key(row['material']): str(row['material']).strip() for row in materials}
     rows = []
     seen = set()
     for index in selected:
         if not index.isdigit():
             raise ValueError('Nieprawidłowy wybór materiału.')
-        material = form.get('material_' + index, '')
-        if material not in known or material in seen:
+        key = normalize_material_key(form.get('material_' + index, ''))
+        material = known.get(key)
+        if not material or key in seen:
             raise ValueError('Lista materiałów zmieniła się. Otwórz okno ponownie.')
-        seen.add(material)
+        seen.add(key)
         try:
             minimum = parse_minimum(form.get('minimum_' + index, ''))
         except ValueError as error:
@@ -74,8 +75,9 @@ def register_packaging_alert_routes(bp):
                                 unit=VALUES(unit), group_id=VALUES(group_id), enabled=VALUES(enabled)""",
                                 (material, minimum, unit, group_id, int(request.form.get('enabled') == 'on')))
                     elif action == 'rule':
-                        material = request.form.get('material', '')
-                        if material not in {row['material'] for row in materials}:
+                        known = {normalize_material_key(row['material']): str(row['material']).strip() for row in materials}
+                        material = known.get(normalize_material_key(request.form.get('material', '')))
+                        if not material:
                             raise ValueError('Wybierz pozycję z ewidencji magazynowej.')
                         minimum = parse_minimum(request.form.get('minimum', ''))
                         unit = request.form.get('unit', '')
@@ -108,12 +110,14 @@ def register_packaging_alert_routes(bp):
             cursor.execute('''SELECT r.*,g.recipients AS group_name,g.cc_recipients FROM packaging_alert_rules r
                 JOIN packaging_alert_groups g ON g.id=r.group_id ORDER BY r.material''')
             rules = cursor.fetchall()
-            stocks = {row['material']: row['stock'] for row in materials}
-            categories_by_mat = {row['material']: row['category'] for row in materials}
+            stocks = {normalize_material_key(row['material']): row['stock'] for row in materials}
+            categories_by_mat = {normalize_material_key(row['material']): row['category'] for row in materials}
             order_map = {cat: idx for idx, cat in enumerate(CATEGORY_ORDER)}
             for rule in rules:
-                rule['stock'] = stocks.get(rule['material'], 0)
-                rule['category'] = categories_by_mat.get(rule['material'], 'Pozostałe')
+                mat_key = normalize_material_key(rule['material'])
+                rule['material'] = str(rule['material']).strip()
+                rule['stock'] = stocks.get(mat_key, 0)
+                rule['category'] = categories_by_mat.get(mat_key, 'Pozostałe')
             rules.sort(key=lambda rule: (order_map.get(rule['category'], 99), rule['material'].casefold()))
             return render_template(
                 'admin/packaging_alerts.html',
@@ -121,7 +125,7 @@ def register_packaging_alert_routes(bp):
                 rules=rules,
                 materials=materials,
                 categories=list(CATEGORY_ORDER),
-                rules_by_material={rule['material']: rule for rule in rules},
+                rules_by_material={str(rule['material']).strip(): rule for rule in rules},
             )
         finally:
             if cursor is not None:
