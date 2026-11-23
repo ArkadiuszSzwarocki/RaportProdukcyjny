@@ -2321,7 +2321,7 @@
       "readonly": false
     },
     "magazynier": {
-      "access": false,
+      "access": true,
       "readonly": false
     }
   },
