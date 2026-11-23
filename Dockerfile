@@ -1,4 +1,4 @@
-# cspell:words setuptools ensurepip addgroup adduser libstdc dejavu musl zlib
+# cspell:words setuptools ensurepip addgroup adduser libstdc dejavu musl zlib libfontenc
 FROM python:3.11-alpine@sha256:d9368b3a5ac59afea7b5d4f2e2aea0941dbf9fdee9c369c5bec00b98244bc929 AS builder
 WORKDIR /tmp
 COPY requirements-build.lock requirements-linux.lock ./
@@ -11,7 +11,7 @@ WORKDIR /app
 RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser
 RUN apk upgrade --no-cache && \
     apk add --no-cache tzdata libstdc++ font-dejavu \
-    'musl>=1.2.6-r3' 'musl-utils>=1.2.6-r3' 'zlib>=1.3.2-r1'
+    'musl>=1.2.6-r3' 'musl-utils>=1.2.6-r3' 'zlib>=1.3.2-r1' 'libfontenc>=1.1.10-r0'
 
 COPY --from=builder /root/.local /home/appuser/.local
 # Installation tools and their bundled dependencies belong only in the builder.
