@@ -124,6 +124,20 @@ jobs:
           severity: "CRITICAL,HIGH"
           exit-code: "1"
 
+      - name: Print built image vulnerability summary on failure
+        if: failure() && hashFiles('image-vulnerabilities.json') != ''
+        run: |
+          python3 -c "
+          import json
+          with open('image-vulnerabilities.json', encoding='utf-8') as f:
+              data = json.load(f)
+          for res in data.get('Results', []):
+              for v in res.get('Vulnerabilities', []) or []:
+                  print(res.get('Target'), v.get('Severity'), v.get('VulnerabilityID'), v.get('PkgName'), v.get('InstalledVersion'), 'fixed:', v.get('FixedVersion'))
+              for s in res.get('Secrets', []) or []:
+                  print('SECRET:', res.get('Target'), s.get('RuleID'), s.get('Title'))
+          "
+
       - name: Generate image component inventory
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
