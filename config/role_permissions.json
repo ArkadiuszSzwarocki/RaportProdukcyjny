@@ -1029,7 +1029,7 @@
       "readonly": false
     },
     "magazynier": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "dur": {
@@ -1407,7 +1407,7 @@
       "readonly": false
     },
     "magazynier": {
-      "access": true,
+      "access": false,
       "readonly": false
     },
     "dur": {
@@ -2187,6 +2187,10 @@
     "pracownik": {
       "access": false,
       "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
     }
   },
   "group.settlements": {
@@ -2203,6 +2207,10 @@
     "planista": {
       "access": false,
       "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
     }
   },
   "group.entry_dispatch": {
@@ -2211,6 +2219,10 @@
       "readonly": false
     },
     "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
       "access": false,
       "readonly": false
     }
@@ -2223,6 +2235,10 @@
     "planista": {
       "access": false,
       "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
     }
   },
   "group.entry_consumption": {
@@ -2231,6 +2247,10 @@
       "readonly": false
     },
     "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
       "access": false,
       "readonly": false
     }
@@ -2251,6 +2271,10 @@
     "planista": {
       "access": false,
       "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
     }
   },
   "group.agro_picking": {
@@ -2261,10 +2285,26 @@
     "pracownik": {
       "access": true,
       "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
     }
   },
   "group.agro_packaging": {
     "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
       "access": false,
       "readonly": false
     }
@@ -2277,6 +2317,10 @@
   },
   "group.entry_printer_logs": {
     "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
       "access": false,
       "readonly": false
     }
@@ -2401,6 +2445,680 @@
       "readonly": false
     },
     "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_plan_agro": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_plan_bufor_psd": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_plan_bufor_agro": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_maluchy_psd": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_maluchy_agro": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_agro_bigbag": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_downtime_agro": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_downtime_psd": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_agro_raw_materials": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_osip_transfers": {
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_osip_split": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_osip_mix": {
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_osip_printer_logs": {
+    "planista": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_prod_inventory": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_agro_work_time_report": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": true,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_agro_combined_report": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_dosing_times_report": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": true,
+      "readonly": false
+    },
+    "laborant": {
+      "access": true,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": true,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_bug_reports": {
+    "admin": {
+      "access": true,
+      "readonly": false
+    },
+    "zarzad": {
+      "access": true,
+      "readonly": false
+    },
+    "lider": {
+      "access": true,
+      "readonly": false
+    },
+    "planista": {
+      "access": false,
+      "readonly": false
+    },
+    "laborant": {
+      "access": false,
+      "readonly": false
+    },
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    },
+    "dur": {
+      "access": false,
+      "readonly": false
+    },
+    "pracownik": {
+      "access": false,
+      "readonly": false
+    },
+    "widz": {
+      "access": false,
+      "readonly": false
+    },
+    "osip": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_orders": {
+    "laborant": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.agro_station_history": {
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.quality": {
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_integrity": {
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_zebra_sim": {
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_scanner_sim": {
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_mqtt": {
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_process_flow": {
+    "magazynier": {
+      "access": false,
+      "readonly": false
+    }
+  },
+  "group.entry_live_line": {
+    "magazynier": {
       "access": false,
       "readonly": false
     }

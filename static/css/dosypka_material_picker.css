@@ -1,0 +1,312 @@
+/* Grouped BB / MZ / KO tank-assigned raw material picker for dosypka forms */
+.dosypka-picker-box {
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+
+.dosypka-picker-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.dosypka-picker-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.dosypka-picker-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #334155;
+    cursor: pointer;
+    user-select: none;
+}
+
+.dosypka-picker-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
+.dosypka-picker-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 10px;
+}
+
+.dosypka-picker-group {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+.dosypka-picker-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #1d4ed8;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 5px;
+    margin-bottom: 7px;
+}
+
+.dosypka-picker-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-height: 145px;
+    overflow-y: auto;
+}
+
+.dosypka-picker-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    border-radius: 7px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.dosypka-picker-chip:hover {
+    background: #dbeafe;
+    border-color: #3b82f6;
+}
+
+.dosypka-picker-chip-tanks {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: #047857;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 5px;
+    padding: 1px 4px;
+}
+
+.dosypka-picker-chip-maluchy {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+}
+
+.dosypka-picker-chip-maluchy:hover {
+    background: #fef3c7;
+    border-color: #d97706;
+}
+
+.dosypka-picker-tank-maluchy {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #b45309;
+}
+
+.dosypka-maluchy-legend {
+    font-size: 0.74rem;
+    font-weight: 800;
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+    padding: 3px 8px;
+}
+
+.dosypka-picker-unassigned {
+    margin-top: 10px;
+    background: #ffffff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+.dosypka-picker-unassigned[hidden] {
+    display: none;
+}
+
+.dosypka-picker-chip-unassigned {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: #334155;
+}
+
+.dosypka-picker-chip-unassigned:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+}
+
+.dosypka-picker-empty {
+    font-size: 0.76rem;
+    color: #94a3b8;
+    font-style: italic;
+}
+
+/* Compact single-line dosypka rows: Lp. | Tank | Material | Weight | Remove */
+#dosypka-fields,
+#ds-fields {
+    gap: 6px;
+}
+
+.dosypka-field-group,
+.ds-field-group {
+    padding: 6px 10px !important;
+    border-radius: 10px !important;
+}
+
+.dosypka-field-group .dosypka-row,
+.ds-field-group .ds-field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+.dosypka-row-lp {
+    flex: 0 0 24px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: #2563eb;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.dosypka-field-group .dosypka-tank-hint,
+.ds-field-group .dosypka-tank-hint {
+    margin-top: 0 !important;
+    padding: 4px 8px !important;
+    border-radius: 7px !important;
+    font-size: 0.76rem !important;
+    font-weight: 800 !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1.2;
+}
+
+.dosypka-field-group .dosypka-input,
+.ds-field-group .ds-input {
+    min-height: 36px !important;
+    height: 36px;
+    padding: 0 10px !important;
+    font-size: 0.9rem !important;
+}
+
+.dosypka-field-group .dosypka-input-nazwa,
+.ds-field-group .ds-input-nazwa {
+    flex: 1 1 auto;
+    min-width: 120px;
+}
+
+.dosypka-field-group .dosypka-input-kg,
+.ds-field-group .ds-input-kg {
+    flex: 0 0 105px;
+    text-align: right;
+}
+
+.dosypka-field-group .dosypka-btn-remove,
+.ds-field-group .ds-btn-remove {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+}
+
+/* Left column stack: full-height vertical tanks sidebar + right main area (form + history) */
+.dosypka-workspace {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 18px;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: stretch;
+}
+
+.dosypka-workspace.dosypka-workspace-no-tanks {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.dosypka-tanks-sidebar {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dosypka-tanks-sidebar .dosypka-picker-box {
+    margin-bottom: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dosypka-tanks-sidebar .dosypka-picker-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.dosypka-tanks-sidebar .dosypka-picker-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.dosypka-tanks-sidebar .dosypka-picker-groups {
+    grid-template-columns: 1fr;
+}
+
+.dosypka-tanks-sidebar .dosypka-picker-chips {
+    max-height: none;
+}
+
+.dosypka-main-area {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.dosypka-main-area .dosypka-layout {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+    gap: 18px;
+}
+
+@media (max-width: 1100px) {
+    .dosypka-workspace {
+        grid-template-columns: 1fr;
+        min-height: auto;
+    }
+
+    .dosypka-tanks-sidebar .dosypka-picker-groups {
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    }
+
+    .dosypka-main-area .dosypka-layout {
+        grid-template-columns: 1fr;
+    }
+}

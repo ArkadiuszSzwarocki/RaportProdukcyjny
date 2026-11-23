@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 
 
 # Never override values injected by CI, containers or a secret manager.
-load_dotenv(override=False)
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_ENV_FILE = os.path.join(_PROJECT_ROOT, '.env')
+load_dotenv(_ENV_FILE if os.path.isfile(_ENV_FILE) else None, override=False)
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 APP_BASE_URL = os.getenv('APP_BASE_URL', 'http://localhost:8082').rstrip('/')

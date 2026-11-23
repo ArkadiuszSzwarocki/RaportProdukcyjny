@@ -1,0 +1,123 @@
+{% extends 'admin/email_center_layout.html' %}
+{% block email_content %}
+{% macro stock_number(value) -%}
+  {%- set text = value|string -%}
+  {%- set clean = text.rstrip('0').rstrip('.') if '.' in text else text -%}
+  {{- clean|replace('.', ',') -}}
+{%- endmacro %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/stock_thresholds.css') }}?v={{ static_version }}">
+
+<section class="stock-card">
+  <div class="stock-card-head">
+    <h2>Alerty e-mail o niskich stanach magazynowych</h2>
+    <a href="{{ url_for('admin.packaging_alerts') }}" class="btn btn-secondary">Przejdź do progów (Stany minimalne) →</a>
+  </div>
+  <p class="stock-note">Tutaj zarządzasz wyłącznie stroną mailową: odbiorcami <strong>Do / DW</strong>, włączaniem powiadomień automatycznych oraz ręczną wysyłką zestawienia. Progi ilościowe (minima) ustawia się w <em>Magazyn → Stany minimalne</em>.</p>
+  <p class="stock-note">Sprawdzanie w tle co 5 minut. Jeden e-mail na okres niedoboru (kolejna próba po błędzie za 30 min). Nadawca: wspólne konto systemowe SMTP z zakładki <em>Konto systemowe i odbiorcy</em>.</p>
+  <div class="stock-stats">
+    <div class="stock-stat">Aktywne powiadomienia e-mail: {{ active_email_count }}</div>
+    <div class="stock-stat">Pozycje bez przypisanych odbiorców: {{ unassigned_count }}</div>
+  </div>
+</section>
+
+<section class="stock-card">
+  <h2>1. Odbiorcy e-mail (Do / DW)</h2>
+  <div class="stock-groups">
+    {% for group in groups %}
+    <div class="stock-group-row">
+      <form method="post" action="{{ url_for('admin.stock_alert_emails') }}" class="stock-form">
+        <input type="hidden" name="action" value="group">
+        <input type="hidden" name="group_id" value="{{ group.id }}">
+        <label>Do — odbiorcy główni<input name="recipients" required value="{{ group.recipients }}"></label>
+        <label>DW — do wiadomości<input name="cc_recipients" value="{{ group.cc_recipients or '' }}" placeholder="Opcjonalnie"></label>
+        <button class="btn btn-primary" type="submit">Zapisz adresy</button>
+      </form>
+      <form method="post" action="{{ url_for('admin.stock_alert_emails') }}" data-confirm="Usunąć grupę odbiorców {{ group.recipients }}? Powiązane alerty zostaną odpięte i wyłączone.">
+        <input type="hidden" name="action" value="delete_group">
+        <input type="hidden" name="group_id" value="{{ group.id }}">
+        <button class="btn btn-secondary stock-btn-danger" type="submit">Usuń grupę</button>
+      </form>
+    </div>
+    {% endfor %}
+    <form method="post" action="{{ url_for('admin.stock_alert_emails') }}" class="stock-form">
+      <input type="hidden" name="action" value="group">
+      <label>Do — odbiorcy główni<input name="recipients" required placeholder="zakupy@firma.pl"></label>
+      <label>DW — do wiadomości<input name="cc_recipients" placeholder="np. lider@firma.pl (opcjonalnie)"></label>
+      <button class="btn btn-primary" type="submit">Dodaj odbiorców</button>
+    </form>
+  </div>
+</section>
+
+<section class="stock-card">
+  <h2>2. Przypisanie odbiorców i aktywacja powiadomień</h2>
+  {% if rules %}
+  <form method="post" action="{{ url_for('admin.stock_alert_emails') }}" id="email-assign-form" class="stock-form">
+    <input type="hidden" name="action" value="assign_emails">
+    <label>Odbiorcy dla zaznaczonych pozycji
+      <select name="group_id" id="email-group-select">
+        <option value="">— Usuń przypisanie odbiorców —</option>
+        {% for group in groups %}
+        <option value="{{ group.id }}" data-to="{{ group.recipients }}" data-cc="{{ group.cc_recipients or '' }}">Do: {{ group.recipients }}{% if group.cc_recipients %} · DW: {{ group.cc_recipients }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="stock-checkbox"><input type="checkbox" name="enabled" checked>Włącz automatyczne powiadomienia</label>
+    <button type="submit" class="btn btn-primary" id="email-assign-submit" disabled>Zapisz dla zaznaczonych</button>
+  </form>
+  <p class="stock-note" id="email-group-preview">Wybierz grupę odbiorców i zaznacz pozycje w tabeli poniżej.</p>
+  <div class="stock-form stock-toolbar">
+    <label>Szukaj pozycji<input type="search" id="email-rules-search" placeholder="Wpisz nazwę surowca, opakowania, taśmy, wyrobu…" autocomplete="off"></label>
+    <label>Kategoria<select id="email-rules-category"><option value="ALL">Wszystkie kategorie</option>{% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="stock-bulk-toolbar">
+    <label><input type="checkbox" id="email-select-all">Zaznacz wszystkie widoczne</label>
+    <span id="email-selected-count" aria-live="polite">Zaznaczono: 0</span>
+  </div>
+  <div class="stock-scroll">
+    <table class="stock-table" id="email-rules-table">
+      <thead><tr><th>Wybierz</th><th>Pozycja</th><th>Stan / minimum</th><th>Odbiorcy e-mail</th><th>Powiadomienie</th><th>Ostatnie sprawdzenie</th><th>Akcja</th></tr></thead>
+      <tbody>
+      {% for rule in rules %}
+      {% if loop.first or rule.category != loop.previtem.category %}
+      <tr class="stock-category" data-category-header="{{ rule.category }}"><td colspan="7"><label><input type="checkbox" class="email-category-check" data-category="{{ rule.category }}">{{ rule.category }}</label></td></tr>
+      {% endif %}
+      <tr class="email-rule-row" data-category="{{ rule.category }}" data-material="{{ rule.material }}">
+        <td><input type="checkbox" form="email-assign-form" name="rule_ids" value="{{ rule.id }}" class="email-rule-check" aria-label="Wybierz {{ rule.material }}"></td>
+        <td><strong>{{ rule.material }}</strong></td>
+        <td class="{% if rule.is_low %}stock-low{% endif %}">{{ stock_number(rule.stock) }} / {{ stock_number(rule.minimum) }} {{ rule.unit }}</td>
+        <td>{% if rule.group_name %}Do: {{ rule.group_name }}{% if rule.cc_recipients %}<br>DW: {{ rule.cc_recipients }}{% endif %}{% else %}<span class="stock-badge stock-badge-muted">Nie przypisano</span>{% endif %}</td>
+        <td>{% if not rule.group_id %}Brak odbiorców (e-mail wyłączony){% elif not rule.enabled %}Wyłączone{% elif rule.last_error %}<span class="stock-low">{{ rule.last_error }}</span><br>Próba: {{ rule.next_attempt }}{% elif rule.notified %}Wysłano: {{ rule.sent_at }}{% elif rule.is_low %}Niedobór — oczekuje na wysyłkę{% else %}Stan prawidłowy{% endif %}</td>
+        <td>{{ rule.checked_at or 'Jeszcze nie sprawdzano' }}</td>
+        <td>
+          <form method="post" action="{{ url_for('admin.stock_alert_emails') }}">
+            <input type="hidden" name="action" value="toggle">
+            <input type="hidden" name="id" value="{{ rule.id }}">
+            <button class="btn btn-secondary" type="submit"{% if not rule.enabled and not rule.group_id %} disabled title="Najpierw przypisz odbiorców e-mail"{% endif %}>{{ 'Wyłącz e-mail' if rule.enabled else 'Włącz e-mail' }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="stock-note">Brak skonfigurowanych progów minimalnych. Najpierw ustaw pozycje i minima w zakładce <a href="{{ url_for('admin.packaging_alerts') }}">Magazyn → Stany minimalne</a>.</p>
+  {% endif %}
+</section>
+
+<section class="stock-card">
+  <h2>3. Wyślij zbiorcze zestawienie niskich stanów</h2>
+  <p class="stock-note">Jedna wiadomość ze wszystkimi pozycjami z włączonym powiadomieniem, których stan jest na poziomie lub poniżej minimum (również wcześniej zgłoszonymi).</p>
+  <form method="post" action="{{ url_for('admin.stock_alert_emails') }}" class="stock-form" id="stock-summary-form">
+    <input type="hidden" name="action" value="summary">
+    <label>Odbiorcy e-mail
+      <select name="group_id" required>
+        <option value="">Wybierz odbiorców</option>
+        {% for group in groups %}<option value="{{ group.id }}">Do: {{ group.recipients }}{% if group.cc_recipients %} · DW: {{ group.cc_recipients }}{% endif %}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="btn btn-primary" type="submit">Wyślij e-mail zbiorczy</button>
+  </form>
+</section>
+<script src="{{ url_for('static', filename='js/stock_alert_emails.js') }}?v={{ static_version }}" defer></script>
+{% endblock %}

@@ -3,7 +3,7 @@
     'use strict';
 
     function normalizeMaterialName(value) {
-        return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        return String(value || '').toLowerCase().replace(/[\s\-_.,()\/]+/g, ' ').trim();
     }
 
     function readTankMap(root) {
@@ -11,21 +11,31 @@
         if (!script) return {};
         try {
             const parsed = JSON.parse(script.textContent || '{}');
-            return parsed && typeof parsed === 'object' ? parsed : {};
+            if (!parsed || typeof parsed !== 'object') return {};
+            const normalized = {};
+            Object.keys(parsed).forEach((key) => {
+                normalized[normalizeMaterialName(key)] = parsed[key];
+            });
+            return normalized;
         } catch (err) {
             return {};
         }
     }
 
     function ensureHintElement(input) {
-        const group = input.closest('.dosypka-field-group, .ds-field-group') || input.parentElement;
+        const row = input.closest('.dosypka-row, .ds-field-row');
+        const group = row || input.closest('.dosypka-field-group, .ds-field-group') || input.parentElement;
         if (!group) return null;
         let hint = group.querySelector('.dosypka-tank-hint');
         if (!hint) {
-            hint = document.createElement('div');
+            hint = document.createElement('span');
             hint.className = 'dosypka-tank-hint';
-            hint.style.cssText = 'margin-top:6px;font-size:12px;font-weight:700;display:none;align-items:center;gap:6px;padding:5px 10px;border-radius:7px;';
-            group.appendChild(hint);
+            hint.style.cssText = 'font-size:12px;font-weight:800;display:none;align-items:center;gap:4px;padding:4px 8px;border-radius:7px;white-space:nowrap;';
+            if (row && input.parentElement === row) {
+                row.insertBefore(hint, input);
+            } else {
+                group.appendChild(hint);
+            }
         }
         return hint;
     }
@@ -37,12 +47,14 @@
         if (!raw) {
             hint.style.display = 'none';
             hint.textContent = '';
+            hint.title = '';
             return;
         }
         const hasAnyTanks = Object.keys(tankMap).length > 0;
         const matched = tankMap[normalizeMaterialName(raw)];
         if (Array.isArray(matched) && matched.length > 0) {
-            const labels = matched.map(t => {
+            const shortCodes = matched.map(t => t.code).join(', ');
+            const fullLabels = matched.map(t => {
                 const kgPart = t.amount_kg !== null && t.amount_kg !== undefined ? ` (${Number(t.amount_kg).toFixed(0)} kg)` : '';
                 return `${t.code}${kgPart}`;
             }).join(', ');
@@ -50,13 +62,15 @@
             hint.style.background = '#ecfdf5';
             hint.style.color = '#065f46';
             hint.style.border = '1px solid #6ee7b7';
-            hint.textContent = `✅ Zbiornik: ${labels}`;
+            hint.textContent = shortCodes;
+            hint.title = `Zbiornik: ${fullLabels}`;
         } else if (hasAnyTanks) {
             hint.style.display = 'inline-flex';
             hint.style.background = '#fef2f2';
             hint.style.color = '#991b1b';
             hint.style.border = '1px solid #fca5a5';
-            hint.textContent = '⛔ Brak surowca na żadnym aktywnym zbiorniku / stacji';
+            hint.textContent = '⛔ Brak';
+            hint.title = 'Brak surowca na żadnym aktywnym zbiorniku / stacji';
         } else {
             hint.style.display = 'none';
         }

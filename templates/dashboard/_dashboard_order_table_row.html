@@ -135,7 +135,8 @@
     </td>
 </tr>
 
-{% if has_palety or has_zasypy %}
+{% set is_closed_order = p[3]|string|trim|lower in ['zakonczone', 'zakończone', 'zamkniete', 'zamknięte'] %}
+{% if (has_palety or has_zasypy) and not (sekcja == 'Zasyp' and role_lc in ['laborant', 'laboratorium'] and is_closed_order) %}
 <tr class="details-row" id="details-{{ p[0] }}-row" style="display: {% if agro_focus_mode %}none{% elif sekcja == 'Zasyp' and role_lc in ['laborant', 'laboratorium'] %}table-row{% else %}none{% endif %};">
     <td colspan="6" style="padding: 0; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
         <div id="details-{{ p[0] }}" style="padding: 10px 20px;">

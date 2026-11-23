@@ -1,3 +1,4 @@
+// cspell:words wydozowane
 // Static initializer for dosypki list slide-over
 (function () {
     'use strict';
@@ -122,11 +123,29 @@
         return out;
     }
 
+    function getZasypGroupKey(d) {
+        const zasypPart = d.nr_szarzy || d.szarza_id || 'none';
+        return String(d.plan_id || '') + ':' + String(zasypPart);
+    }
+
+    function buildZasypSeparatorHtml(d, isFirstGroup) {
+        const key = getZasypGroupKey(d);
+        let label = 'Bez przypisanego zasypu';
+        if (d.nr_szarzy) {
+            label = 'Zasyp #' + escapeHtml(d.nr_szarzy);
+        } else if (d.szarza_id) {
+            label = 'Szarża #' + escapeHtml(d.szarza_id);
+        }
+        const firstCls = isFirstGroup ? ' is-first-group' : '';
+        return `<tr class="dosypki-zasyp-separator${firstCls}" data-zasyp-key="${escapeHtml(key)}"><td colspan="8">⚡ ${label} · Zlecenie #${escapeHtml(d.plan_id)}</td></tr>`;
+    }
+
     function buildRowHtml(d, idx, role) {
         const nameHtml = d.nazwa ? escapeHtml(d.nazwa) : '<em>— brak nazwy —</em>';
         const planKg = d.kg_planowane !== undefined && d.kg_planowane !== null ? d.kg_planowane : d.kg;
-        const valKg = d.kg_wydozowane !== undefined && d.kg_wydozowane !== null ? d.kg_wydozowane : planKg;
-        
+        const valKg = d.kg_wydozowane !== undefined && d.kg_wydozowane !== null && Number(d.kg_wydozowane) > 0 ? d.kg_wydozowane : '';
+        const hasValidInitialKg = valKg !== '' && !isNaN(parseFloat(valKg)) && parseFloat(valKg) > 0;
+
         let zasypHtml = '<span style="color:#94a3b8; font-size:12px;">—</span>';
         const zasypNum = d.nr_szarzy || d.zasyp_nr;
         if (zasypNum) {
@@ -140,7 +159,7 @@
         }
 
         return `
-            <tr data-plan-id="${escapeHtml(d.plan_id)}" data-dosypka-id="${escapeHtml(d.id)}">
+            <tr data-plan-id="${escapeHtml(d.plan_id)}" data-dosypka-id="${escapeHtml(d.id)}" data-zasyp-key="${escapeHtml(getZasypGroupKey(d))}">
                 <td class="text-muted" data-label="#">${idx + 1}</td>
                 <td data-label="Plan ID"><span style="font-weight:700; color:#3b82f6;">#${escapeHtml(d.plan_id)}</span></td>
                 <td data-label="Do zasypu" style="white-space:nowrap;">${zasypHtml}</td>
@@ -161,7 +180,7 @@
                     </div>
                 </td>
                 <td data-label="Dodana" style="font-size:12px; color:#64748b;">${escapeHtml(d.data_zlecenia)}</td>
-                <td data-label="Akcja" style="text-align: right;">${renderActionCell(d, role, false)}</td>
+                <td data-label="Akcja" style="text-align: right;">${renderActionCell(d, role, !hasValidInitialKg)}</td>
             </tr>
         `;
     }
@@ -179,16 +198,129 @@
         }, 120);
     }
 
+    function syncBulkConfirmButton(container) {
+        if (!container || typeof container.querySelector !== 'function') return;
+        const bar = container.querySelector('#dosypki-bulk-bar');
+        const allBtn = container.querySelector('#dosypka-confirm-all-btn');
+        const countEl = container.querySelector('#dosypki-bulk-count');
+        const tbody = container.querySelector('#dosypki-table tbody');
+        if (!bar && !allBtn && !countEl) return;
+
+        const rows = tbody ? Array.from(tbody.querySelectorAll('tr[data-dosypka-id]')).filter(
+            (tr) => tr.dataset.removing !== '1',
+        ) : [];
+        let validCount = 0;
+        rows.forEach((tr) => {
+            const input = tr.querySelector('input.dosypka-actual-kg');
+            const val = input ? parseFloat((input.value || '').replace(',', '.').trim()) : NaN;
+            if (!isNaN(val) && val > 0) validCount += 1;
+        });
+
+        if (bar) bar.style.display = rows.length > 0 ? 'flex' : 'none';
+        if (countEl) countEl.textContent = `Uzupełniono wag: ${validCount} / ${rows.length}`;
+        if (allBtn) allBtn.disabled = !(rows.length > 0 && validCount === rows.length);
+    }
+
+    function syncConfirmButtonState(input) {
+        const row = input && input.closest ? input.closest('tr') : null;
+        const btn = row ? row.querySelector('.dosypka-confirm-btn') : null;
+        if (!btn) return;
+        const val = parseFloat((input.value || '').replace(',', '.').trim());
+        if (!isNaN(val) && val > 0) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        } else {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+        }
+    }
+
+    function captureDraftInputs(tbody) {
+        const values = {};
+        let focusedId = null;
+        if (!tbody) return { values, focusedId };
+        tbody.querySelectorAll('tr[data-dosypka-id]').forEach((row) => {
+            const dosypkaId = row.getAttribute('data-dosypka-id');
+            const input = row.querySelector('input.dosypka-actual-kg');
+            if (!dosypkaId || !input) return;
+            if (document.activeElement === input) {
+                focusedId = dosypkaId;
+            }
+            if (input.dataset.dirty === '1') {
+                values[dosypkaId] = input.value;
+            }
+        });
+        return { values, focusedId };
+    }
+
+    function restoreDraftInputs(tbody, draft) {
+        if (!tbody || !draft) return;
+        Object.keys(draft.values || {}).forEach((dosypkaId) => {
+            const row = tbody.querySelector('tr[data-dosypka-id="' + dosypkaId + '"]');
+            const input = row ? row.querySelector('input.dosypka-actual-kg') : null;
+            if (!input) return;
+            input.value = draft.values[dosypkaId];
+            input.dataset.dirty = '1';
+            syncConfirmButtonState(input);
+        });
+        if (draft.focusedId) {
+            const row = tbody.querySelector('tr[data-dosypka-id="' + draft.focusedId + '"]');
+            const input = row ? row.querySelector('input.dosypka-actual-kg') : null;
+            if (input && !input.disabled) input.focus();
+        }
+    }
+
+    function removeDosypkaRow(container, row) {
+        if (!row) return;
+        const table = container ? container.querySelector('#dosypki-table') : null;
+        const tbody = table ? table.querySelector('tbody') : row.parentNode;
+        const statusEl = container ? container.querySelector('#dosypki-status') : null;
+        row.dataset.removing = '1';
+        row.style.opacity = '0.5';
+        row.style.pointerEvents = 'none';
+        syncBulkConfirmButton(container);
+        setTimeout(() => {
+            const zasypKey = row.getAttribute('data-zasyp-key');
+            if (row.parentNode) row.parentNode.removeChild(row);
+            if (!tbody) return;
+            if (zasypKey) {
+                const sameGroupRows = tbody.querySelectorAll('tr[data-dosypka-id][data-zasyp-key="' + zasypKey + '"]');
+                if (sameGroupRows.length === 0) {
+                    const sep = tbody.querySelector('tr.dosypki-zasyp-separator[data-zasyp-key="' + zasypKey + '"]');
+                    if (sep && sep.parentNode) sep.parentNode.removeChild(sep);
+                }
+            }
+            const remaining = tbody.querySelectorAll('tr[data-dosypka-id]');
+            remaining.forEach((tr, idx) => {
+                const indexCell = tr.querySelector('td[data-label="#"]');
+                if (indexCell) indexCell.textContent = String(idx + 1);
+            });
+            if (remaining.length === 0) {
+                if (statusEl) {
+                    statusEl.textContent = 'Brak dosypek.';
+                    statusEl.style.display = '';
+                }
+                if (table) table.style.display = 'none';
+            }
+            syncBulkConfirmButton(container);
+        }, 200);
+    }
+
     async function fetchDosypki(container) {
         debugLog('[dosypki.fetch] Starting fetch for container:', container);
         const statusEl = container.querySelector('#dosypki-status');
         const spinner = container.querySelector('#dosypki-spinner');
         const table = container.querySelector('#dosypki-table');
         const tbody = table && table.querySelector('tbody');
+        const hasExistingRows = Boolean(tbody && tbody.querySelector('tr'));
         debugLog('[dosypki.fetch] Found elements - statusEl:', statusEl, 'spinner:', spinner, 'table:', table, 'tbody:', tbody);
         try {
-            if (statusEl) { statusEl.textContent = 'Ładowanie...'; statusEl.style.display = ''; }
-            if (spinner) spinner.classList.remove('hidden');
+            if (!hasExistingRows) {
+                if (statusEl) { statusEl.textContent = 'Ładowanie...'; statusEl.style.display = ''; }
+                if (spinner) spinner.classList.remove('hidden');
+            }
 
             // Get plan_id from data attributes or URL params
             const p15 = container.closest && container.closest('.p-15');
@@ -208,7 +340,7 @@
             if (planId) fetchUrl += '&plan_id=' + encodeURIComponent(planId);
             debugLog('[dosypki.fetch] Fetching from:', fetchUrl);
 
-            const res = await fetch(fetchUrl, { 
+            const res = await fetch(fetchUrl, {
                 credentials: 'same-origin',
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
@@ -224,19 +356,43 @@
             const list = data.dosypki || [];
             debugLog('[dosypki.fetch] Dosypki list:', list);
             if (list.length === 0) {
-                if (statusEl) statusEl.textContent = 'Brak dosypek.';
+                if (tbody) tbody.innerHTML = '';
+                if (statusEl) { statusEl.textContent = 'Brak dosypek.'; statusEl.style.display = ''; }
                 if (table) table.style.display = 'none';
+                syncBulkConfirmButton(container);
                 return;
             }
+            const draft = captureDraftInputs(tbody);
             if (statusEl) statusEl.style.display = 'none';
             if (table) table.style.display = 'table';
             if (tbody) tbody.innerHTML = '';
-            list.forEach(function (d, idx) {
+            const groupedMap = new Map();
+            list.forEach(function (d) {
+                const key = getZasypGroupKey(d);
+                if (!groupedMap.has(key)) groupedMap.set(key, []);
+                groupedMap.get(key).push(d);
+            });
+            const groupedList = [];
+            groupedMap.forEach(function (items) {
+                items.forEach(function (item) { groupedList.push(item); });
+            });
+
+            let prevGroupKey = '';
+            groupedList.forEach(function (d, idx) {
                 if (!tbody) return;
+                const groupKey = getZasypGroupKey(d);
+                if (groupKey !== prevGroupKey) {
+                    tbody.insertAdjacentHTML('beforeend', buildZasypSeparatorHtml(d, idx === 0));
+                    prevGroupKey = groupKey;
+                }
                 tbody.insertAdjacentHTML('beforeend', buildRowHtml(d, idx, role));
             });
+            restoreDraftInputs(tbody, draft);
+            syncBulkConfirmButton(container);
             debugLog('[dosypki.fetch] Populated tbody with', list.length, 'rows');
-            focusFirstEmptyInput(container);
+            if (!draft.focusedId) {
+                focusFirstEmptyInput(container);
+            }
         } catch (e) {
             if (spinner) spinner.classList.add('hidden');
             if (container && container.querySelector('#dosypki-status')) {
@@ -302,17 +458,12 @@
             const data = await res.json().catch(() => ({}));
 
             if (res.ok && data.success === true) {
-                // 1. Dynamic UI update: remove row and update badge
-                if (row) {
-                    row.style.opacity = '0.5';
-                    row.style.pointerEvents = 'none';
-                    setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 300);
-                }
+                // 1. Dynamic UI update: remove only the confirmed row, keeping other inputs intact
+                removeDosypkaRow(container, row);
 
                 if (planId) {
                     updateDosypkiBadge(planId, -1);
                 }
-                await fetchDosypki(container);
                 showConfirmMessage(container, data.message || 'Potwierdzono dosypkę.', true);
                 if (typeof window.performPartialReload === 'function') {
                     await window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-confirm' });
@@ -347,19 +498,9 @@
         container.addEventListener('input', function (ev) {
             const input = ev.target.closest && ev.target.closest('input.dosypka-actual-kg');
             if (!input) return;
-            const row = input.closest('tr');
-            const btn = row ? row.querySelector('.dosypka-confirm-btn') : null;
-            if (!btn) return;
-            const val = parseFloat((input.value || '').replace(',', '.').trim());
-            if (!isNaN(val) && val > 0) {
-                btn.disabled = false;
-                btn.style.opacity = '1';
-                btn.style.cursor = 'pointer';
-            } else {
-                btn.disabled = true;
-                btn.style.opacity = '0.5';
-                btn.style.cursor = 'not-allowed';
-            }
+            input.dataset.dirty = '1';
+            syncConfirmButtonState(input);
+            syncBulkConfirmButton(container);
         });
 
         // Pressing Enter in the input field submits confirmation
@@ -418,10 +559,10 @@
                     showConfirmMessage(container, data.message || 'Dosypka została anulowana.', true);
                     const row = cancelBtn.closest('tr');
                     const planId = row ? row.getAttribute('data-plan-id') : null;
+                    removeDosypkaRow(container, row);
                     if (planId) {
                         updateDosypkiBadge(planId, -1);
                     }
-                    await fetchDosypki(container);
                     if (typeof window.performPartialReload === 'function') {
                         await window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-cancel' });
                     }
@@ -432,6 +573,80 @@
             } catch (e) {
                 alert('Błąd sieci: ' + e.message);
                 cancelBtn.disabled = false;
+            }
+        });
+
+        // delegate click for bulk confirm all button
+        container.addEventListener('click', async function (ev) {
+            const allBtn = ev.target.closest && ev.target.closest('#dosypka-confirm-all-btn');
+            if (!allBtn || allBtn.disabled) return;
+            ev.preventDefault();
+            const tbody = container.querySelector('#dosypki-table tbody');
+            const rows = tbody ? Array.from(tbody.querySelectorAll('tr[data-dosypka-id]')).filter(
+                (tr) => tr.dataset.removing !== '1',
+            ) : [];
+            if (!rows.length) return;
+
+            const items = [];
+            for (const row of rows) {
+                const id = row.getAttribute('data-dosypka-id');
+                const input = row.querySelector('input.dosypka-actual-kg');
+                const parsed = input ? parseFloat((input.value || '').replace(',', '.').trim()) : NaN;
+                if (!id || isNaN(parsed) || parsed <= 0) {
+                    showConfirmMessage(container, 'Wpisz dodatnią wagę (większą od 0 kg) we wszystkich pozycjach przed zbiorczym zatwierdzeniem.', false);
+                    if (input) input.focus();
+                    return;
+                }
+                items.push({ id, kg: parsed, row, planId: row.getAttribute('data-plan-id') });
+            }
+
+            const linia = getCurrentLinia(container);
+            const originalText = allBtn.textContent;
+            allBtn.disabled = true;
+            allBtn.textContent = '⏳ Zatwierdzanie...';
+            setConfirmOverlay(container, true);
+            let confirmedCount = 0;
+
+            try {
+                for (const item of items) {
+                    const res = await fetch('/potwierdz_dosypke/' + item.id + '?linia=' + encodeURIComponent(linia), {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                        },
+                        body: new URLSearchParams({ kg: item.kg }).toString(),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.success !== true) {
+                        showConfirmMessage(container, data.message || 'Nie udało się potwierdzić jednej z pozycji (HTTP ' + res.status + ').', false);
+                        break;
+                    }
+                    confirmedCount += 1;
+                    removeDosypkaRow(container, item.row);
+                    if (item.planId) updateDosypkiBadge(item.planId, -1);
+                }
+
+                if (confirmedCount > 0) {
+                    if (confirmedCount === items.length) {
+                        showConfirmMessage(container, `Potwierdzono wszystkie dosypki (${confirmedCount}).`, true);
+                    }
+                    if (typeof window.performPartialReload === 'function') {
+                        await window.performPartialReload({ force: true, preserveScroll: true, source: 'dosypki-confirm-all' });
+                    }
+                    if (window.dashboardAgroBanners && typeof window.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner === 'function') {
+                        window.dashboardAgroBanners.syncDosypkiBadgesAndFallbackBanner();
+                    }
+                }
+            } catch (e) {
+                debugError('dosypki: confirm all error', e);
+                showConfirmMessage(container, 'Nie udało się połączyć z serwerem podczas zbiorczego zatwierdzania.', false);
+            } finally {
+                allBtn.textContent = originalText;
+                setConfirmOverlay(container, false);
+                syncBulkConfirmButton(container);
             }
         });
 

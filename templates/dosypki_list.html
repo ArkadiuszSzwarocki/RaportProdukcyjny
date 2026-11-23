@@ -1,3 +1,4 @@
+<!-- cspell:words wydozowane -->
 <style>
     .quick-popup:has(.dosypki-list-root) {
         width: calc(100% - 32px) !important;
@@ -204,7 +205,7 @@
             grid-column: 1 / -1;
         }
 
-        #dosypki-table td[data-label="Do zasypu"] > span {
+        #dosypki-table td[data-label="Do zasypu"]>span {
             max-width: 100%;
             box-sizing: border-box;
             white-space: normal !important;
@@ -232,21 +233,81 @@
     }
 
     @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .dosypki-bulk-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1.5px solid #e2e8f0;
+    }
+
+    .dosypki-bulk-count {
+        font-size: 13px;
+        font-weight: 700;
+        color: #475569;
+    }
+
+    .dosypka-confirm-all-btn {
+        background: #047857;
+        color: #ffffff;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 14px;
+        cursor: pointer;
+        box-shadow: 0 3px 10px rgba(4, 120, 87, 0.25);
+        transition: opacity 0.15s ease, background-color 0.15s ease;
+    }
+
+    .dosypka-confirm-all-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        box-shadow: none;
+    }
+    #dosypki-table tbody tr.dosypki-zasyp-separator td {
+        background: linear-gradient(90deg, #fef3c7 0%, #fffbeb 65%, #ffffff 100%);
+        border-top: 3px solid #d97706;
+        border-bottom: 2px solid #fcd34d;
+        color: #92400e;
+        font-weight: 900;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        padding: 10px 12px;
+    }
+    #dosypki-table tbody tr.dosypki-zasyp-separator.is-first-group td {
+        border-top: 2px solid #f59e0b;
     }
 </style>
 
-<div class="p-15 dosypki-list-root" data-popup-title="{% if linia == 'AGRO' %}Dosypki Agro{% else %}Dosypki PSD{% endif %}" {% if plan_id %} data-plan-id="{{ plan_id }}" {% endif %} data-linia="{{ linia or 'PSD' }}" data-current-role="{{ rola or '' }}">
-    <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 12px;">
+<div class="p-15 dosypki-list-root"
+    data-popup-title="{% if linia == 'AGRO' %}Dosypki Agro{% else %}Dosypki PSD{% endif %}" {% if plan_id %}
+    data-plan-id="{{ plan_id }}" {% endif %} data-linia="{{ linia or 'PSD' }}" data-current-role="{{ rola or '' }}">
+    <div class="section-header"
+        style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #f1f5f9; padding-bottom: 12px; margin-bottom: 12px;">
         <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:36px; height:36px; border-radius:8px; background:#fef3c7; color:#d97706; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:bold;">⚡</div>
+            <div
+                style="width:36px; height:36px; border-radius:8px; background:#fef3c7; color:#d97706; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:bold;">
+                ⚡</div>
             <div>
-                <h4 class="m-0" style="font-size:16px; font-weight:800; color:#0f172a; margin:0;">{% if linia == 'AGRO' %}Dosypki Agro{% else %}Dosypki PSD{% endif %} — lista oczekujących</h4>
-                <div style="font-size:12px; color:#64748b; margin-top:2px;">Wprowadź faktyczną wagę i potwierdź dodanie składnika do szarży.</div>
+                <h4 class="m-0" style="font-size:16px; font-weight:800; color:#0f172a; margin:0;">{% if linia == 'AGRO'
+                    %}Dosypki Agro{% else %}Dosypki PSD{% endif %} — lista oczekujących</h4>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">Wprowadź faktyczną wagę i potwierdź dodanie
+                    składnika do szarży.</div>
             </div>
         </div>
         {% if plan_id %}
-        <span class="badge" style="background:#e0f2fe; color:#0369a1; font-weight:800; padding:6px 12px; border-radius:20px; font-size:12px;">
+        <span class="badge"
+            style="background:#e0f2fe; color:#0369a1; font-weight:800; padding:6px 12px; border-radius:20px; font-size:12px;">
             Zlecenie #{{ plan_id }}
         </span>
         {% endif %}
@@ -254,10 +315,13 @@
 
     <div class="mt-10">
         <div class="dosypki-status-row">
-            <div id="dosypki-spinner" class="dosypki-spinner{% if dosypki and dosypki|length > 0 %} hidden{% endif %}"></div>
-            <div id="dosypki-status" class="text-muted" {% if dosypki and dosypki|length > 0 %} style="display:none"{% endif %}>
+            <div id="dosypki-spinner" class="dosypki-spinner{% if dosypki and dosypki|length > 0 %} hidden{% endif %}">
+            </div>
+            <div id="dosypki-status" class="text-muted" {% if dosypki and dosypki|length> 0 %} style="display:none"{%
+                endif %}>
                 {% if dosypki and dosypki|length == 0 %}
-                <div style="padding: 20px; text-align: center; color: #64748b; background: #f8fafc; border-radius: 10px; border: 1px dashed #cbd5e1;">
+                <div
+                    style="padding: 20px; text-align: center; color: #64748b; background: #f8fafc; border-radius: 10px; border: 1px dashed #cbd5e1;">
                     ✓ Brak oczekujących dosypek dla tego zlecenia.
                 </div>
                 {% else %}
@@ -266,12 +330,15 @@
             </div>
         </div>
 
-        <table id="dosypki-table" class="modern-table small no-mobile-cards" {% if dosypki and dosypki|length > 0 %}style="display:table"{% else %}style="display:none"{% endif %}>
+        <table id="dosypki-table" class="modern-table small no-mobile-cards" {% if dosypki and dosypki|length> 0
+            %}style="display:table"{% else %}style="display:none"{% endif %}>
             <thead>
                 <tr>
                     <th style="width: 40px;">#</th>
                     <th style="width: 75px;">Plan ID</th>
-                    <th style="min-width: 175px; color:#b45309; text-transform:uppercase; font-weight:800; font-size:13px;">Do zasypu</th>
+                    <th
+                        style="min-width: 175px; color:#b45309; text-transform:uppercase; font-weight:800; font-size:13px;">
+                        Do zasypu</th>
                     <th>Nazwa składnika</th>
                     <th style="width: 130px; color:#1d4ed8;">Zaplanowane (Laborant)</th>
                     <th style="width: 150px; color:#047857;">Wydozowano (Operator)</th>
@@ -281,17 +348,27 @@
             </thead>
             <tbody>
                 {% if dosypki and dosypki|length > 0 %}
+                {% set group_ns = namespace(prev_key='') %}
                 {% for d in dosypki %}
-                <tr data-plan-id="{{ d.plan_id }}" data-dosypka-id="{{ d.id }}">
+                {% set group_key = (d.plan_id|string) ~ ':' ~ ((d.nr_szarzy or d.szarza_id or 'none')|string) %}
+                {% if group_key != group_ns.prev_key %}
+                <tr class="dosypki-zasyp-separator{% if loop.first %} is-first-group{% endif %}" data-zasyp-key="{{ group_key }}">
+                    <td colspan="8">⚡ {% if d.nr_szarzy %}Zasyp #{{ d.nr_szarzy }}{% elif d.szarza_id %}Szarża #{{ d.szarza_id }}{% else %}Bez przypisanego zasypu{% endif %} · Zlecenie #{{ d.plan_id }}</td>
+                </tr>
+                {% set group_ns.prev_key = group_key %}
+                {% endif %}
+                <tr data-plan-id="{{ d.plan_id }}" data-dosypka-id="{{ d.id }}" data-zasyp-key="{{ group_key }}">
                     <td class="text-muted" data-label="#">{{ loop.index }}</td>
                     <td data-label="Plan ID"><span style="font-weight:700; color:#3b82f6;">#{{ d.plan_id }}</span></td>
                     <td data-label="Do zasypu" style="white-space:nowrap;">
                         {% if d.nr_szarzy %}
-                        <span style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border:2px solid #f59e0b; border-radius:8px; color:#92400e; font-weight:900; font-size:13px; letter-spacing:0.5px; text-transform:uppercase; box-shadow:0 1px 3px rgba(245,158,11,0.25); white-space:nowrap;">
+                        <span
+                            style="display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border:2px solid #f59e0b; border-radius:8px; color:#92400e; font-weight:900; font-size:13px; letter-spacing:0.5px; text-transform:uppercase; box-shadow:0 1px 3px rgba(245,158,11,0.25); white-space:nowrap;">
                             <span style="font-size:14px;">⚡</span> DOSYPKA DO ZASYPU #{{ d.nr_szarzy }}
                         </span>
                         {% elif d.szarza_id %}
-                        <span style="display:inline-flex; align-items:center; gap:4px; padding:5px 10px; background:#f1f5f9; border:1.5px solid #cbd5e1; border-radius:8px; color:#334155; font-weight:800; font-size:12px; text-transform:uppercase; white-space:nowrap;">
+                        <span
+                            style="display:inline-flex; align-items:center; gap:4px; padding:5px 10px; background:#f1f5f9; border:1.5px solid #cbd5e1; border-radius:8px; color:#334155; font-weight:800; font-size:12px; text-transform:uppercase; white-space:nowrap;">
                             DOSYPKA DO SZARŻY #{{ d.szarza_id }}
                         </span>
                         {% else %}
@@ -299,24 +376,38 @@
                         {% endif %}
                     </td>
                     <td data-label="Nazwa">
-                        <span style="font-weight:800; font-size:14px; color:#1e293b;">{% if d.nazwa %}{{ d.nazwa }}{% else %}<em>— brak nazwy —</em>{% endif %}</span>
+                        <span style="font-weight:800; font-size:14px; color:#1e293b;">{% if d.nazwa %}{{ d.nazwa }}{%
+                            else %}<em>— brak nazwy —</em>{% endif %}</span>
                     </td>
                     <td data-label="Zaplanowane">
-                        <span style="display:inline-block; padding:4px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; color:#1e40af; font-weight:800;">{{ d.kg_planowane if d.kg_planowane is defined and d.kg_planowane is not none else d.kg }} kg</span>
+                        <span
+                            style="display:inline-block; padding:4px 10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; color:#1e40af; font-weight:800;">{{
+                            d.kg_planowane if d.kg_planowane is defined and d.kg_planowane is not none else d.kg }}
+                            kg</span>
                     </td>
                     <td data-label="Wydozowano">
                         <div style="display:inline-flex; align-items:center; gap:6px;">
-                            <input type="number" step="0.01" min="0.01" class="dosypka-actual-kg no-kb-icon" data-no-kb-block="true" value="{{ d.kg_wydozowane if d.kg_wydozowane is defined and d.kg_wydozowane is not none else (d.kg_planowane if d.kg_planowane is defined and d.kg_planowane is not none else d.kg) }}" style="width: 120px; padding: 6px 10px; border: 2px solid #10b981; border-radius: 8px; font-weight: 800; font-size:15px; text-align: right; background: #fff;" placeholder="wpisz kg" autocomplete="off" />
+                            {% set has_valid_weight = d.kg_wydozowane is defined and d.kg_wydozowane is not none and
+                            (d.kg_wydozowane|float) > 0 %}
+                            <input type="number" step="0.01" min="0.01" class="dosypka-actual-kg no-kb-icon"
+                                data-no-kb-block="true" value="{{ d.kg_wydozowane if has_valid_weight else '' }}"
+                                style="width: 120px; padding: 6px 10px; border: 2px solid #10b981; border-radius: 8px; font-weight: 800; font-size:15px; text-align: right; background: #fff;"
+                                placeholder="wpisz kg" autocomplete="off" />
                             <span style="font-weight:700; font-size:12px; color:#64748b;">kg</span>
                         </div>
                     </td>
                     <td data-label="Dodana" style="font-size:12px; color:#64748b;">{{ d.data_zlecenia }}</td>
                     <td data-label="Akcja" style="text-align: right; white-space: nowrap;">
-                        {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
-                        <button type="button" class="dosypka-confirm-btn" data-id="{{ d.id }}">✓ Potwierdź</button>
+                        {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad']
+                        %}
+                        <button type="button" class="dosypka-confirm-btn" data-id="{{ d.id }}" {% if not has_valid_weight
+                            %} disabled style="opacity: 0.5; cursor: not-allowed;" {% endif %}>✓ Potwierdź</button>
                         {% endif %}
                         {% if rola in ['masteradmin', 'admin', 'lider', 'laborant', 'laboratorium'] %}
-                        <button type="button" class="dosypka-cancel-btn btn-action btn-danger btn-sm" data-id="{{ d.id }}" title="Anuluj dosypkę" style="padding: 6px 10px; font-weight:700; border-radius:8px; margin-left:6px; cursor:pointer; background:#ef4444; color:#fff; border:none;">✕ Anuluj</button>
+                        <button type="button" class="dosypka-cancel-btn btn-action btn-danger btn-sm"
+                            data-id="{{ d.id }}" title="Anuluj dosypkę"
+                            style="padding: 6px 10px; font-weight:700; border-radius:8px; margin-left:6px; cursor:pointer; background:#ef4444; color:#fff; border:none;">✕
+                            Anuluj</button>
                         {% endif %}
                     </td>
                 </tr>
@@ -334,6 +425,13 @@
                 {% endif %}
             </tbody>
         </table>
+        {% if rola in ['operator', 'pracownik', 'produkcja', 'lider', 'admin', 'masteradmin', 'zarzad'] %}
+        <div class="dosypki-bulk-bar" id="dosypki-bulk-bar" style="display:none;">
+            <span class="dosypki-bulk-count" id="dosypki-bulk-count">Uzupełniono wag: 0 / 0</span>
+            <button type="button" class="dosypka-confirm-all-btn" id="dosypka-confirm-all-btn" disabled>✓ Zatwierdź
+                wszystkie</button>
+        </div>
+        {% endif %}
     </div>
 </div>
 

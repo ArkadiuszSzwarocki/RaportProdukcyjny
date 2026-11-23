@@ -35,7 +35,6 @@ def register_admin_bug_routes(admin_bp, *, create_notification):
 
     @admin_bp.route('/admin/ustawienia/bugs')
     @login_required
-    @dynamic_role_required('ustawienia')
     def admin_ustawienia_bugs():
         """View manually reported bugs from database with full reply history."""
         sort_by = request.args.get('sort', 'id_desc')

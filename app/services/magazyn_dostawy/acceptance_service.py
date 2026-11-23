@@ -66,7 +66,7 @@ class AcceptanceService:
                 # Walidacja: new_location NIE może być kodem zbiornika produkcyjnego
                 is_valid, error_msg = validate_warehouse_location(lokalizacja, allow_empty=False)
                 if not is_valid:
-                    return False, error_msg
+                    return False, error_msg, None
 
                 from app.utils.location_validator import validate_registered_warehouse_location
                 early_items = json.loads(dostawa.get('items') or '[]')

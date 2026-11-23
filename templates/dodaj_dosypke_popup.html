@@ -1,4 +1,5 @@
 <!-- cspell:words Boczk Szwar -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dosypka_material_picker.css') }}?v={{ static_version }}">
 <div class="dosypka-popup-container" data-popup-title="Dodaj Dosypkę" data-plan-id="{{ plan_id }}" data-szarza-id="{{ szarza_id or '' }}">
     <style>
         /* === FULL-SCREEN MODAL CONTAINER === */
@@ -539,6 +540,7 @@
         <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
         <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
         <input type="hidden" name="brak_dosypki" id="brak_dosypki" value="0">
+        <input type="hidden" name="allow_unassigned" id="dosypka-allow-unassigned" value="0">
 
         {% if dostepne_surowce %}
         <datalist id="surowce-agro-list">
@@ -548,98 +550,127 @@
         </datalist>
         {% endif %}
         <script type="application/json" id="dosypka-tank-map">{{ (material_tanks or {})|tojson }}</script>
+        <script type="application/json" id="dosypka-materials-grouped">{{ (grouped_dosypka_materials or {})|tojson }}</script>
 
-        <div class="dosypka-info">
-            <div class="dosypka-info-row">
-                <div class="info-item">
-                    <span class="info-label">Zlecenie:</span>
-                    <span class="info-value">
-                        #{{ plan_id }}
-                        {% if produkt %}<span class="info-product">{{ produkt }}</span>{% endif %}
-                        {% if typ %}<span class="info-type">({{ typ }})</span>{% endif %}
-                    </span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Zasyp (szarża):</span>
-                    <span class="info-value">{% if szarza_nr %}Zasyp #{{ szarza_nr }} (ID {{ szarza_id }}){% else %}{{ szarza_id or '—' }}{% endif %}</span>
-                </div>
-            </div>
-            {% if is_szarza_emptied and is_admin_or_zarzad %}
-            <div style="background:#fffbeb; border:1px solid #fcd34d; color:#92400e; padding:8px 12px; border-radius:8px; margin-top:10px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:8px;">
-                <span>👑</span> <span>Tryb uprzywilejowany (Admin/Zarząd): Dodajesz dosypkę do zamkniętego/opróżnionego punktu kontrolnego.</span>
-            </div>
-            {% endif %}
-            <p class="dosypka-description">Dodaj pozycje dosypki: nazwę surowca i ilość w kg. Możesz dodać maksymalnie 10 pozycji. Wybieraj tylko surowce dostępne na liście magazynu.</p>
-        </div>
-
-        <div class="dosypka-layout{% if not existing_dosypki %} dosypka-layout-single{% endif %}">
-            <section class="dosypka-panel">
-                <div class="dosypka-panel-header">
-                    <div>
-                        <div class="dosypka-panel-title">Nowa dosypka</div>
-                        <div class="dosypka-panel-subtitle">Wprowadź korektę dla aktywnego zasypu</div>
+        {% set has_picker_data = grouped_dosypka_materials and (grouped_dosypka_materials.assigned_names or grouped_dosypka_materials.unassigned_names) %}
+        <div class="dosypka-workspace{% if not has_picker_data %} dosypka-workspace-no-tanks{% endif %}">
+            {% if has_picker_data %}
+            <aside class="dosypka-tanks-sidebar">
+                <div class="dosypka-picker-box">
+                    <div class="dosypka-picker-head">
+                        <span class="dosypka-picker-title">Surowce przypisane do zbiorników (BB / MZ / KO)</span>
+                        <label class="dosypka-picker-toggle">
+                            <input type="checkbox" id="dosypka-show-all-materials">
+                            <span>Pokaż też nieprzypisane surowce (cała lista)</span>
+                        </label>
                     </div>
-                </div>
-                <div class="dosypka-panel-body">
-                    <div class="dosypka-fields" id="dosypka-fields">
-                        {% for i in range(1,2) %}
-                        <div class="dosypka-field-group" data-field-index="{{ i }}">
-                            <label class="dosypka-label">
-                                Pozycja <span class="field-number">{{ i }}</span>
-                            </label>
-                            <div class="dosypka-row">
-                                <input type="text" name="nazwa_{{ i }}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Wybierz surowiec z listy..." {% if dostepne_surowce %}list="surowce-agro-list"{% endif %} autocomplete="off" spellcheck="false">
-                                <input type="number" name="kg_{{ i }}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+                    <div class="dosypka-picker-scroll">
+                        <div class="dosypka-picker-groups"></div>
+                        <div class="dosypka-picker-unassigned" hidden>
+                            <div class="dosypka-picker-group-head">
+                                <span>Pozostałe surowce (bez przypisanego zbiornika)</span>
                             </div>
+                            <div class="dosypka-picker-chips dosypka-picker-unassigned-chips"></div>
                         </div>
-                        {% endfor %}
-                    </div>
-
-                    <div class="dosypka-add-field">
-                        <button type="button" class="dosypka-btn-add" onclick="addDosypkaField()" id="add-field-btn">
-                            <span class="btn-icon">+</span> Dodaj pozycję (maks. 10)
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            {% if existing_dosypki %}
-            <aside class="dosypka-panel dosypka-existing">
-                <div class="dosypka-panel-header">
-                    <div>
-                        <div class="dosypka-panel-title">Historia dosypek</div>
-                        <div class="dosypka-panel-subtitle">{% if szarza_id %}Pozycje zapisane dla tego zasypu{% else %}Pozycje zapisane dla tego zlecenia{% endif %}</div>
-                    </div>
-                </div>
-                <div class="dosypka-panel-body">
-                    <div class="dosypka-existing-list">
-                        {% for item in existing_dosypki %}
-                        <div class="dosypka-existing-item{% if item.anulowana %} is-cancelled{% endif %}" data-dosypka-id="{{ item.id }}">
-                            <div>
-                                <div class="dosypka-existing-main">{{ item.nazwa }} • {{ item.kg }} kg{% if item.tank_codes %} <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7;font-size:11px;font-weight:700;">Zbiornik: {{ item.tank_codes|join(', ') }}</span>{% endif %}</div>
-                                <div class="dosypka-existing-meta">Dodano: {{ item.data_zlecenia }}</div>
-                                {% if item.anulowana %}
-                                <div class="dosypka-existing-cancel-meta">Anulował: {{ item.anulowal_login or '—' }}{% if item.data_anulowania %} • {{ item.data_anulowania }}{% endif %}</div>
-                                {% endif %}
-                            </div>
-                            <div class="dosypka-existing-actions">
-                                {% if item.anulowana %}
-                                <span class="dosypka-existing-badge">Anulowana</span>
-                                {% elif item.potwierdzone %}
-                                <span class="dosypka-existing-badge" style="background:#dcfce7; color:#166534;">Potwierdzona</span>
-                                {% if session.get('rola') in ['masteradmin', 'master_admin'] %}
-                                <button type="button" class="dosypka-btn dosypka-btn-cancel js-delete-confirmed-existing-dosypka" data-id="{{ item.id }}" style="background:#fee2e2; color:#b91c1c; border-color:#fca5a5; padding:4px 8px; font-size:12px; margin-left:6px;" title="Usuń zatwierdzoną dosypkę (MasterAdmin)">🗑️ Usuń</button>
-                                {% endif %}
-                                {% else %}
-                                <button type="button" class="dosypka-btn dosypka-btn-cancel js-cancel-existing-dosypka" data-id="{{ item.id }}">✕ Anuluj wpis</button>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endfor %}
                     </div>
                 </div>
             </aside>
             {% endif %}
+
+            <div class="dosypka-main-area">
+                <div class="dosypka-info">
+                    <div class="dosypka-info-row">
+                        <div class="info-item">
+                            <span class="info-label">Zlecenie:</span>
+                            <span class="info-value">
+                                #{{ plan_id }}
+                                {% if produkt %}<span class="info-product">{{ produkt }}</span>{% endif %}
+                                {% if typ %}<span class="info-type">({{ typ }})</span>{% endif %}
+                            </span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Zasyp (szarża):</span>
+                            <span class="info-value">{% if szarza_nr %}Zasyp #{{ szarza_nr }} (ID {{ szarza_id }}){% else %}{{ szarza_id or '—' }}{% endif %}</span>
+                        </div>
+                    </div>
+                    {% if is_szarza_emptied and is_admin_or_zarzad %}
+                    <div style="background:#fffbeb; border:1px solid #fcd34d; color:#92400e; padding:8px 12px; border-radius:8px; margin-top:10px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:8px;">
+                        <span>👑</span> <span>Tryb uprzywilejowany (Admin/Zarząd): Dodajesz dosypkę do zamkniętego/opróżnionego punktu kontrolnego.</span>
+                    </div>
+                    {% endif %}
+                    <p class="dosypka-description">Dodaj pozycje dosypki: nazwę surowca i ilość w kg. Możesz dodać maksymalnie 10 pozycji. Wybieraj tylko surowce dostępne na liście magazynu.</p>
+                </div>
+
+                <div class="dosypka-layout">
+                    <section class="dosypka-panel">
+                        <div class="dosypka-panel-header">
+                            <div>
+                                <div class="dosypka-panel-title">Nowa dosypka</div>
+                                <div class="dosypka-panel-subtitle">Wprowadź korektę dla aktywnego zasypu</div>
+                            </div>
+                        </div>
+                        <div class="dosypka-panel-body">
+                            <div class="dosypka-fields" id="dosypka-fields">
+                                {% for i in range(1,2) %}
+                                <div class="dosypka-field-group" data-field-index="{{ i }}">
+                                    <div class="dosypka-row">
+                                        <span class="dosypka-row-lp"><span class="field-number">{{ i }}</span>.</span>
+                                        <input type="text" name="nazwa_{{ i }}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Wybierz surowiec z listy..." {% if dostepne_surowce %}list="surowce-agro-list"{% endif %} autocomplete="off" spellcheck="false">
+                                        <input type="number" name="kg_{{ i }}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="dosypka-add-field">
+                                <button type="button" class="dosypka-btn-add" onclick="addDosypkaField()" id="add-field-btn">
+                                    <span class="btn-icon">+</span> Dodaj pozycję (maks. 10)
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <aside class="dosypka-panel dosypka-existing">
+                        <div class="dosypka-panel-header">
+                            <div>
+                                <div class="dosypka-panel-title">Historia dosypek</div>
+                                <div class="dosypka-panel-subtitle">{% if szarza_id %}Pozycje zapisane dla tego zasypu{% else %}Pozycje zapisane dla tego zlecenia{% endif %}</div>
+                            </div>
+                        </div>
+                        <div class="dosypka-panel-body">
+                            <div class="dosypka-existing-list">
+                                {% for item in existing_dosypki %}
+                                <div class="dosypka-existing-item{% if item.anulowana %} is-cancelled{% endif %}" data-dosypka-id="{{ item.id }}">
+                                    <div>
+                                        <div class="dosypka-existing-main">{{ item.nazwa }} • {{ item.kg }} kg{% if item.tank_codes %} <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7;font-size:11px;font-weight:700;">Zbiornik: {{ item.tank_codes|join(', ') }}</span>{% endif %}</div>
+                                        <div class="dosypka-existing-meta">Dodano: {{ item.data_zlecenia }}</div>
+                                        {% if item.anulowana %}
+                                        <div class="dosypka-existing-cancel-meta">Anulował: {{ item.anulowal_login or '—' }}{% if item.data_anulowania %} • {{ item.data_anulowania }}{% endif %}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="dosypka-existing-actions">
+                                        {% if item.anulowana %}
+                                        <span class="dosypka-existing-badge">Anulowana</span>
+                                        {% elif item.potwierdzone %}
+                                        <span class="dosypka-existing-badge" style="background:#dcfce7; color:#166534;">Potwierdzona</span>
+                                        {% if session.get('rola') in ['masteradmin', 'master_admin'] %}
+                                        <button type="button" class="dosypka-btn dosypka-btn-cancel js-delete-confirmed-existing-dosypka" data-id="{{ item.id }}" style="background:#fee2e2; color:#b91c1c; border-color:#fca5a5; padding:4px 8px; font-size:12px; margin-left:6px;" title="Usuń zatwierdzoną dosypkę (MasterAdmin)">🗑️ Usuń</button>
+                                        {% endif %}
+                                        {% else %}
+                                        <button type="button" class="dosypka-btn dosypka-btn-cancel js-cancel-existing-dosypka" data-id="{{ item.id }}">✕ Anuluj wpis</button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div style="padding: 20px; text-align: center; color: #64748b; font-size: 0.9rem; border: 1.5px dashed #cbd5e1; border-radius: 12px; background: #f8fafc;">
+                                    {% if szarza_id %}Brak dodanych dosypek dla tego zasypu.{% else %}Brak dodanych dosypek dla tego zlecenia.{% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
         </div>
 
         <div class="dosypka-actions">
@@ -1035,13 +1066,11 @@ function addDosypkaField() {
     newField.className = 'dosypka-field-group';
     newField.setAttribute('data-field-index', newIndex);
     newField.innerHTML = `
-        <label class="dosypka-label">
-            Pozycja <span class="field-number">${newIndex}</span>
-            <button type="button" class="dosypka-btn-remove" onclick="removeDosypkaField(this)" title="Usuń pole">✕</button>
-        </label>
         <div class="dosypka-row">
+            <span class="dosypka-row-lp"><span class="field-number">${newIndex}</span>.</span>
             <input type="text" name="nazwa_${newIndex}" value="" class="dosypka-input dosypka-input-nazwa" placeholder="Wybierz surowiec z listy..." {% if dostepne_surowce %}list="surowce-agro-list"{% endif %} autocomplete="off" spellcheck="false">
             <input type="number" name="kg_${newIndex}" value="" class="dosypka-input dosypka-input-kg" step="0.01" min="0" placeholder="kg">
+            <button type="button" class="dosypka-btn-remove" onclick="removeDosypkaField(this)" title="Usuń pole">✕</button>
         </div>
     `;
     
@@ -1152,3 +1181,4 @@ if (document.readyState === 'loading') {
 }
 </script>
 <script src="{{ url_for('static', filename='js/dosypka_tank_validator.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/dosypka_material_picker.js') }}?v={{ static_version }}"></script>

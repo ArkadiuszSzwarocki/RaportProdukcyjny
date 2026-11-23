@@ -56,8 +56,8 @@
 {% endif %}
 
 <!-- AWARIE I USTERKI -->
-{% set downtime_agro = effective_hall in ['AGRO', 'ALL'] and role_has_access('agro.workowanie') %}
-{% set downtime_psd = effective_hall in ['PSD', 'ALL'] and role_has_access('psd.workowanie') %}
+{% set downtime_agro = effective_hall in ['AGRO', 'ALL'] and navigation_group_allowed('entry_downtime_agro') %}
+{% set downtime_psd = effective_hall in ['PSD', 'ALL'] and navigation_group_allowed('entry_downtime_psd') %}
 {% if navigation_group_allowed('incidents') and (role_has_access('awarie') or downtime_agro or downtime_psd) %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
@@ -96,10 +96,10 @@
         <span class="material-icons chevron">expand_more</span>
     </button>
     <div id="admin-system-sub"
-        class="nav-sub {% if request.endpoint == 'admin.users_center' or '/admin/ustawienia' in request.path or request.endpoint == 'magazyn_dostawy.movement_print_history' %}open{% endif %}">
+        class="nav-sub {% if request.endpoint == 'admin.users_center' or ('/admin/ustawienia' in request.path and request.endpoint != 'admin.packaging_alerts') or request.endpoint == 'magazyn_dostawy.movement_print_history' %}open{% endif %}">
         {% if can_open_system_settings %}
         <a href="{{ url_for('admin.admin_ustawienia') }}"
-            class="nav-sub-item {% if request.endpoint in ['admin.admin_ustawienia', 'admin.users_center', 'admin.email_center', 'magazyn_dostawy.movement_print_history'] or request.path.startswith('/admin/ustawienia/') %}active{% endif %}">Ustawienia
+            class="nav-sub-item {% if request.endpoint in ['admin.admin_ustawienia', 'admin.users_center', 'admin.email_center', 'magazyn_dostawy.movement_print_history'] or (request.path.startswith('/admin/ustawienia/') and request.endpoint != 'admin.packaging_alerts') %}active{% endif %}">Ustawienia
             Systemu</a>
         {% else %}
         {# Keep direct access for roles that cannot open the settings hub. #}

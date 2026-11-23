@@ -2,7 +2,7 @@
 # routes_zarzad.py
 from flask import Blueprint, render_template, request, jsonify
 from datetime import datetime, date, timedelta
-from app.decorators import zarzad_required, dynamic_role_required
+from app.decorators import login_required, zarzad_required, dynamic_role_required
 from app.services.stats_service import get_date_range, get_kpi_data, get_chart_data, get_worker_stats
 from app.db import get_db_connection # Do raportów okresowych jeśli nie przeniesione w całości
 from app.services.machine_telemetry_service import MachineTelemetryService
@@ -278,7 +278,7 @@ def pobierz_plik_raportu(filename):
 
 
 @zarzad_bp.route('/raporty/czasy-wydozowan')
-@dynamic_role_required('wyniki')
+@login_required
 def dosing_times_report():
     from flask import abort,Response,current_app
     from app.services.dosing_time_report_service import DosingTimeReportService

@@ -1,39 +1,95 @@
-"""Administration of monitored packaging and recipient groups."""
+"""Administration of warehouse minimum-stock thresholds."""
 from flask import flash, redirect, render_template, request, url_for
 from app.decorators import login_required, roles_required
 from app.db import get_db_connection
 from app.services.packaging_stock_alerts import (
-    CATEGORY_ORDER, catalog, ensure_schema, normalize_material_key, parse_minimum, parse_recipients, send_summary,
+    CATEGORY_ORDER, STOCK_TYPE_PACKAGING, catalog, ensure_schema,
+    make_stock_key, normalize_material_key, normalize_stock_type, parse_minimum, send_summary,
 )
+from app.services.stock_alert_commands import (
+    delete_stock_threshold, save_recipient_group, toggle_rule_email_enabled, upsert_stock_threshold,
+)
+from app.services.stock_alert_queries import enrich_materials_and_rules, fetch_rules
 
 
-def prepare_bulk_rules(form, materials):
+def _resolve_catalog_entry(known_by_key, known_by_name, raw_material, raw_type='', unit=''):
+    """Resolve a submitted material name and optional stock_type/unit to a catalog entry."""
+    if raw_type:
+        explicit_type = normalize_stock_type(raw_type)
+        if not explicit_type:
+            return None
+        return known_by_key.get(make_stock_key(explicit_type, raw_material))
+    candidates = known_by_name.get(normalize_material_key(raw_material), [])
+    if len(candidates) == 1:
+        return candidates[0]
+    inferred_type = normalize_stock_type('', unit=unit)
+    if inferred_type:
+        for entry in candidates:
+            if entry[1] == inferred_type:
+                return entry
+    return None
+
+
+def _build_material_indexes(materials):
+    """Index catalog items by composite (stock_type, name) and fallback name."""
+    known_by_key = {}
+    known_by_name = {}
+    for row in materials:
+        material_name = str(row['material']).strip()
+        item_type = normalize_stock_type(
+            row.get('stock_type') or row.get('category'),
+            unit=row.get('default_unit', ''),
+        ) or STOCK_TYPE_PACKAGING
+        entry = (material_name, item_type)
+        key = make_stock_key(item_type, material_name)
+        if key not in known_by_key:
+            known_by_key[key] = entry
+            known_by_name.setdefault(normalize_material_key(material_name), []).append(entry)
+    return known_by_key, known_by_name
+
+
+def prepare_typed_bulk_rules(form, materials):
+    """Validate bulk rule selections and return (material, stock_type, minimum, unit) tuples."""
     selected = list(dict.fromkeys(form.getlist('selected')))
     if not selected:
         raise ValueError('Zaznacz przynajmniej jeden materiał.')
-    known = {normalize_material_key(row['material']): str(row['material']).strip() for row in materials}
+    known_by_key, known_by_name = _build_material_indexes(materials)
     rows = []
     seen = set()
     for index in selected:
         if not index.isdigit():
             raise ValueError('Nieprawidłowy wybór materiału.')
-        key = normalize_material_key(form.get('material_' + index, ''))
-        material = known.get(key)
-        if not material or key in seen:
+        raw_material = form.get('material_' + index, '')
+        raw_type = form.get('stock_type_' + index, '') or form.get('category_' + index, '')
+        unit = form.get('unit_' + index, '')
+        resolved = _resolve_catalog_entry(known_by_key, known_by_name, raw_material, raw_type, unit)
+        if not resolved:
             raise ValueError('Lista materiałów zmieniła się. Otwórz okno ponownie.')
-        seen.add(key)
+        material, stock_type = resolved
+        dedup_key = make_stock_key(stock_type, material)
+        if dedup_key in seen:
+            raise ValueError('Lista materiałów zmieniła się. Otwórz okno ponownie.')
+        seen.add(dedup_key)
         try:
             minimum = parse_minimum(form.get('minimum_' + index, ''))
         except ValueError as error:
             raise ValueError(f'{material}: {error}') from None
-        unit = form.get('unit_' + index, '')
         if unit not in ('szt.', 'kg', 'm', 'rolki'):
             raise ValueError(f'{material}: wybierz jednostkę magazynową.')
-        rows.append((material, minimum, unit))
+        rows.append((material, stock_type, minimum, unit))
     return rows
 
 
+def prepare_bulk_rules(form, materials):
+    """Legacy wrapper returning 3-tuples for callers not needing stock_type."""
+    return [
+        (material, minimum, unit)
+        for material, _stock_type, minimum, unit in prepare_typed_bulk_rules(form, materials)
+    ]
+
+
 def register_packaging_alert_routes(bp):
+    """Register standalone warehouse minimum-stock threshold management routes."""
     @bp.route('/admin/ustawienia/stany-minimalne', methods=['GET', 'POST'])
     @login_required
     @roles_required(['admin', 'masteradmin', 'zarzad', 'lider'])
@@ -47,85 +103,64 @@ def register_packaging_alert_routes(bp):
             if request.method == 'POST':
                 try:
                     action = request.form.get('action')
-                    if action == 'summary':
-                        success, message = send_summary(connection, int(request.form.get('group_id', '0')))
-                        flash(message, 'success' if success else 'error')
-                        return redirect(url_for('admin.email_center', tab='stany'))
-                    if action == 'group':
-                        recipients = ','.join(parse_recipients(request.form.get('recipients', '')))
-                        cc_recipients = ','.join(parse_recipients(request.form.get('cc_recipients', ''), optional=True))
-                        name = recipients[:100]
-                        group_id = request.form.get('group_id', '')
-                        if group_id:
-                            cursor.execute('UPDATE packaging_alert_groups SET name=%s, recipients=%s, cc_recipients=%s WHERE id=%s',
-                                           (name, recipients, cc_recipients, int(group_id)))
-                        else:
-                            cursor.execute('INSERT INTO packaging_alert_groups(name,recipients,cc_recipients) VALUES (%s,%s,%s)', (name, recipients, cc_recipients))
-                    elif action == 'bulk_rules':
-                        rows = prepare_bulk_rules(request.form, materials)
-                        group_id = int(request.form.get('group_id', '0'))
-                        cursor.execute('SELECT id FROM packaging_alert_groups WHERE id=%s', (group_id,))
-                        if not cursor.fetchone():
-                            raise ValueError('Wybierz adresy odbiorców dla zaznaczonych pozycji.')
+                    if action == 'bulk_rules':
+                        rows = prepare_typed_bulk_rules(request.form, materials)
                         connection.commit()
                         connection.start_transaction()
-                        for material, minimum, unit in rows:
-                            cursor.execute("""INSERT INTO packaging_alert_rules(material,minimum,unit,group_id,enabled)
-                                VALUES (%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE minimum=VALUES(minimum),
-                                unit=VALUES(unit), group_id=VALUES(group_id), enabled=VALUES(enabled)""",
-                                (material, minimum, unit, group_id, int(request.form.get('enabled') == 'on')))
+                        for material, stock_type, minimum, unit in rows:
+                            upsert_stock_threshold(cursor, material, stock_type, minimum, unit)
                     elif action == 'rule':
-                        known = {normalize_material_key(row['material']): str(row['material']).strip() for row in materials}
-                        material = known.get(normalize_material_key(request.form.get('material', '')))
-                        if not material:
-                            raise ValueError('Wybierz pozycję z ewidencji magazynowej.')
-                        minimum = parse_minimum(request.form.get('minimum', ''))
+                        known_by_key, known_by_name = _build_material_indexes(materials)
                         unit = request.form.get('unit', '')
+                        resolved = _resolve_catalog_entry(
+                            known_by_key,
+                            known_by_name,
+                            request.form.get('material', ''),
+                            request.form.get('stock_type', '') or request.form.get('category', ''),
+                            unit,
+                        )
+                        if not resolved:
+                            raise ValueError('Wybierz pozycję z ewidencji magazynowej.')
+                        material, stock_type = resolved
+                        minimum = parse_minimum(request.form.get('minimum', ''))
                         if unit not in ('szt.', 'kg', 'm', 'rolki'):
                             raise ValueError('Wybierz jednostkę zgodną z ewidencją magazynową.')
-                        group_id = int(request.form.get('group_id', '0'))
-                        cursor.execute('SELECT id FROM packaging_alert_groups WHERE id=%s', (group_id,))
-                        if not cursor.fetchone():
-                            raise ValueError('Najpierw zapisz adresy odbiorców Do i DW.')
-                        cursor.execute("""INSERT INTO packaging_alert_rules(material,minimum,unit,group_id,enabled)
-                            VALUES (%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE minimum=VALUES(minimum),
-                            unit=VALUES(unit), group_id=VALUES(group_id), enabled=VALUES(enabled)""",
-                            (material, minimum, unit, group_id, int(request.form.get('enabled') == 'on')))
-                    elif action == 'toggle':
-                        cursor.execute('UPDATE packaging_alert_rules SET enabled=1-enabled WHERE id=%s',
-                                       (int(request.form.get('id', '0')),))
+                        upsert_stock_threshold(cursor, material, stock_type, minimum, unit)
                     elif action == 'delete':
-                        cursor.execute('DELETE FROM packaging_alert_rules WHERE id=%s',
-                                       (int(request.form.get('id', '0')),))
+                        delete_stock_threshold(cursor, request.form.get('id', '0'))
+                    elif action == 'group':
+                        # Legacy compatibility delegate; primary UI lives under admin.stock_alert_emails.
+                        save_recipient_group(
+                            cursor,
+                            request.form.get('recipients', ''),
+                            request.form.get('cc_recipients', ''),
+                            request.form.get('group_id', ''),
+                        )
+                    elif action == 'toggle':
+                        toggle_rule_email_enabled(cursor, request.form.get('id', '0'))
+                    elif action == 'summary':
+                        success, message = send_summary(connection, int(request.form.get('group_id', '0')))
+                        flash(message, 'success' if success else 'error')
+                        return redirect(url_for('admin.packaging_alerts'))
                     else:
                         raise ValueError('Nieznana operacja.')
                     connection.commit()
-                    flash('Zapisano ustawienia stanów minimalnych.', 'success')
+                    flash('Zapisano stany minimalne magazynu.', 'success')
                 except (ValueError, TypeError) as error:
                     connection.rollback()
                     flash(str(error), 'error')
-                return redirect(url_for('admin.email_center', tab='stany'))
-            cursor.execute('SELECT * FROM packaging_alert_groups ORDER BY recipients')
-            groups = cursor.fetchall()
-            cursor.execute('''SELECT r.*,g.recipients AS group_name,g.cc_recipients FROM packaging_alert_rules r
-                JOIN packaging_alert_groups g ON g.id=r.group_id ORDER BY r.material''')
-            rules = cursor.fetchall()
-            stocks = {normalize_material_key(row['material']): row['stock'] for row in materials}
-            categories_by_mat = {normalize_material_key(row['material']): row['category'] for row in materials}
-            order_map = {cat: idx for idx, cat in enumerate(CATEGORY_ORDER)}
-            for rule in rules:
-                mat_key = normalize_material_key(rule['material'])
-                rule['material'] = str(rule['material']).strip()
-                rule['stock'] = stocks.get(mat_key, 0)
-                rule['category'] = categories_by_mat.get(mat_key, 'Pozostałe')
-            rules.sort(key=lambda rule: (order_map.get(rule['category'], 99), rule['material'].casefold()))
+                return redirect(url_for('admin.packaging_alerts'))
+
+            rules = fetch_rules(cursor)
+            materials, rules, rules_by_key = enrich_materials_and_rules(materials, rules)
             return render_template(
                 'admin/packaging_alerts.html',
-                groups=groups,
                 rules=rules,
                 materials=materials,
                 categories=list(CATEGORY_ORDER),
-                rules_by_material={str(rule['material']).strip(): rule for rule in rules},
+                rules_by_key=rules_by_key,
+                low_count=sum(1 for rule in rules if rule['is_low']),
+                total_rules=len(rules),
             )
         finally:
             if cursor is not None:

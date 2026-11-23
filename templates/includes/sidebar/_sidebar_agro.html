@@ -34,13 +34,13 @@
 
         {% endif %}
 
-        {% if role_has_access('agro.zasyp') %}
+        {% if navigation_group_allowed('entry_maluchy_agro') %}
         <a href="{{ url_for('maluchy.index', linia='AGRO') }}"
             class="nav-sub-item {% if request.endpoint == 'maluchy.index' and request.args.get('linia', 'AGRO') == 'AGRO' %}active{% endif %}">
             Maluchy (Wiadra)
         </a>
         {% endif %}
-        {% if role_has_access('agro.workowanie') %}
+        {% if navigation_group_allowed('entry_agro_bigbag') %}
         <a href="{{ url_for('production.agro_bigbag_scanner') }}"
             class="nav-sub-item {% if request.endpoint == 'production.agro_bigbag_scanner' %}active{% endif %}">
             Wsad Big Bagów
@@ -61,7 +61,7 @@
         </a>
         {% endif %}
 
-        {% if role_has_access('agro.magazyn') %}
+        {% if navigation_group_allowed('entry_agro_raw_materials') %}
           {% set surowce_endpoint = 'agro_warehouse.surowce_w_produkcji' if app.view_functions.get('agro_warehouse.surowce_w_produkcji') else 'agro_warehouse.report_production' %}
           <a href="{{ url_for(surowce_endpoint, linia='AGRO') }}"
               class="nav-sub-item {% if request.endpoint == 'agro_warehouse.surowce_w_produkcji' %}active{% elif request.endpoint == 'agro_warehouse.report_production' and request.args.get('linia') == 'AGRO' %}active{% endif %}">

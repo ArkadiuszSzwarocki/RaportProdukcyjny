@@ -137,7 +137,8 @@ def enforce_group_permission():
     payload = request.get_json(silent=True) if request.is_json else request.form
     payload = payload if hasattr(payload, 'get') else {}
     line = str(payload.get('linia') or request.args.get('linia') or request.args.get('zakladka') or '').strip().lower()
-    entries = entry_switches(request.endpoint, request.path.lower(), line)
+    tab = str(payload.get('tab') or request.args.get('tab') or '').strip().lower()
+    entries = entry_switches(request.endpoint, request.path.lower(), line, tab=tab)
     entries_allowed = all(group_allowed(f'entry_{entry}') for entry in entries)
     if group == 'reports':
         from app.core.navigation_entries import report_sections

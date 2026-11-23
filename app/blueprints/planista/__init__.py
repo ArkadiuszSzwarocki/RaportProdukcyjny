@@ -18,7 +18,7 @@ from app.dto.paleta import PaletaDTO
 from app.services.notification_service import notify_workers_about_plan_change
 # removed PlanningService
 from datetime import date, datetime, timedelta
-from app.decorators import roles_required, dynamic_role_required
+from app.decorators import login_required, roles_required, dynamic_role_required
 
 planista_bp = Blueprint('planista', __name__)
 register_planista_bulk_routes(planista_bp)
@@ -26,13 +26,20 @@ register_planista_buffer_routes(planista_bp)
 register_planista_rollover_routes(planista_bp)
 
 @planista_bp.route('/planista', methods=['GET', 'POST'])
-@dynamic_role_required('planista')
+@login_required
 def panel_planisty():
     wybrana_data = request.args.get('data', str(date.today()))
     wybrana_linia = request.args.get('linia', 'PSD').upper()
     aktywna_zakladka = request.args.get('tab', '').lower()
     if not aktywna_zakladka:
         aktywna_zakladka = 'agro' if wybrana_linia == 'AGRO' else 'psd'
+    if aktywna_zakladka != 'agro' and session.get('rola', '').lower() != 'masteradmin':
+        from app.core.contexts import inject_role_permissions
+        permission_helpers = inject_role_permissions()
+        role_checker = permission_helpers.get('role_has_access')
+        readonly = request.method not in ('GET', 'HEAD', 'OPTIONS') and permission_helpers['role_is_readonly']('planista')
+        if not (role_checker and role_checker('planista') and not readonly):
+            return render_template('errors/403.html', page_url=request.path, user_role=session.get('rola'), allowed_roles=[]), 403
 
     conn = get_db_connection()
     try:

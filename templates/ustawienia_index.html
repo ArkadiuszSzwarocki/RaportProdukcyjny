@@ -170,6 +170,15 @@
                 </div>
             </article>
 
+            {% if session_role in ['admin', 'masteradmin', 'zarzad', 'lider'] %}
+            <article class="settings-card">
+                <div class="settings-card-icon">📉</div>
+                <div class="settings-card-body">
+                    <h3><a class="settings-row-link" href="{{ url_for('admin.packaging_alerts') }}">Stany minimalne magazynu</a></h3>
+                </div>
+            </article>
+            {% endif %}
+
             <article class="settings-card">
                 <div class="settings-card-icon">🗺️</div>
                 <div class="settings-card-body">

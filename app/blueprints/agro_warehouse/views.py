@@ -62,7 +62,6 @@ def opakowania():
 
 @agro_warehouse_bp.route('/agro/magazyn/surowce-w-produkcji')
 @login_required
-@dynamic_role_required('agro.magazyn')
 def surowce_w_produkcji():
     linia = request.args.get('linia', 'AGRO')
     snapshot = AgroTanksService.get_production_inventory_snapshot(linia=linia, show_empty=True)

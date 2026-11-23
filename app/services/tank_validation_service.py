@@ -305,3 +305,111 @@ class TankValidationService:
                 'tank_codes': [t['code'] for t in tanks],
             }
         return result
+
+    @classmethod
+    def get_maluchy_used_tanks(cls, cursor, plan_id: int, szarza_id: Optional[int] = None) -> List[str]:
+        """Return distinct tank/station codes with premix/premiks ingredients already dumped via Maluchy."""
+        try:
+            if szarza_id:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT UPPER(TRIM(COALESCE(p.stacja_kod, ''))) AS stacja_kod
+                    FROM wiaderka_maluchy w
+                    JOIN wiaderka_maluchy_pozycje p ON p.wiaderko_id = w.id
+                    WHERE w.plan_id = %s
+                      AND w.szarza_id = %s
+                      AND w.status = 'wrzucone_do_mieszalnika'
+                      AND TRIM(COALESCE(p.stacja_kod, '')) <> ''
+                      AND (LOWER(COALESCE(p.surowiec_nazwa, '')) LIKE %s
+                           OR LOWER(COALESCE(p.surowiec_nazwa, '')) LIKE %s)
+                    ORDER BY stacja_kod ASC
+                    """,
+                    (plan_id, szarza_id, '%premix%', '%premiks%'),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT UPPER(TRIM(COALESCE(p.stacja_kod, ''))) AS stacja_kod
+                    FROM wiaderka_maluchy w
+                    JOIN wiaderka_maluchy_pozycje p ON p.wiaderko_id = w.id
+                    WHERE w.plan_id = %s
+                      AND w.status = 'wrzucone_do_mieszalnika'
+                      AND TRIM(COALESCE(p.stacja_kod, '')) <> ''
+                      AND (LOWER(COALESCE(p.surowiec_nazwa, '')) LIKE %s
+                           OR LOWER(COALESCE(p.surowiec_nazwa, '')) LIKE %s)
+                    ORDER BY stacja_kod ASC
+                    """,
+                    (plan_id, '%premix%', '%premiks%'),
+                )
+            return [
+                _normalize_tank_code(row[0] if not isinstance(row, dict) else row.get('stacja_kod'))
+                for row in (cursor.fetchall() or [])
+                if (row[0] if not isinstance(row, dict) else row.get('stacja_kod'))
+            ]
+        except Exception:
+            return []
+
+    @classmethod
+    def group_dosypka_materials(
+        cls,
+        material_names,
+        material_tanks: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+        linia: str = 'AGRO',
+        maluchy_tanks: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Group allowed raw materials into BB/MZ/KO tank-assigned buckets and unassigned items."""
+        tank_map = material_tanks if material_tanks is not None else cls.get_material_tank_map(linia=linia)
+        maluchy_set = {_normalize_tank_code(c) for c in (maluchy_tanks or []) if c}
+        buckets: Dict[str, List[Dict[str, Any]]] = {'BB': [], 'MZ': [], 'KO': [], 'INNE': []}
+        assigned_names: List[str] = []
+        unassigned_names: List[str] = []
+        seen_assigned = set()
+
+        for raw_name in material_names or []:
+            name = str(raw_name or '').strip()
+            if not name:
+                continue
+            tanks = tank_map.get(_normalize_name_for_comparison(name), [])
+            if not tanks:
+                unassigned_names.append(name)
+                continue
+
+            if name.casefold() not in seen_assigned:
+                seen_assigned.add(name.casefold())
+                assigned_names.append(name)
+
+            codes = [str(t.get('code') or '').strip().upper() for t in tanks if t.get('code')]
+            by_prefix: Dict[str, List[str]] = {}
+            for code in codes:
+                prefix = code[:2] if code[:2] in ('BB', 'MZ', 'KO') else 'INNE'
+                by_prefix.setdefault(prefix, []).append(code)
+
+            is_premix_name = 'premix' in name.casefold() or 'premiks' in name.casefold()
+            for prefix, group_codes in by_prefix.items():
+                matched_maluchy = [code for code in group_codes if is_premix_name and code in maluchy_set]
+                buckets[prefix].append({
+                    'name': name,
+                    'tanks': group_codes,
+                    'all_tanks': codes,
+                    'in_maluchy': bool(matched_maluchy),
+                    'maluchy_tanks': matched_maluchy,
+                })
+
+        group_defs = [
+            ('BB', 'Zbiorniki BB'),
+            ('MZ', 'Zbiorniki MZ'),
+            ('KO', 'Zbiorniki KO'),
+            ('INNE', 'Inne zbiorniki'),
+        ]
+        groups = []
+        for code, title in group_defs:
+            items = sorted(buckets[code], key=lambda item: item['name'].casefold())
+            if items or code in ('BB', 'MZ', 'KO'):
+                groups.append({'code': code, 'title': title, 'items': items})
+
+        return {
+            'assigned_names': sorted(assigned_names, key=str.casefold),
+            'unassigned_names': sorted(unassigned_names, key=str.casefold),
+            'maluchy_tanks': sorted(maluchy_set),
+            'groups': groups,
+        }

@@ -1,186 +1,117 @@
-{% extends 'admin/email_center_layout.html' %}
-{% block email_content %}
+{% extends 'layout.html' %}
+{% block content %}
 {% macro stock_number(value, for_input=false) -%}
   {%- set text = value|string -%}
   {%- set clean = text.rstrip('0').rstrip('.') if '.' in text else text -%}
   {{- clean if for_input else clean|replace('.', ',') -}}
 {%- endmacro %}
-<style>
-.stock-card{background:white;border:1px solid #dbe4ef;border-radius:14px;padding:22px;margin-bottom:18px}.stock-card h2{margin:0 0 12px;font-size:20px}.stock-form{display:flex;flex-wrap:wrap;gap:14px;align-items:end}.stock-form label{display:flex;flex-direction:column;gap:7px;flex:1 1 170px;font-weight:600}.stock-form input,.stock-form select{padding:11px;border:1px solid #cbd5e1;border-radius:8px;width:100%;box-sizing:border-box}.stock-scroll{overflow:auto}.stock-table{border-collapse:collapse;width:100%;min-width:850px}.stock-table td,.stock-table th{padding:13px;text-align:left;border-bottom:1px solid #e2e8f0}.stock-low{color:#b91c1c;font-weight:700}.stock-note{color:#64748b;line-height:1.6}.stock-groups{display:grid;gap:12px}.stock-form .stock-checkbox{flex:0 1 auto;flex-direction:row;align-items:center}.stock-checkbox input{width:auto}
-
-.stock-dialog{width:min(960px,94vw);max-width:94vw;max-height:90vh;padding:0;border:0;border-radius:14px;color:#1e293b;box-shadow:0 20px 70px #0f172a55;box-sizing:border-box}.stock-dialog::backdrop{background:#0f172a88}.stock-dialog form{display:flex;flex-direction:column;max-height:90vh}.stock-dialog-header,.stock-dialog-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 22px;background:#f8fafc;flex-shrink:0}.stock-dialog-header h2{margin:0;font-size:20px}.stock-dialog-body{padding:18px 22px;overflow:auto}.stock-bulk-table{width:100%;border-collapse:collapse;min-width:540px;margin-top:16px}.stock-bulk-table th,.stock-bulk-table td{padding:11px 8px;border-bottom:1px solid #e2e8f0;text-align:left}.stock-bulk-table input[type=number]{width:145px;min-width:0;padding:9px;border:1px solid #cbd5e1;border-radius:7px;box-sizing:border-box}.stock-bulk-table select{padding:9px;border:1px solid #cbd5e1;border-radius:7px}.stock-dialog input[type=checkbox]{width:18px;height:18px;accent-color:#2563eb}.stock-dialog .stock-form select{max-width:100%}.stock-dialog .stock-form label{min-width:0}.stock-bulk-selected{background:#eff6ff}.stock-category td{background:#e8eef6;color:#20374b;font-weight:700;padding:12px!important;border-top:2px solid #cbd5e1}.stock-category label{display:flex;align-items:center;gap:8px}.stock-bulk-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px}.stock-bulk-toolbar label{display:flex;align-items:center;gap:8px}.stock-dialog-footer>div{display:flex;gap:8px;flex-wrap:wrap}.stock-dialog-footer{border-top:1px solid #e2e8f0}.stock-dialog-close{border:0;background:transparent;font-size:24px;cursor:pointer;color:#64748b}
-@media(max-width:600px){.stock-dialog-header,.stock-dialog-footer,.stock-dialog-body{padding:14px}.stock-dialog-footer{flex-wrap:wrap}.stock-dialog-header h2{font-size:17px}}
-</style>
-<section class="stock-card">
-  <h2>Stany minimalne magazynu</h2>
-  <p class="stock-note">Wybierz dowolne pozycje magazynowe, które chcesz monitorować: <strong>surowce, dodatki, taśmy, opakowania oraz wyroby gotowe</strong>. Powiadomienie e-mail trafi automatycznie do wybranych odbiorców po osiągnięciu lub spadku <strong>do/poniżej</strong> stanu minimalnego.</p>
-  <p class="stock-note">Sprawdzanie co 5 minut w tle. Jeden e-mail na okres niedoboru. Uzupełnienie zapasu powyżej minimum ponownie uzbraja alarm. Błąd wysyłki jest ponawiany po 30 minutach. Nadawca: systemowe konto SMTP z zakładki „Konta SMTP i odbiorcy”.</p>
-  {% if local_instance %}<p class="stock-note">Automatyczne powiadomienia działają również na lokalnej kopii i wysyłają prawdziwe e-maile do zapisanych odbiorców.</p>{% endif %}
-  <p class="stock-note">Stan obejmuje dostępny zapas magazynowy bez pozycji na LP01/maszynie, zużytych, zarchiwizowanych, oczekujących na przyjęcie, bez lokalizacji oraz zablokowanych.</p>
-</section>
-<section class="stock-card">
-  <h2>1. Odbiorcy e-mail</h2>
-  <div class="stock-groups">
-  {% for group in groups %}
-  <form method="post" action="{{ url_for('admin.packaging_alerts') }}" class="stock-form">
-    <input type="hidden" name="action" value="group"><input type="hidden" name="group_id" value="{{ group.id }}">
-    <label>Do — odbiorcy główni<input name="recipients" required value="{{ group.recipients }}"></label>
-    <label>DW — do wiadomości<input name="cc_recipients" value="{{ group.cc_recipients or '' }}" placeholder="Opcjonalnie"></label>
-    <button class="btn btn-primary">Zapisz adresy</button>
-  </form>
-  {% endfor %}
-  <form method="post" action="{{ url_for('admin.packaging_alerts') }}" class="stock-form">
-    <input type="hidden" name="action" value="group">
-    <label>Do — odbiorcy główni<input name="recipients" required placeholder="zakupy@firma.pl"></label>
-    <label>DW — do wiadomości<input name="cc_recipients" placeholder="np. lider@firma.pl (opcjonalnie)"></label>
-    <button class="btn btn-primary">Dodaj odbiorców</button>
-  </form>
-  </div>
-</section>
-<section class="stock-card">
-  <h2>2. Wybierz pozycje magazynowe i ustaw stany minimalne</h2>
-  <p class="stock-note">Zaznacz surowce, opakowania, dodatki lub wyroby gotowe, ustaw osobne minimum dla każdej pozycji i wskaż odbiorców jednym zapisem.</p>
-  <button type="button" class="btn btn-primary" id="stock-bulk-open">Wybierz pozycje i ustaw minima</button>
-</section>
-<dialog class="stock-dialog" id="stock-bulk-dialog" aria-labelledby="stock-bulk-title">
-  <form method="post" action="{{ url_for('admin.packaging_alerts') }}" id="stock-bulk-form">
-    <input type="hidden" name="action" value="bulk_rules">
-    <header class="stock-dialog-header"><h2 id="stock-bulk-title">Zbiorcze ustawianie stanów minimalnych</h2><button type="button" class="stock-dialog-close" data-close-stock aria-label="Zamknij">×</button></header>
-    <div class="stock-dialog-body">
-      <div class="stock-form">
-        <label>Odbiorcy dla zaznaczonych pozycji<select name="group_id" required><option value="">Wybierz odbiorców</option>{% for group in groups %}<option value="{{ group.id }}" data-to="{{ group.recipients }}" data-cc="{{ group.cc_recipients or '' }}">Do: {{ group.recipients }}{% if group.cc_recipients %} · DW: {{ group.cc_recipients }}{% endif %}</option>{% endfor %}</select></label>
-        <label class="stock-checkbox"><input type="checkbox" name="enabled" checked>Włącz powiadomienia</label>
-      </div>
-      <p class="stock-note" id="stock-bulk-recipients">Wybierz odbiorców, aby zobaczyć odbiorców Do i DW.</p>
-      <div class="stock-form" style="margin-top: 12px;">
-        <label>Szukaj pozycji<input type="search" id="stock-bulk-search" placeholder="Wpisz nazwę surowca, opakowania, wyrobu…" autocomplete="off"></label>
-        <label>Kategoria<select id="stock-bulk-category-filter"><option value="ALL">Wszystkie kategorie</option>{% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}</select></label>
-      </div>
-      <div class="stock-bulk-toolbar"><label><input type="checkbox" id="stock-select-all">Zaznacz wszystkie widoczne</label><span id="stock-bulk-count" aria-live="polite">Zaznaczono: 0</span></div>
-      <div class="stock-scroll"><table class="stock-bulk-table"><thead><tr><th>Wybierz</th><th>Pozycja</th><th>Stan</th><th>Minimum</th><th>Jednostka</th></tr></thead><tbody>
-      {% for item in materials %}{% set rule = rules_by_material.get(item.material) %}{% set chosen_unit = rule.unit if rule else (item.default_unit or 'kg') %}
-      {% if loop.first or item.category != loop.previtem.category %}<tr class="stock-category" data-category-header="{{ item.category }}"><td colspan="5"><label><input type="checkbox" class="stock-category-check" data-category="{{ item.category }}">{{ item.category }}</label></td></tr>{% endif %}
-      <tr class="stock-bulk-row" data-material="{{ item.material }}" data-category="{{ item.category }}">
-        <td><input type="checkbox" class="stock-bulk-check" name="selected" value="{{ loop.index0 }}" aria-label="Wybierz {{ item.material }}"><input type="hidden" name="material_{{ loop.index0 }}" value="{{ item.material }}"></td>
-        <td><strong>{{ item.material }}</strong>{% if rule %}<br><small class="stock-note">Odbiorcy: {{ rule.group_name }}</small>{% endif %}</td><td>{{ stock_number(item.stock) }}</td>
-        <td><input type="number" name="minimum_{{ loop.index0 }}" min="0" max="99999999999.999" step="0.001" value="{{ stock_number(rule.minimum, true) if rule else '' }}" placeholder="Wpisz minimum" aria-label="Minimum dla {{ item.material }}" required disabled></td>
-        <td><select name="unit_{{ loop.index0 }}" aria-label="Jednostka dla {{ item.material }}" disabled>{% for unit in ['kg','szt.','m','rolki'] %}<option{% if chosen_unit == unit %} selected{% endif %}>{{ unit }}</option>{% endfor %}</select></td>
-      </tr>
-      {% else %}<tr><td colspan="5">Brak pozycji w ewidencji magazynowej.</td></tr>{% endfor %}
-      </tbody></table></div>
-      <p class="stock-note">Zapis dotyczy wyłącznie zaznaczonych pozycji. Każdej wpisz minimum w jej jednostce magazynowej. Istniejące reguły zostaną zaktualizowane.</p>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/stock_thresholds.css') }}?v={{ static_version }}">
+<div class="stock-page">
+  <header class="stock-page-header">
+    <div>
+      <div class="stock-eyebrow">Magazyn · Kontrola zapasów</div>
+      <h1>Stany minimalne magazynu</h1>
+      <p class="stock-note">Ustawiasz tutaj wyłącznie progi minimalne dla <strong>surowców, dodatków, taśm, opakowań oraz wyrobów gotowych</strong>. Konfiguracja odbiorców i wysyłki powiadomień e-mail znajduje się osobno w module <em>E-mail i powiadomienia → Alerty stanów</em>.</p>
+      <p class="stock-note">Dostępny stan pomija pozycje na LP01/maszynie, zużyte, zarchiwizowane, oczekujące na przyjęcie, bez lokalizacji oraz zablokowane.</p>
     </div>
-    <footer class="stock-dialog-footer"><span>Jeden zapis dla wszystkich zaznaczonych pozycji</span><div><button type="button" class="btn btn-secondary" data-close-stock>Anuluj</button><button type="submit" class="btn btn-primary" id="stock-bulk-save" disabled>Zapisz zaznaczone</button></div></footer>
-  </form>
-</dialog>
-<section class="stock-card">
-  <h2>Wyślij zbiorcze zestawienie niskich stanów</h2>
-  <p class="stock-note">Jedna wiadomość ze wszystkimi aktywnie monitorowanymi pozycjami (surowce, opakowania, dodatki, wyroby) na poziomie lub poniżej minimum, także wcześniej zgłoszonymi.</p>
-  <form method="post" action="{{ url_for('admin.packaging_alerts') }}" class="stock-form" id="stock-summary-form">
-    <input type="hidden" name="action" value="summary">
-    <label>Odbiorcy e-mail<select name="group_id" required><option value="">Wybierz odbiorców</option>{% for group in groups %}<option value="{{ group.id }}">Do: {{ group.recipients }}{% if group.cc_recipients %} · DW: {{ group.cc_recipients }}{% endif %}</option>{% endfor %}</select></label>
-    <button class="btn btn-primary" type="submit">Wyślij e-mail zbiorczy</button>
-  </form>
-</section>
-<section class="stock-card">
-  <h2>Monitorowane pozycje magazynowe</h2>
-  <div class="stock-scroll"><table class="stock-table"><thead><tr><th>Pozycja</th><th>Stan / minimum</th><th>Odbiorcy</th><th>Powiadomienie</th><th>Ostatnie sprawdzenie</th><th>Akcja</th></tr></thead><tbody>
-  {% for rule in rules %}
-  {% if loop.first or rule.category != loop.previtem.category %}<tr class="stock-category"><td colspan="6">{{ rule.category }}</td></tr>{% endif %}
-  <tr>
-    <td>{{ rule.material }}</td><td class="{% if rule.stock <= rule.minimum %}stock-low{% endif %}">{{ stock_number(rule.stock) }} / {{ stock_number(rule.minimum) }} {{ rule.unit }}</td><td>Do: {{ rule.group_name }}{% if rule.cc_recipients %}<br>DW: {{ rule.cc_recipients }}{% endif %}</td>
-    <td>{% if not rule.enabled %}Wyłączone{% elif rule.last_error %}<span class="stock-low">{{ rule.last_error }}</span><br>Próba: {{ rule.next_attempt }}{% elif rule.notified %}Wysłano: {{ rule.sent_at }}{% elif rule.stock <= rule.minimum %}Niedobór — oczekuje na wysyłkę{% else %}Stan prawidłowy{% endif %}</td>
-    <td>{{ rule.checked_at or 'Jeszcze nie sprawdzano' }}</td>
-    <td style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary stock-edit" data-material="{{ rule.material }}" data-minimum="{{ stock_number(rule.minimum, true) }}" data-unit="{{ rule.unit }}" data-group="{{ rule.group_id }}" data-enabled="{{ rule.enabled }}">Edytuj</button><form method="post" action="{{ url_for('admin.packaging_alerts') }}"><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="{{ rule.id }}"><button class="btn btn-secondary">{{ 'Wyłącz' if rule.enabled else 'Włącz' }}</button></form><form method="post" action="{{ url_for('admin.packaging_alerts') }}" onsubmit="return confirm('Usunąć regułę stanu minimalnego dla {{ rule.material }}?');"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="{{ rule.id }}"><button class="btn btn-secondary" style="color:#b91c1c;">Usuń</button></form></td>
-  </tr>{% else %}<tr><td colspan="6">Brak reguł. Dodaj odbiorców e-mail i wybierz pierwsze pozycje magazynowe.</td></tr>{% endfor %}
-  </tbody></table></div>
-</section>
-<script>
-document.getElementById('stock-summary-form').addEventListener('submit', function() {
-  const button = this.querySelector('button[type=submit]');
-  button.disabled = true;
-  button.textContent = 'Wysyłanie…';
-});
-const stockDialog = document.getElementById('stock-bulk-dialog');
-const bulkForm = document.getElementById('stock-bulk-form');
-const stockChecks = [...bulkForm.querySelectorAll('.stock-bulk-check')];
-const selectAll = document.getElementById('stock-select-all');
-function syncStockSelection() {
-  let count = 0;
-  stockChecks.forEach(check => {
-    const row = check.closest('tr');
-    row.querySelector('input[type=number]').disabled = !check.checked;
-    row.querySelector('select').disabled = !check.checked;
-    row.classList.toggle('stock-bulk-selected', check.checked);
-    if (check.checked) count++;
-  });
-  document.getElementById('stock-bulk-count').textContent = `Zaznaczono: ${count} / ${stockChecks.length}`;
-  document.getElementById('stock-bulk-save').disabled = count === 0;
-  selectAll.checked = count > 0 && count === stockChecks.length;
-  selectAll.indeterminate = count > 0 && count < stockChecks.length;
-  bulkForm.querySelectorAll('.stock-category-check').forEach(category => {
-    const checks = stockChecks.filter(check => check.closest('tr').dataset.category === category.dataset.category);
-    const checked = checks.filter(check => check.checked).length;
-    category.checked = checks.length > 0 && checked === checks.length;
-    category.indeterminate = checked > 0 && checked < checks.length;
-  });
-}
-function showStockRecipients() {
-  const option = bulkForm.elements.group_id.selectedOptions[0];
-  document.getElementById('stock-bulk-recipients').textContent = option.value
-    ? `Do: ${option.dataset.to} · DW: ${option.dataset.cc || 'brak'}`
-    : 'Wybierz odbiorców, aby zobaczyć odbiorców Do i DW.';
-}
-document.getElementById('stock-bulk-open').addEventListener('click', () => {
-  syncStockSelection();
-  stockDialog.showModal();
-});
-stockDialog.querySelectorAll('[data-close-stock]').forEach(button => button.addEventListener('click', () => stockDialog.close()));
-const bulkSearch = document.getElementById('stock-bulk-search');
-const bulkCategoryFilter = document.getElementById('stock-bulk-category-filter');
-function applyBulkFilter() {
-  const query = String(bulkSearch ? bulkSearch.value : '').trim().toLowerCase();
-  const cat = bulkCategoryFilter ? bulkCategoryFilter.value : 'ALL';
-  const visiblePerCategory = {};
-  bulkForm.querySelectorAll('.stock-bulk-row').forEach(row => {
-    const matchesCat = cat === 'ALL' || row.dataset.category === cat;
-    const matchesQuery = !query || String(row.dataset.material || '').toLowerCase().includes(query);
-    const visible = matchesCat && matchesQuery;
-    row.style.display = visible ? '' : 'none';
-    if (visible) visiblePerCategory[row.dataset.category] = (visiblePerCategory[row.dataset.category] || 0) + 1;
-  });
-  bulkForm.querySelectorAll('tr[data-category-header]').forEach(header => {
-    header.style.display = visiblePerCategory[header.dataset.categoryHeader] ? '' : 'none';
-  });
-}
-if (bulkSearch) bulkSearch.addEventListener('input', applyBulkFilter);
-if (bulkCategoryFilter) bulkCategoryFilter.addEventListener('change', applyBulkFilter);
+    <div class="stock-stats">
+      <div class="stock-stat">Ustawione progi: {{ total_rules }}</div>
+      <div class="stock-stat {% if low_count > 0 %}stock-stat-low{% endif %}">Poniżej lub równe minimum: {{ low_count }}</div>
+    </div>
+  </header>
 
-selectAll.addEventListener('change', () => {
-  stockChecks.forEach(check => {
-    const row = check.closest('tr');
-    if (row && row.style.display !== 'none') check.checked = selectAll.checked;
-  });
-  syncStockSelection();
-});
-stockChecks.forEach(check => check.addEventListener('change', syncStockSelection));
-bulkForm.querySelectorAll('.stock-category-check').forEach(category => category.addEventListener('change', () => {
-  stockChecks.filter(check => check.closest('tr').dataset.category === category.dataset.category).forEach(check => { check.checked = category.checked; });
-  syncStockSelection();
-}));
-bulkForm.elements.group_id.addEventListener('change', showStockRecipients);
-document.querySelectorAll('.stock-edit').forEach(button => button.addEventListener('click', () => {
-  stockChecks.forEach(check => { check.checked = check.closest('tr').dataset.material === button.dataset.material; });
-  bulkForm.elements.group_id.value = button.dataset.group;
-  bulkForm.elements.enabled.checked = button.dataset.enabled === '1';
-  syncStockSelection();
-  showStockRecipients();
-  stockDialog.showModal();
-}));
-bulkForm.addEventListener('submit', () => {
-  const button = document.getElementById('stock-bulk-save');
-  button.disabled = true;
-  button.textContent = 'Zapisywanie…';
-});
-</script>
+  <section class="stock-card">
+    <div class="stock-card-head">
+      <h2>1. Wybierz pozycje magazynowe i ustaw stany minimalne</h2>
+      <button type="button" class="btn btn-primary" id="stock-bulk-open">Wybierz pozycje i ustaw minima</button>
+    </div>
+    <p class="stock-note">Zaznacz dowolne pozycje magazynowe i zapisz dla nich osobne minima w odpowiedniej jednostce (`kg`, `szt.`, `m`, `rolki`).</p>
+  </section>
+
+  <dialog class="stock-dialog" id="stock-bulk-dialog" aria-labelledby="stock-bulk-title">
+    <form method="post" action="{{ url_for('admin.packaging_alerts') }}" id="stock-bulk-form">
+      <input type="hidden" name="action" value="bulk_rules">
+      <header class="stock-dialog-header">
+        <h2 id="stock-bulk-title">Ustawianie stanów minimalnych magazynu</h2>
+        <button type="button" class="stock-dialog-close" data-close-stock aria-label="Zamknij">×</button>
+      </header>
+      <div class="stock-dialog-body">
+        <div class="stock-form">
+          <label>Szukaj pozycji<input type="search" id="stock-bulk-search" placeholder="Wpisz nazwę surowca, opakowania, taśmy, wyrobu…" autocomplete="off"></label>
+          <label>Kategoria<select id="stock-bulk-category-filter"><option value="ALL">Wszystkie kategorie</option>{% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}</select></label>
+        </div>
+        <div class="stock-bulk-toolbar">
+          <label><input type="checkbox" id="stock-select-all">Zaznacz wszystkie widoczne</label>
+          <span id="stock-bulk-count" aria-live="polite">Zaznaczono: 0</span>
+        </div>
+        <div class="stock-scroll">
+          <table class="stock-bulk-table">
+            <thead><tr><th>Wybierz</th><th>Pozycja</th><th>Dostępny stan</th><th>Minimum</th><th>Jednostka</th></tr></thead>
+            <tbody>
+            {% for item in materials %}
+            {% set rule = rules_by_key.get(item.rule_key) %}
+            {% set chosen_unit = rule.unit if rule else (item.default_unit or 'kg') %}
+            {% if loop.first or item.category != loop.previtem.category %}
+            <tr class="stock-category" data-category-header="{{ item.category }}"><td colspan="5"><label><input type="checkbox" class="stock-category-check" data-category="{{ item.category }}">{{ item.category }}</label></td></tr>
+            {% endif %}
+            <tr class="stock-bulk-row" data-material="{{ item.material }}" data-category="{{ item.category }}" data-stock-type="{{ item.stock_type }}" data-rule-key="{{ item.rule_key }}">
+              <td><input type="checkbox" class="stock-bulk-check" name="selected" value="{{ loop.index0 }}" aria-label="Wybierz {{ item.material }}"><input type="hidden" name="material_{{ loop.index0 }}" value="{{ item.material }}"><input type="hidden" name="stock_type_{{ loop.index0 }}" value="{{ item.stock_type }}"></td>
+              <td><strong>{{ item.material }}</strong>{% if rule %}<br><small class="stock-note">Aktualne minimum: {{ stock_number(rule.minimum) }} {{ rule.unit }}</small>{% endif %}</td>
+              <td>{{ stock_number(item.stock) }}</td>
+              <td><input type="number" name="minimum_{{ loop.index0 }}" min="0" max="99999999999.999" step="0.001" value="{{ stock_number(rule.minimum, true) if rule else '' }}" placeholder="Wpisz minimum" aria-label="Minimum dla {{ item.material }}" required disabled></td>
+              <td><select name="unit_{{ loop.index0 }}" aria-label="Jednostka dla {{ item.material }}" disabled>{% for unit in ['kg','szt.','m','rolki'] %}<option{% if chosen_unit == unit %} selected{% endif %}>{{ unit }}</option>{% endfor %}</select></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">Brak pozycji w ewidencji magazynowej.</td></tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="stock-note">Zapis aktualizuje wyłącznie próg minimalny i jednostkę dla zaznaczonych pozycji; ustawienia powiadomień e-mail pozostają nienaruszone.</p>
+      </div>
+      <footer class="stock-dialog-footer">
+        <span>Jeden zapis dla wszystkich zaznaczonych pozycji</span>
+        <div>
+          <button type="button" class="btn btn-secondary" data-close-stock>Anuluj</button>
+          <button type="submit" class="btn btn-primary" id="stock-bulk-save" disabled>Zapisz stany minimalne</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
+
+  <section class="stock-card">
+    <h2>2. Skonfigurowane stany minimalne</h2>
+    <div class="stock-scroll">
+      <table class="stock-table">
+        <thead><tr><th>Pozycja</th><th>Dostępny stan</th><th>Stan minimalny</th><th>Status</th><th>Akcja</th></tr></thead>
+        <tbody>
+        {% for rule in rules %}
+        {% if loop.first or rule.category != loop.previtem.category %}
+        <tr class="stock-category"><td colspan="5">{{ rule.category }}</td></tr>
+        {% endif %}
+        <tr>
+          <td><strong>{{ rule.material }}</strong></td>
+          <td class="{% if rule.is_low %}stock-low{% endif %}">{{ stock_number(rule.stock) }} {{ rule.unit }}</td>
+          <td>{{ stock_number(rule.minimum) }} {{ rule.unit }}</td>
+          <td>{% if rule.is_low %}<span class="stock-badge stock-badge-low">Poniżej minimum{% if rule.shortage > 0 %} (brakuje {{ stock_number(rule.shortage) }} {{ rule.unit }}){% endif %}</span>{% else %}<span class="stock-badge stock-badge-ok">Stan prawidłowy</span>{% endif %}</td>
+          <td>
+            <div class="stock-actions">
+              <button type="button" class="btn btn-secondary stock-edit" data-material="{{ rule.material }}" data-stock-type="{{ rule.stock_type }}" data-rule-key="{{ rule.rule_key }}" data-minimum="{{ stock_number(rule.minimum, true) }}" data-unit="{{ rule.unit }}">Edytuj próg</button>
+              <form method="post" action="{{ url_for('admin.packaging_alerts') }}" data-confirm="Usunąć próg stanu minimalnego dla {{ rule.material }} ({{ rule.category }})?">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="id" value="{{ rule.id }}">
+                <button class="btn btn-secondary stock-btn-danger">Usuń</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">Brak ustawionych progów minimalnych. Kliknij „Wybierz pozycje i ustaw minima”, aby dodać pierwsze pozycje.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+<script src="{{ url_for('static', filename='js/stock_thresholds.js') }}?v={{ static_version }}" defer></script>
 {% endblock %}

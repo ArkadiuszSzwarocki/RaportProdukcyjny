@@ -546,6 +546,8 @@
                 </datalist>
                 {% endif %}
                 <script type="application/json" id="dosypka-tank-map">{{ (material_tanks or {})|tojson }}</script>
+                <script type="application/json" id="dosypka-materials-grouped">{{ (grouped_dosypka_materials or {})|tojson }}</script>
+                <link rel="stylesheet" href="{{ url_for('static', filename='css/dosypka_material_picker.css') }}?v={{ static_version }}">
 
                 <div class="ds-infobar">
                     <div class="ds-infobar-item">
@@ -586,13 +588,31 @@
                     <input type="hidden" name="szarza_id" value="{{ szarza_id or '' }}">
                     <input type="hidden" name="linia" value="{{ linia or 'PSD' }}">
                     <input type="hidden" name="brak_dosypki" id="brak_dosypki" value="0">
+                    <input type="hidden" name="allow_unassigned" id="dosypka-allow-unassigned" value="0">
+
+                    {% if grouped_dosypka_materials and (grouped_dosypka_materials.assigned_names or grouped_dosypka_materials.unassigned_names) %}
+                    <div class="dosypka-picker-box">
+                        <div class="dosypka-picker-head">
+                            <span class="dosypka-picker-title">Surowce przypisane do zbiorników (BB / MZ / KO)</span>
+                            <label class="dosypka-picker-toggle">
+                                <input type="checkbox" id="dosypka-show-all-materials">
+                                <span>Pokaż też nieprzypisane surowce (cała lista)</span>
+                            </label>
+                        </div>
+                        <div class="dosypka-picker-groups"></div>
+                        <div class="dosypka-picker-unassigned" hidden>
+                            <div class="dosypka-picker-group-head">
+                                <span>Pozostałe surowce (bez przypisanego zbiornika)</span>
+                            </div>
+                            <div class="dosypka-picker-chips dosypka-picker-unassigned-chips"></div>
+                        </div>
+                    </div>
+                    {% endif %}
 
                     <div class="ds-fields" id="ds-fields">
                         <div class="ds-field-group" data-index="1">
-                            <div class="ds-field-label">
-                                <span>Pozycja <span class="ds-field-num">1</span></span>
-                            </div>
                             <div class="ds-field-row">
+                                <span class="dosypka-row-lp"><span class="ds-field-num">1</span>.</span>
                                 <input type="text" name="nazwa_1" class="ds-input ds-input-nazwa"
                                     placeholder="Wybierz surowiec z listy..."
                                     {% if dostepne_surowce %}list="surowce-list"{% endif %}
@@ -791,13 +811,11 @@
         div.setAttribute('data-index', idx);
         var listAttr = '{% if dostepne_surowce %}list="surowce-list"{% endif %}';
         div.innerHTML =
-            '<div class="ds-field-label">' +
-                '<span>Pozycja <span class="ds-field-num">' + idx + '</span></span>' +
-                '<button type="button" class="ds-btn-remove" onclick="dsRemoveField(this)" title="Usuń">✕</button>' +
-            '</div>' +
             '<div class="ds-field-row">' +
+                '<span class="dosypka-row-lp"><span class="ds-field-num">' + idx + '</span>.</span>' +
                 '<input type="text" name="nazwa_' + idx + '" class="ds-input ds-input-nazwa" placeholder="Wybierz surowiec z listy..." ' + listAttr + ' autocomplete="off" spellcheck="false">' +
                 '<input type="number" name="kg_' + idx + '" class="ds-input ds-input-kg" step="0.01" min="0" placeholder="kg">' +
+                '<button type="button" class="ds-btn-remove" onclick="dsRemoveField(this)" title="Usuń">✕</button>' +
             '</div>' +
             '<div class="ds-field-error"></div>';
         container.appendChild(div);
@@ -1069,4 +1087,5 @@
 })();
 </script>
 <script src="{{ url_for('static', filename='js/dosypka_tank_validator.js') }}?v={{ static_version }}"></script>
+<script src="{{ url_for('static', filename='js/dosypka_material_picker.js') }}?v={{ static_version }}"></script>
 {% endblock %}

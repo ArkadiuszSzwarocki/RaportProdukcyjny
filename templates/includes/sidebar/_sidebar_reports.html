@@ -3,7 +3,7 @@
 {% set reports_psd = navigation_group_allowed('reports_psd') and effective_hall in ['PSD', 'ALL'] %}
 {% set reports_general = navigation_group_allowed('reports_general') %}
 {% set reports_active = request.endpoint in ['agro_warehouse.raport_palet', 'agro_warehouse.raport_palet_daily', 'production.zasyp_etapy_podsumowanie', 'warehouse.podsumowanie_zasypow', 'production.raport_zasypy_dosypki', 'warehouse_v2.raport_palet', 'magazyn_dostawy.raport', 'zarzad.raporty_okresowe', 'zarzad.dosing_times_report', 'quality.jakosc_podsumowanie_zasypow'] or request.path.startswith('/agro/report') or request.path == '/zarzad' or request.path.startswith('/zarzad/') %}
-{% if reports_agro or reports_psd or reports_general or role_has_access('wyniki') or role_has_access('jakosc') %}
+{% if reports_agro or reports_psd or reports_general or navigation_group_allowed('entry_dosing_times_report') or role_has_access('wyniki') or navigation_group_allowed('entry_dosing_analysis') %}
 <div class="nav-item-group">
     <button type="button" class="nav-item main-cat-btn">
         <span>RAPORTY</span>
@@ -12,7 +12,7 @@
     <div id="reports-sub" class="nav-sub {% if reports_active %}open{% endif %}">
         {% if reports_agro %}
         <div class="nav-report-heading" style="padding:8px 12px 4px;font-size:11px;font-weight:700;">AGRO</div>
-        {% if role_has_access('agro.zasyp_summary') %}
+        {% if navigation_group_allowed('entry_agro_work_time_report') %}
         <a href="{{ url_for('production.zasyp_etapy_podsumowanie', linia='AGRO') }}"
            class="nav-sub-item {% if request.endpoint == 'production.zasyp_etapy_podsumowanie' and request.args.get('linia', 'AGRO')|upper == 'AGRO' %}active{% endif %}">
             Raport Czasu Pracy AGRO
@@ -81,15 +81,17 @@
         {% if role_has_access('raporty.agro_production') %}
         <a href="/agro/report/production?linia=AGRO" class="nav-sub-item {% if request.path == '/agro/report/production' %}active{% endif %}">Raport Produkcji Agro</a>
         {% endif %}
-        {% if role_has_access('raporty.agro_production') %}
+        {% if navigation_group_allowed('entry_agro_combined_report') %}
         <a href="/agro/report/combined?linia=AGRO" class="nav-sub-item {% if request.path == '/agro/report/combined' %}active{% endif %}">Raport Połączony Agro</a>
         {% endif %}
         {% endif %}
-        {% if role_has_access('wyniki') %}
+        {% if navigation_group_allowed('entry_dosing_times_report') %}
         <a href="{{ url_for('zarzad.dosing_times_report',linia=effective_hall) }}" class="nav-sub-item {{ 'active' if request.endpoint == 'zarzad.dosing_times_report' else '' }}">Czasy wydozowań i etapów</a>
+        {% endif %}
+        {% if role_has_access('wyniki') %}
         <a href="/zarzad" class="nav-sub-item {% if request.path.startswith('/zarzad') %}active{% endif %}">Wyniki i Statystyki</a>
         {% endif %}
-        {% if role_has_access('jakosc') %}
+        {% if navigation_group_allowed('entry_dosing_analysis') %}
         <a href="{{ url_for('quality.jakosc_podsumowanie_zasypow') }}" class="nav-sub-item {% if request.endpoint == 'quality.jakosc_podsumowanie_zasypow' %}active{% endif %}">Analiza zasypów</a>
         {% endif %}
     </div>

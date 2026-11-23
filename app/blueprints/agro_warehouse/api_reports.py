@@ -105,7 +105,6 @@ def report_production():
 
 @agro_warehouse_bp.route('/agro/report/combined', methods=['GET'])
 @login_required
-@dynamic_role_required('raporty.agro_production')
 def report_combined():
     try:
         linia = request.args.get('linia', 'Agro')

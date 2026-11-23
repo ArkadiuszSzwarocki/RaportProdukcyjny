@@ -9,6 +9,7 @@ from .team import register_admin_team_routes
 from .users_center import register_users_center_routes
 from .email_center import register_email_center_routes
 from .packaging_alerts import register_packaging_alert_routes
+from .stock_alert_emails import register_stock_alert_email_routes
 from .workowanie_times import register_admin_workowanie_times_routes
 from .warehouse_capacities import register_admin_warehouse_capacities_routes
 from .raw_materials import register_admin_raw_materials_routes
@@ -47,4 +48,5 @@ register_admin_process_flow_routes(admin_bp)
 register_users_center_routes(admin_bp)
 
 register_packaging_alert_routes(admin_bp)
+register_stock_alert_email_routes(admin_bp)
 register_email_center_routes(admin_bp)

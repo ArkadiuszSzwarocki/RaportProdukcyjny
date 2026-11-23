@@ -17,6 +17,8 @@
             class="nav-sub-item {% if request.args.get('sekcja') == 'Zasyp' and request.args.get('linia') == 'PSD' %}active{% endif %}">
             Zasyp PSD
         </a>
+        {% endif %}
+        {% if navigation_group_allowed('entry_maluchy_psd') %}
         <a href="{{ url_for('maluchy.index', linia='PSD') }}"
             class="nav-sub-item {% if request.endpoint == 'maluchy.index' and request.args.get('linia', 'PSD') == 'PSD' %}active{% endif %}">
             Maluchy (Wiadra)

@@ -15,7 +15,6 @@ from .blueprint import agro_warehouse_bp
 
 @agro_warehouse_bp.route('/agro/magazyn/inwentaryzacja-produkcji')
 @login_required
-@dynamic_role_required('magazyn.inventory')
 def production_inventory_page():
     linia = request.args.get('linia', 'AGRO').upper()
     active_sessions = ProductionInventoryService.get_active_sessions(linia=linia)

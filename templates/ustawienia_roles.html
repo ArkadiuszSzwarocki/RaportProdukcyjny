@@ -430,18 +430,18 @@
     const functionNames = { 'start_zlecenie': 'Rozpoczęcie zlecenia', 'koniec_zlecenie': 'Zakończenie zlecenia', 'koniec_zlecenie_page': 'Otwarcie formularza zakończenia zlecenia', 'zawies_zlecenie': 'Wstrzymanie zlecenia', 'zasyp_page': 'Otwarcie formularza zasypu', 'szarza_page': 'Otwarcie formularza szarży', 'zapisz_wyjasnienie': 'Zapis wyjaśnienia', 'index': 'Otwarcie widoku głównego' };
     const name = key => { if (key.startsWith('function.')) { const endpoint = key.split('.').slice(2).join('.'); return config.functions[key]?.label || functionNames[endpoint] || endpoint.replace(/_/g, ' ').replace(/^api /, ''); } return key.split('.').map(x => pageNames[x] || (['psd', 'agro', 'osip'].includes(x) ? x.toUpperCase() : x.replace(/_/g, ' '))).join(' · '); };
     const qualityPage = Object.hasOwn(config.permissions, 'jakosc') ? 'jakosc' : 'jakosc.index';
-    // Match the sidebar order. Repeated keys share one permission and one pending change.
+    // Match the sidebar order. Every menu entry maps to its own permission key.
     const sidebarPages = [
       ['Skaner & Drukarka', [['Skaner & Drukarka', 'magazyn.card']]],
-      ['Plan produkcji', [['Plan PSD', 'planista'], ['Plan AGRO', 'planista'], ['Bufor PSD', 'psd.bufor'], ['Bufor Agro', 'agro.bufor']]],
+      ['Plan produkcji', [['Plan PSD', 'planista'], ['Plan AGRO', 'group.entry_plan_agro'], ['Bufor PSD', 'group.entry_plan_bufor_psd'], ['Bufor Agro', 'group.entry_plan_bufor_agro']]],
       ['Produkcja PSD', [
-        ['Dashboard PSD', 'psd.dashboard'], ['Zasyp PSD', 'psd.zasyp'], ['Maluchy (Wiadra)', 'psd.zasyp'],
+        ['Dashboard PSD', 'psd.dashboard'], ['Zasyp PSD', 'psd.zasyp'], ['Maluchy (Wiadra)', 'group.entry_maluchy_psd'],
         ['Bufor PSD', 'psd.bufor'], ['Workowanie PSD', 'psd.workowanie'], ['Magazyn PSD', 'psd.magazyn'],
       ]],
       ['Produkcja AGRO', [
         ['Dashboard Agro', 'agro.dashboard'], ['Zasyp Agro', 'agro.zasyp'], ['Bufor Agro', 'agro.bufor'],
-        ['Workowanie Agro', 'agro.workowanie'], ['Maluchy (Wiadra)', 'agro.zasyp'], ['Wsad Big Bagów', 'agro.workowanie'],
-        ['Magazyn Agro', 'agro.magazyn'], ['Historia Stacji (BB/MZ/WZ)', 'group.agro_station_history'], ['Surowce w produkcji', 'agro.magazyn'],
+        ['Workowanie Agro', 'agro.workowanie'], ['Maluchy (Wiadra)', 'group.entry_maluchy_agro'], ['Wsad Big Bagów', 'group.entry_agro_bigbag'],
+        ['Magazyn Agro', 'agro.magazyn'], ['Historia Stacji (BB/MZ/WZ)', 'group.agro_station_history'], ['Surowce w produkcji', 'group.entry_agro_raw_materials'],
         ['Dyspozycje Kompletacji', 'group.agro_picking'], ['Stanowisko LP01', 'group.agro_lp01', 'Opakowania i LP01'],
         ['Opakowania Agro', 'group.agro_packaging_stock', 'Opakowania i LP01'],
       ]],
@@ -452,29 +452,29 @@
         ['Zużycie w Produkcji', 'group.entry_consumption'], ['Zamówienia', 'group.entry_orders'], ['Załadunki / Wydania (ZZA/ZZL)', 'group.entry_dispatch'], ['Transfery na OSIP', 'group.entry_transfers'],
       ]],
       ['Magazyn OSIP', [
-        ['Stan i Układ Hali', 'group.entry_osip_layout'], ['Transfery do Centrali (MS01)', 'group.entry_transfers'], ['Przyjęcie dostawy', 'group.entry_osip_reception'], ['Przesunięcia Palet', 'group.entry_osip_movements'],
-        ['Oczekujące Przyjęcia', 'group.entry_osip_pending'], ['Suma surowców', 'group.entry_osip_stock'], ['Podział Palety', 'group.entry_split'], ['Mixowanie Palet', 'group.entry_mix'],
-        ['Wydania Zewnętrzne', 'group.entry_osip_expedition'], ['Drukarki ZPL', 'group.entry_printers'], ['Logi Drukowania (48h)', 'group.entry_printer_logs'],
+        ['Stan i Układ Hali', 'group.entry_osip_layout'], ['Transfery do Centrali (MS01)', 'group.entry_osip_transfers'], ['Przyjęcie dostawy', 'group.entry_osip_reception'], ['Przesunięcia Palet', 'group.entry_osip_movements'],
+        ['Oczekujące Przyjęcia', 'group.entry_osip_pending'], ['Suma surowców', 'group.entry_osip_stock'], ['Podział Palety', 'group.entry_osip_split'], ['Mixowanie Palet', 'group.entry_osip_mix'],
+        ['Wydania Zewnętrzne', 'group.entry_osip_expedition'], ['Drukarki ZPL', 'group.entry_printers'], ['Logi Drukowania (48h)', 'group.entry_osip_printer_logs'],
       ]],
       ['Inwentaryzacja', [
-        ['Inwentaryzacja zwykła', 'magazyn.inventory'], ['Inwentaryzacja produkcji', 'magazyn.inventory'],
+        ['Inwentaryzacja zwykła', 'magazyn.inventory'], ['Inwentaryzacja produkcji', 'group.entry_prod_inventory'],
       ]],
       ['Rozliczenia i partie', [['Rozliczenie MOM', 'magazyn.mom'], ['Traceability (Śledzenie partii)', 'group.entry_traceability']]],
       ['Raporty', [
-        ['Raport Czasu Pracy AGRO', 'agro.zasyp_summary', 'AGRO'], ['Podsumowanie zasypów AGRO', 'agro.zasyp_summary', 'AGRO'],
+        ['Raport Czasu Pracy AGRO', 'group.entry_agro_work_time_report', 'AGRO'], ['Podsumowanie zasypów AGRO', 'agro.zasyp_summary', 'AGRO'],
         ['Raport Zasypów i Dosypek AGRO', 'group.entry_dosing_report_agro', 'AGRO'], ['Raport Palet AGRO', 'group.entry_pallet_report_agro', 'AGRO'],
         ['Podsumowanie zasypów PSD', 'psd.zasyp_summary', 'PSD'], ['Raport Zasypów i Dosypek PSD', 'group.entry_dosing_report_psd', 'PSD'],
         ['Raport Palet PSD', 'group.entry_pallet_report_psd', 'PSD'], ['Raport Dostaw', 'raporty.dostawy', 'Pozostałe raporty'],
         ['Raporty Okresowe', 'raporty.okresowe', 'Pozostałe raporty'], ['Raport Magazynu Agro', 'raporty.agro_warehouse', 'Pozostałe raporty'],
-        ['Raport Produkcji Agro', 'raporty.agro_production', 'Pozostałe raporty'], ['Raport Połączony Agro', 'raporty.agro_production', 'Pozostałe raporty'],
-        ['Czasy wydozowań i etapów', 'wyniki'], ['Wyniki i Statystyki', 'wyniki'], ['Analiza zasypów', qualityPage],
+        ['Raport Produkcji Agro', 'raporty.agro_production', 'Pozostałe raporty'], ['Raport Połączony Agro', 'group.entry_agro_combined_report', 'Pozostałe raporty'],
+        ['Czasy wydozowań i etapów', 'group.entry_dosing_times_report'], ['Wyniki i Statystyki', 'wyniki'], ['Analiza zasypów', 'group.entry_dosing_analysis'],
       ]],
       ['Administracja & analiza', [['Moje Godziny', 'moje_godziny'], ['Maszyny & Telemetria 3D', 'group.entry_machines']]],
       ['Jakość', [['Strona Jakość', qualityPage], ['Czyszczenie Magnesów', 'group.entry_magnets'], ['Czyszczenie Separatorów', 'group.entry_separators']]],
-      ['Awarie i usterki', [['Lista Zgłoszeń', 'awarie'], ['Rejestr przestojów AGRO', 'agro.workowanie'], ['Rejestr przestojów PSD', 'psd.workowanie']]],
+      ['Awarie i usterki', [['Lista Zgłoszeń', 'awarie'], ['Rejestr przestojów AGRO', 'group.entry_downtime_agro'], ['Rejestr przestojów PSD', 'group.entry_downtime_psd']]],
       ['Administracja', [
         ['Ustawienia Systemu', 'ustawienia'], ['Użytkownicy i uprawnienia', 'group.entry_users'], ['E-mail i powiadomienia', 'group.entry_email'],
-        ['Zgłoszenia błędów', 'ustawienia'],
+        ['Zgłoszenia błędów', 'group.entry_bug_reports'],
       ]],
       ['System & diagnostyka', [
         ['Słownik Surowców', 'group.entry_raw_dictionary'], ['Czas przechodzenia stron', 'group.entry_page_timing'], ['Monitor MQTT', 'group.entry_mqtt'], ['Przepływ 3D (MQTT Flow)', 'group.entry_process_flow'],

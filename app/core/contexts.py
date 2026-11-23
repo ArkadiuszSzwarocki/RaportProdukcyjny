@@ -127,6 +127,12 @@ def _compute_static_version():
             os.path.join(current_app.static_folder, 'js', 'dashboard', 'agro-banners.js'),
             os.path.join(current_app.static_folder, 'js', 'dashboard', 'etapy.js'),
             os.path.join(current_app.static_folder, 'js', 'dosypki.js'),
+            os.path.join(current_app.static_folder, 'js', 'dosypka_tank_validator.js'),
+            os.path.join(current_app.static_folder, 'js', 'dosypka_material_picker.js'),
+            os.path.join(current_app.static_folder, 'css', 'dosypka_material_picker.css'),
+            os.path.join(current_app.static_folder, 'js', 'stock_thresholds.js'),
+            os.path.join(current_app.static_folder, 'js', 'stock_alert_emails.js'),
+            os.path.join(current_app.static_folder, 'css', 'stock_thresholds.css'),
             os.path.join(current_app.static_folder, 'js', 'dashboard', 'picking_view.js'),
             os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'operations_history.js'),
             os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'orders.js'),
@@ -258,7 +264,6 @@ def inject_role_permissions():
         return page
 
     def role_has_access(page):
-        from app.core.shared_inventory_permissions import WAREHOUSE_PAGES, shared_material_access
         try:
             r = _normalize_role_name(session.get('rola'))
             # 0. MasterAdmin Bypasses EVERYTHING - has access to every single page/API
@@ -290,8 +295,7 @@ def inject_role_permissions():
                 except Exception:
                     pass
 
-            if page in WAREHOUSE_PAGES:
-                return shared_material_access()
+            # 2. Check Role-Level config
             
             # Normalize common role name variants/synonyms (support numeric roles from DB)
             if r.isdigit():
@@ -376,7 +380,6 @@ def inject_role_permissions():
             return False
 
     def role_is_readonly(page):
-        from app.core.shared_inventory_permissions import WAREHOUSE_PAGES
         try:
             r = _normalize_role_name(session.get('rola'))
             if r == 'masteradmin':
@@ -399,8 +402,7 @@ def inject_role_permissions():
                 except Exception:
                     pass
 
-            if page in WAREHOUSE_PAGES:
-                return False
+            # 2. Check Role-Level config
             
             # Normalize common role name variants/synonyms
             if r.isdigit():

@@ -78,17 +78,45 @@ function showToast(msg, type) {
 
   const el = document.createElement('div');
   el.className = 'toast-msg';
-  
+
   const colors = {success:'#166534', warn:'#92400e', danger:'#991b1b', info:'#0284c7'};
   el.style.background = colors[type] || '#0f172a';
-  el.textContent = msg;
 
+  const textEl = document.createElement('span');
+  textEl.className = 'toast-msg-text';
+  textEl.textContent = msg;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'toast-close-btn';
+  closeBtn.setAttribute('aria-label', 'Zamknij powiadomienie');
+  closeBtn.textContent = '✕';
+
+  el.appendChild(textEl);
+  el.appendChild(closeBtn);
   container.appendChild(el);
 
-  setTimeout(() => {
-    el.style.opacity = '0';
-    setTimeout(() => {
+  let closed = false;
+  let fadeTimer = null;
+  const dismissToast = (immediate) => {
+    if (closed) return;
+    closed = true;
+    clearTimeout(autoHideTimer);
+    if (fadeTimer) clearTimeout(fadeTimer);
+    if (immediate) {
       if (el.parentNode) el.parentNode.removeChild(el);
-    }, 500);
+      return;
+    }
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(-8px)';
+    fadeTimer = setTimeout(() => {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    }, 350);
+  };
+
+  closeBtn.addEventListener('click', () => dismissToast(true));
+
+  const autoHideTimer = setTimeout(() => {
+    dismissToast(false);
   }, 10000);
 }

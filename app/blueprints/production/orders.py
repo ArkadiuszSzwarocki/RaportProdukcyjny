@@ -929,8 +929,8 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
     @login_required
     def agro_bigbag_scanner():
         from flask import abort
-        from app.core.production_permissions import _page_allowed
-        if not _page_allowed('AGRO', 'workowanie', write=False):
+        from app.core.navigation_group_permissions import group_allowed
+        if not group_allowed('entry_agro_bigbag'):
             abort(403)
         conn = get_db_connection()
         try:

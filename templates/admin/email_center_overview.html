@@ -8,7 +8,7 @@
   {% if mail_role in ['admin','masteradmin'] %}<a href="{{ url_for('admin.email_center',tab='mapa') }}">Konta, odbiorcy i rodzaje wysyłek — zarządzanie<span aria-hidden="true">→</span></a>{% endif %}
   {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}<a href="{{ url_for('admin.email_center',tab='dzienne') }}">Raporty dzienne — podgląd, PDF i wysyłka<span aria-hidden="true">→</span></a>{% endif %}
   {% if mail_role in ['admin','masteradmin'] %}<a href="{{ url_for('admin.email_center',tab='konta') }}">Globalne konto SMTP i odbiorcy raportów<span aria-hidden="true">→</span></a>{% endif %}
-  {% if mail_role in ['admin','masteradmin','zarzad','lider'] %}<a href="{{ url_for('admin.email_center',tab='stany') }}">Stany minimalne opakowań i powiadomienia<span aria-hidden="true">→</span></a>{% endif %}
+  {% if mail_role in ['admin','masteradmin','zarzad','lider'] %}<a href="{{ url_for('admin.email_center',tab='stany') }}">Alerty e-mail o niskich stanach magazynowych<span aria-hidden="true">→</span></a>{% endif %}
   {% if role_has_access('ustawienia') %}<a href="{{ url_for('admin.email_center',tab='magazyn') }}">Powiadomienia magazynowe i OSIP<span aria-hidden="true">→</span></a>{% endif %}
   {% if mail_role in ['admin','masteradmin','zarzad','lider','planista'] %}
   <a href="{{ url_for('admin.email_center',tab='historia') }}">Historia wysłanych e-maili<span aria-hidden="true">→</span></a>

@@ -186,9 +186,21 @@ def register_production_dosypki_routes(
                 dostepne_surowce = []
 
             material_tanks = {}
+            grouped_dosypka_materials = {
+                'assigned_names': [],
+                'unassigned_names': list(dostepne_surowce),
+                'groups': [],
+            }
             try:
                 from app.services.tank_validation_service import TankValidationService, _normalize_name_for_comparison
                 material_tanks = TankValidationService.get_material_tank_map(linia=linia)
+                maluchy_tanks = TankValidationService.get_maluchy_used_tanks(cursor, plan_id, szarza_id_int)
+                grouped_dosypka_materials = TankValidationService.group_dosypka_materials(
+                    dostepne_surowce,
+                    material_tanks=material_tanks,
+                    linia=linia,
+                    maluchy_tanks=maluchy_tanks,
+                )
                 for item in existing_dosypki:
                     tanks = material_tanks.get(_normalize_name_for_comparison(item.get('nazwa')), [])
                     item['tank_codes'] = [t['code'] for t in tanks]
@@ -209,6 +221,7 @@ def register_production_dosypki_routes(
                 linia=linia,
                 dostepne_surowce=dostepne_surowce,
                 material_tanks=material_tanks,
+                grouped_dosypka_materials=grouped_dosypka_materials,
             )
         except Exception as e:
             current_app.logger.error(f'Error in dosypka_strona: {e}', exc_info=True)
@@ -388,7 +401,8 @@ def register_production_dosypki_routes(
 
                 entries = [(allowed_map[str(name).strip().lower()], kg) for name, kg in entries]
 
-                if linia.upper() == 'AGRO' and not is_admin_or_zarzad:
+                allow_unassigned = str(request.form.get('allow_unassigned') or '').strip() == '1'
+                if linia.upper() == 'AGRO' and not is_admin_or_zarzad and not allow_unassigned:
                     try:
                         from app.services.tank_validation_service import TankValidationService, _normalize_name_for_comparison
                         tank_map = TankValidationService.get_material_tank_map(linia=linia)
@@ -513,31 +527,25 @@ def register_production_dosypki_routes(
             payload = request.get_json(silent=True) or {}
             raw_kg = payload.get('kg') if isinstance(payload, dict) and 'kg' in payload else (request.form.get('kg') or request.args.get('kg'))
             actual_kg = None
-            if raw_kg is not None:
+            if raw_kg is not None and str(raw_kg).strip() != '':
                 try:
                     val = float(str(raw_kg).replace(',', '.').strip())
                     if math.isfinite(val) and val > 0:
                         actual_kg = val
                 except (ValueError, TypeError):
                     pass
-                if actual_kg is None:
-                    conn.rollback()
-                    message = 'Podaj poprawną, dodatnią wagę dosypki.'
-                    if is_ajax:
-                        return jsonify({'success': False, 'message': message}), 400
-                    flash(message, 'warning')
-                    return redirect(bezpieczny_powrot())
+            if actual_kg is None:
+                conn.rollback()
+                message = 'Podaj poprawną, dodatnią wagę dosypki.'
+                if is_ajax:
+                    return jsonify({'success': False, 'message': message}), 400
+                flash(message, 'warning')
+                return redirect(bezpieczny_powrot())
 
-            if actual_kg is not None:
-                cursor.execute(
-                    f"UPDATE {table_dosypki} SET kg=%s, kg_wydozowane=%s, potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s",
-                    (actual_kg, actual_kg, pracownik_id, dosypka_id),
-                )
-            else:
-                cursor.execute(
-                    f"UPDATE {table_dosypki} SET kg_wydozowane=kg, potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s",
-                    (pracownik_id, dosypka_id),
-                )
+            cursor.execute(
+                f"UPDATE {table_dosypki} SET kg=%s, kg_wydozowane=%s, potwierdzone=1, potwierdzil_pracownik_id=%s, data_potwierdzenia=NOW() WHERE id=%s",
+                (actual_kg, actual_kg, pracownik_id, dosypka_id),
+            )
 
             if plan_id:
                 cursor.execute(

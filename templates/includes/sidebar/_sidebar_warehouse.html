@@ -1,10 +1,10 @@
-{% set can_open_prod_inventory = role_has_access('magazyn.agro_total') and role_has_access('magazyn.inventory') %}
+{% set can_open_prod_inventory = navigation_group_allowed('entry_prod_inventory') %}
 {% if navigation_group_allowed('warehouse') and effective_hall != 'OSIP' %}
 <div class="nav-item-group">
     {% set pending_map = pending_deliveries if pending_deliveries is defined else {'PSD': 0, 'AGRO': 0} %}
     {% set hall_key = 'CENTRALA' %}
     {% set pending_for_hall = (pending_map.get('ALL', (pending_map.get('PSD', 0) + pending_map.get('AGRO', 0))) if hall_key == 'ALL' else pending_map.get(hall_key, 0))|int %}
-    {% set can_open_prod_inventory = role_has_access('magazyn.agro_total') and role_has_access('magazyn.inventory') %}
+    {% set can_open_prod_inventory = navigation_group_allowed('entry_prod_inventory') %}
     
     <button type="button" class="nav-item main-cat-btn">
         <span class="text-capitalize nav-main-label">
@@ -15,7 +15,7 @@
         </span>
         <span class="material-icons chevron">expand_more</span>
     </button>
-    <div id="mag-sub" class="nav-sub {% if (request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner'] and request.endpoint not in ['warehouse_v2.kompletacja', 'magazyn_dostawy.movement_print_history']) or '/scanner' in request.path or request.endpoint in ['agro_warehouse.index'] %}open{% endif %}">
+    <div id="mag-sub" class="nav-sub {% if (request.blueprint in ['warehouse_v2', 'magazyn_dostawy', 'scanner'] and request.endpoint not in ['warehouse_v2.kompletacja', 'magazyn_dostawy.movement_print_history']) or '/scanner' in request.path or request.endpoint in ['agro_warehouse.index', 'admin.packaging_alerts'] %}open{% endif %}">
         {% if role_has_access('magazyn.view') %}
         <a href="{{ url_for('warehouse_v2.index', linia=effective_hall) }}" class="nav-sub-item {% if request.endpoint == 'warehouse_v2.index' %}active{% endif %}">Wszystkie Magazyny</a>
         {% endif %}
@@ -66,8 +66,8 @@
         {% if role_has_access('magazyn.agro_total') %}
         <a href="{{ url_for('agro_warehouse.index') }}" class="nav-sub-item {% if request.endpoint == 'agro_warehouse.index' %}active{% endif %}">Suma surowców</a>
         {% endif %}
-        {% if role in ['admin', 'masteradmin', 'zarzad', 'lider'] or navigation_group_allowed('entry_email') %}
-        <a href="{{ url_for('admin.email_center', tab='stany') }}" class="nav-sub-item {% if request.endpoint == 'admin.packaging_alerts' or (request.endpoint == 'admin.email_center' and request.args.get('tab') == 'stany') %}active{% endif %}">Stany minimalne</a>
+        {% if role in ['admin', 'masteradmin', 'zarzad', 'lider'] %}
+        <a href="{{ url_for('admin.packaging_alerts') }}" class="nav-sub-item {% if request.endpoint == 'admin.packaging_alerts' %}active{% endif %}">Stany minimalne</a>
         {% endif %}
         <div class="nav-divider" style="opacity: 0.1; margin: 4px 10px;"></div>
         
@@ -142,7 +142,7 @@
         {% if navigation_group_allowed('entry_osip_layout') %}
         <a href="{{ url_for('osip.warehouse_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.warehouse_view' %}active{% endif %}">Stan i Układ Hali</a>
         {% endif %}
-        {% if navigation_group_allowed('entry_transfers') %}
+        {% if navigation_group_allowed('entry_osip_transfers') %}
         <a href="{{ url_for('osip.transfers_view') }}" class="nav-sub-item {% if request.endpoint in ['osip.transfers_view', 'osip.transfer_details_view'] %}active{% endif %}">
             <span class="nav-sub-label">
                 <span class="nav-sub-text">Transfery do Centrali (MS01)</span>
@@ -187,10 +187,10 @@
         {% if navigation_group_allowed('entry_osip_stock') %}
         <a href="{{ url_for('osip.suma_surowcow_view') }}" class="nav-sub-item {% if request.endpoint == 'osip.suma_surowcow_view' %}active{% endif %}">Suma surowców</a>
         {% endif %}
-        {% if navigation_group_allowed('entry_split') %}
+        {% if navigation_group_allowed('entry_osip_split') %}
         <a href="{{ url_for('magazyn_dostawy.podzial_palety_view', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.podzial_palety_view' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Podział Palety</a>
         {% endif %}
-        {% if navigation_group_allowed('entry_mix') %}
+        {% if navigation_group_allowed('entry_osip_mix') %}
         <a href="{{ url_for('magazyn_dostawy.mixowanie', linia='OSIP') }}" class="nav-sub-item {% if request.endpoint == 'magazyn_dostawy.mixowanie' and request.args.get('linia') == 'OSIP' %}active{% endif %}">Mixowanie Palet</a>
         {% endif %}
         {% if navigation_group_allowed('entry_osip_expedition') %}
@@ -201,8 +201,8 @@
         {% if navigation_group_allowed('entry_printers') %}
         <a href="{{ url_for('admin.admin_ustawienia_drukarki') }}" class="nav-sub-item {% if request.path == '/admin/ustawienia/drukarki' %}active{% endif %}">Drukarki ZPL</a>
         {% endif %}
-        {% if navigation_group_allowed('entry_printer_logs') %}
-        <a href="/admin/ustawienia/logi-drukowania" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukowania (48h)</a>
+        {% if navigation_group_allowed('entry_osip_printer_logs') %}
+        <a href="/admin/ustawienia/logi-drukowania?linia=OSIP" class="nav-sub-item {% if '/logi-drukowania' in request.path %}active{% endif %}">Logi Drukowania (48h)</a>
         {% endif %}
         {% endif %}
     </div>
