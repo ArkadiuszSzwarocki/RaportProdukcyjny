@@ -5,7 +5,10 @@ from unittest.mock import patch
 
 @pytest.fixture(autouse=True)
 def _session_active_guard():
-    with patch('app.core.middleware.is_session_active', return_value=True):
+    with patch('app.core.middleware.is_session_active', return_value=True), patch(
+        'app.repositories.user_permission_override_repository.user_permission_override_repository.get_user_overrides',
+        return_value={},
+    ):
         yield
 
 
