@@ -140,7 +140,7 @@ def test_warehouse_entry_switch_blocks_split_without_blocking_regular_scanner_mo
     with app.test_client() as client, patch('app.core.contexts._get_role_permissions', return_value=config):
         with client.session_transaction() as state:
             state.update(zalogowany=True, rola='pracownik')
-        assert client.post('/magazyn-dostawy/api/podzial-palety', json={'linia': 'OSIP'}).status_code == 403
+        assert client.post('/magazyn-dostawy/api/podzial-palety', json={'linia': 'AGRO'}).status_code == 403
         assert client.post('/agro/scanner/move', json={'amount_to_move': 1}).status_code == 403
         assert client.post('/agro/scanner/move', json={'amount_to_move': None}).status_code == 200
 
