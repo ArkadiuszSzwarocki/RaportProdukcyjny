@@ -209,7 +209,7 @@ def print_pallet_label():
 
         target_lookup_id = nr_palety_code or pallet_id
         try:
-            label_data = prepare_pallet_label_data(cursor, target_lookup_id, linia=linia)
+            label_data = prepare_pallet_label_data(cursor, target_lookup_id, linia=linia, source_table=pallet_type)
         except Exception:
             label_data = None
 

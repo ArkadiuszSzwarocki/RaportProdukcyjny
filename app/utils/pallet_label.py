@@ -282,11 +282,11 @@ def prepare_pallet_label_data(cursor, paleta_id, linia='PSD', requested_plan_id=
         linia = 'PSD'
     linia = str(linia).upper()
 
-    # Prioritize material lookup for explicit prefixes or source_table
-    if (is_code and clean_code.startswith(('SUR', 'DOD', 'OPK', 'OPA'))) or (str(source_table or '').lower() in ('surowiec', 'surowce', 'opakowanie', 'opakowania', 'dodatek', 'dodatki')):
-        mat_res = _lookup_material_label_data(cursor, paleta_id, linia)
-        if mat_res:
-            return mat_res
+    # Strictly isolate material lookup (never fall through to finished-goods tables)
+    if (is_code and clean_code.startswith(('SUR', 'DOD', 'OPK', 'OPA'))) or (
+        str(source_table or '').strip().lower() in ('surowiec', 'surowce', 'raw_material', 'opakowanie', 'opakowania', 'packaging', 'dodatek', 'dodatki', 'additive')
+    ):
+        return _lookup_material_label_data(cursor, paleta_id, linia)
 
     table_plan = get_table_name('plan_produkcji', linia)
     table_pal = get_table_name('palety_workowanie', linia)

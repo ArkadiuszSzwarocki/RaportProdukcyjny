@@ -1,3 +1,4 @@
+# cspell:words calkowita
 import re
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -22,46 +23,64 @@ class ScannerLabelService:
         is_numeric = clean_id_str.isdigit() and len(clean_id_str) < 10
         numeric_id = int(clean_id_str) if is_numeric else None
 
+        pt_norm = str(pallet_type or '').strip().lower()
+        is_surowiec_type = pt_norm in ('surowiec', 'surowce', 'raw_material')
+        is_opakowanie_type = pt_norm in ('opakowanie', 'opakowania', 'packaging')
+        is_dodatek_type = pt_norm in ('dodatek', 'dodatki', 'additive')
+        is_material_type = is_surowiec_type or is_opakowanie_type or is_dodatek_type
+        is_fg_type = pt_norm in ('wyrób gotowy', 'wyrob gotowy', 'finished', 'fg')
+        is_bucket_type = pt_norm in ('wiaderko', 'wiadro', 'bucket', 'maluch')
+
         conn = get_db_connection()
         try:
             cur = conn.cursor(dictionary=True)
-            
-            # 1. Sprawdź czy to Wiadro Maluchy
-            try:
-                cur.execute(
-                    "SELECT id, kod_wiadra, nr_sscc, plan_id, linia, status, waga_calkowita, mieszalnik_kod, data_produkcji, data_przydatnosci, created_at "
-                    "FROM wiaderka_maluchy WHERE UPPER(COALESCE(nr_sscc, '')) = %s OR id = %s LIMIT 1",
-                    (sscc_code.upper(), numeric_id or 0)
-                )
-                b_row = cur.fetchone()
-                if b_row:
-                    from app.repositories.bucket_maluch_repository import BucketMaluchRepository
-                    from app.services.bucket_maluch_service import BucketMaluchService
-                    pozycje = BucketMaluchRepository.get_items_for_bucket(b_row['id'])
-                    pozycje_txt = ", ".join([f"[{p['stacja_kod']}] {p['surowiec_nazwa']}" for p in pozycje]) or "Puste wiadro"
-                    sscc = b_row.get('nr_sscc') or BucketMaluchService.generate_bucket_sscc(b_row['kod_wiadra'], b_row.get('plan_id', 0), b_row.get('created_at'))
-                    data_prod = b_row.get('data_produkcji') or b_row.get('created_at') or datetime.now()
-                    data_przyd = b_row.get('data_przydatnosci') or (data_prod + relativedelta(hours=24))
 
-                    return {
-                        'id': b_row['id'],
-                        'linia': b_row.get('linia'),
-                        'nr_palety': sscc,
-                        'nazwa': f"WIADRO {b_row['kod_wiadra']}: {pozycje_txt}",
-                        'ilosc': float(len(pozycje)),
-                        'jednostka': 'skł.',
-                        'lokalizacja': 'Naważanie Maluchów',
-                        'qr_data': sscc,
-                        'partia': f"Zlecenie #{b_row.get('plan_id')}",
-                        'data_produkcji': data_prod.strftime('%d.%m.%Y %H:%M'),
-                        'data_przydatnosci': data_przyd.strftime('%d.%m.%Y %H:%M'),
-                        'termin': data_przyd.strftime('%d.%m.%Y %H:%M'),
-                        'data': data_prod.strftime('%d.%m.%Y %H:%M'),
-                        'is_bucket': True,
-                        'typ': 'WIADERKO'
-                    }
-            except Exception:
-                pass
+            # 1. Sprawdź czy to Wiadro Maluchy (po ID liczbowym wyłącznie gdy jawnie wskazano typ wiadra)
+            if not is_material_type and not is_fg_type:
+                try:
+                    if is_bucket_type and numeric_id is not None:
+                        cur.execute(
+                            "SELECT id, kod_wiadra, nr_sscc, plan_id, linia, status, waga_calkowita, mieszalnik_kod, data_produkcji, data_przydatnosci, created_at "
+                            "FROM wiaderka_maluchy WHERE UPPER(COALESCE(nr_sscc, '')) = %s OR id = %s LIMIT 1",
+                            (sscc_code.upper(), numeric_id)
+                        )
+                    elif sscc_code and not is_numeric:
+                        cur.execute(
+                            "SELECT id, kod_wiadra, nr_sscc, plan_id, linia, status, waga_calkowita, mieszalnik_kod, data_produkcji, data_przydatnosci, created_at "
+                            "FROM wiaderka_maluchy WHERE UPPER(COALESCE(nr_sscc, '')) = %s LIMIT 1",
+                            (sscc_code.upper(),)
+                        )
+                    else:
+                        cur.execute("SELECT NULL WHERE 1=0")
+                    b_row = cur.fetchone()
+                    if b_row:
+                        from app.repositories.bucket_maluch_repository import BucketMaluchRepository
+                        from app.services.bucket_maluch_service import BucketMaluchService
+                        pozycje = BucketMaluchRepository.get_items_for_bucket(b_row['id'])
+                        pozycje_txt = ", ".join([f"[{p['stacja_kod']}] {p['surowiec_nazwa']}" for p in pozycje]) or "Puste wiadro"
+                        sscc = b_row.get('nr_sscc') or BucketMaluchService.generate_bucket_sscc(b_row['kod_wiadra'], b_row.get('plan_id', 0), b_row.get('created_at'))
+                        data_prod = b_row.get('data_produkcji') or b_row.get('created_at') or datetime.now()
+                        data_przyd = b_row.get('data_przydatnosci') or (data_prod + relativedelta(hours=24))
+
+                        return {
+                            'id': b_row['id'],
+                            'linia': b_row.get('linia'),
+                            'nr_palety': sscc,
+                            'nazwa': f"WIADRO {b_row['kod_wiadra']}: {pozycje_txt}",
+                            'ilosc': float(len(pozycje)),
+                            'jednostka': 'skł.',
+                            'lokalizacja': 'Naważanie Maluchów',
+                            'qr_data': sscc,
+                            'partia': f"Zlecenie #{b_row.get('plan_id')}",
+                            'data_produkcji': data_prod.strftime('%d.%m.%Y %H:%M'),
+                            'data_przydatnosci': data_przyd.strftime('%d.%m.%Y %H:%M'),
+                            'termin': data_przyd.strftime('%d.%m.%Y %H:%M'),
+                            'data': data_prod.strftime('%d.%m.%Y %H:%M'),
+                            'is_bucket': True,
+                            'typ': 'WIADERKO'
+                        }
+                except Exception:
+                    pass
 
             is_agro = (str(linia).upper() == 'AGRO')
             fg_configs = [
@@ -74,17 +93,41 @@ class ScannerLabelService:
                 ('palety_workowanie', 'plan_produkcji', 'PSD') if is_agro else ('palety_agro', 'plan_produkcji_agro', 'AGRO'),
             ]
 
-            mat_configs = [
+            all_mat_configs = [
                 ('magazyn_agro_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'AGRO') if is_agro else ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'PSD'),
                 ('magazyn_agro_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'AGRO') if is_agro else ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'PSD'),
                 ('magazyn_dodatki', 'stan_magazynowy', 'nazwa', 'DODATEK', 'DOD', linia),
                 ('magazyn_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'PSD') if is_agro else ('magazyn_agro_surowce', 'stan_magazynowy', 'nazwa', 'SUROWIEC', 'SUR', 'AGRO'),
                 ('magazyn_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'PSD') if is_agro else ('magazyn_agro_opakowania', 'stan_magazynowy', 'nazwa', 'OPAKOWANIE', 'OPK', 'AGRO'),
             ]
+            if is_surowiec_type:
+                mat_configs = [cfg for cfg in all_mat_configs if cfg[4] == 'SUR']
+            elif is_opakowanie_type:
+                mat_configs = [cfg for cfg in all_mat_configs if cfg[4] == 'OPK']
+            elif is_dodatek_type:
+                mat_configs = [cfg for cfg in all_mat_configs if cfg[4] == 'DOD']
+            else:
+                mat_configs = all_mat_configs
 
-            # KROK A: Szukaj BEZWZGLĘDNIE po SSCC / nr_palety (jeśli podano SSCC)
-            if sscc_code:
-                # 1. Sprawdź wyroby gotowe
+            def _search_materials_by_sscc():
+                for mat_tbl, qty_col, name_col, typ_name, prefix, item_line in mat_configs:
+                    try:
+                        sql = (
+                            f"SELECT id, nr_palety, {name_col} AS nazwa, {qty_col} AS stan_magazynowy, "
+                            f"COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
+                            f"COALESCE(nr_partii, '') AS nr_partii, "
+                            f"data_produkcji, data_przydatnosci "
+                            f"FROM {mat_tbl} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY {qty_col} > 0 DESC, id DESC LIMIT 1"
+                        )
+                        cur.execute(sql, (sscc_code.upper(),))
+                        row = cur.fetchone()
+                        if row:
+                            return ScannerLabelService.build_label_dict(cur, row, item_line, prefix, typ_name, False)
+                    except Exception:
+                        pass
+                return None
+
+            def _search_fg_by_sscc():
                 for mag_tbl, plan_tbl, item_line in fg_configs:
                     try:
                         sql = (
@@ -103,8 +146,6 @@ class ScannerLabelService:
                             return ScannerLabelService.build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
                     except Exception:
                         pass
-
-                # 2. Palety produkcyjne
                 for prod_tbl, plan_tbl, item_line in prod_configs:
                     try:
                         sql = (
@@ -123,27 +164,36 @@ class ScannerLabelService:
                             return ScannerLabelService.build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
                     except Exception:
                         pass
+                return None
 
-                # 3. Surowce, opakowania, dodatki
-                for mat_tbl, qty_col, name_col, typ_name, prefix, item_line in mat_configs:
-                    try:
-                        sql = (
-                            f"SELECT id, nr_palety, {name_col} AS nazwa, {qty_col} AS stan_magazynowy, "
-                            f"COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
-                            f"COALESCE(nr_partii, '') AS nr_partii, "
-                            f"data_produkcji, data_przydatnosci "
-                            f"FROM {mat_tbl} WHERE UPPER(COALESCE(nr_palety, '')) = %s ORDER BY {qty_col} > 0 DESC, id DESC LIMIT 1"
-                        )
-                        cur.execute(sql, (sscc_code.upper(),))
-                        row = cur.fetchone()
-                        if row:
-                            return ScannerLabelService.build_label_dict(cur, row, item_line, prefix, typ_name, False)
-                    except Exception:
-                        pass
+            # KROK A: Szukaj BEZWZGLĘDNIE po SSCC / nr_palety (jeśli podano SSCC)
+            if sscc_code and not is_numeric:
+                if is_material_type or sscc_code.upper().startswith(('SUR', 'OPK', 'OPA', 'DOD')):
+                    return _search_materials_by_sscc()
+                if is_fg_type or sscc_code.upper().startswith(('AGR', 'PSD', 'PAL')):
+                    return _search_fg_by_sscc()
+                return _search_fg_by_sscc() or _search_materials_by_sscc()
 
-            # KROK B: Jeśli nie znaleziono po SSCC, sprawdź po ID liczbowym
-            if numeric_id is not None:
-                # 1. Wyroby gotowe
+            # KROK B: Dla ID liczbowego wymagany jest jawny pallet_type (brak ślepego zgadywania między tabelami)
+            if numeric_id is not None and (is_material_type or is_fg_type):
+                if is_material_type:
+                    for mat_tbl, qty_col, name_col, typ_name, prefix, item_line in mat_configs:
+                        try:
+                            sql = (
+                                f"SELECT id, nr_palety, {name_col} AS nazwa, {qty_col} AS stan_magazynowy, "
+                                f"COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
+                                f"COALESCE(nr_partii, '') AS nr_partii, "
+                                f"data_produkcji, data_przydatnosci "
+                                f"FROM {mat_tbl} WHERE id = %s ORDER BY {qty_col} > 0 DESC, id DESC LIMIT 1"
+                            )
+                            cur.execute(sql, (numeric_id,))
+                            row = cur.fetchone()
+                            if row:
+                                return ScannerLabelService.build_label_dict(cur, row, item_line, prefix, typ_name, False)
+                        except Exception:
+                            pass
+                    return None
+
                 for mag_tbl, plan_tbl, item_line in fg_configs:
                     try:
                         sql = (
@@ -162,25 +212,6 @@ class ScannerLabelService:
                             return ScannerLabelService.build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
                     except Exception:
                         pass
-
-                # 2. Surowce, opakowania, dodatki
-                for mat_tbl, qty_col, name_col, typ_name, prefix, item_line in mat_configs:
-                    try:
-                        sql = (
-                            f"SELECT id, nr_palety, {name_col} AS nazwa, {qty_col} AS stan_magazynowy, "
-                            f"COALESCE(NULLIF(TRIM(lokalizacja), ''), 'OCZEKUJĄCE') AS lokalizacja, "
-                            f"COALESCE(nr_partii, '') AS nr_partii, "
-                            f"data_produkcji, data_przydatnosci "
-                            f"FROM {mat_tbl} WHERE id = %s ORDER BY {qty_col} > 0 DESC, id DESC LIMIT 1"
-                        )
-                        cur.execute(sql, (numeric_id,))
-                        row = cur.fetchone()
-                        if row:
-                            return ScannerLabelService.build_label_dict(cur, row, item_line, prefix, typ_name, False)
-                    except Exception:
-                        pass
-
-                # 3. Palety produkcyjne
                 for prod_tbl, plan_tbl, item_line in prod_configs:
                     try:
                         sql = (
@@ -199,6 +230,7 @@ class ScannerLabelService:
                             return ScannerLabelService.build_label_dict(cur, row, item_line, 'PAL', 'WYRÓB GOTOWY', True)
                     except Exception:
                         pass
+                return None
 
             return None
         finally:

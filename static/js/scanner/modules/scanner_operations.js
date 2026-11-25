@@ -205,10 +205,11 @@ function closePrinterModal() {
 }
 
 function sendPrintRequest(overrideIp = null, overrideName = null) {
+  const ssccVal = (currentPallet.nr_palety || currentPallet.sscc || '').trim();
   const payload = {
-    sscc: currentPallet.nr_palety || currentPallet.sscc || '',
-    nr_palety: currentPallet.nr_palety || currentPallet.sscc || '',
-    surowiec_id: currentPallet.id,
+    sscc: ssccVal,
+    nr_palety: ssccVal,
+    surowiec_id: ssccVal ? null : currentPallet.id,
     pallet_type: currentPallet.inventory_type || currentPallet.typ || '',
     type: currentPrintType,
     linia: currentPallet.linia || LINIA

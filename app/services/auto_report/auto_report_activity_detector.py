@@ -37,25 +37,23 @@ class AutoReportActivityDetector:
                 cursor.close()
                 return True
 
-            # 2. Sprawdź spakowane palety workowania
-            if str(linia).strip().upper() == 'AGRO':
-                cursor.execute(
-                    f"SELECT id FROM {table_palety} WHERE DATE(data_dodania) = %s OR DATE(data_potwierdzenia) = %s LIMIT 1",
-                    (date_str, date_str)
-                )
-            else:
-                cursor.execute(
-                    f"SELECT id FROM {table_palety} WHERE DATE(data_dodania) = %s LIMIT 1",
-                    (date_str,)
-                )
+            # 2. Sprawdź spakowane palety workowania (ściśle po dacie wyprodukowania)
+            cursor.execute(
+                f"SELECT id FROM {table_palety} WHERE DATE(data_dodania) = %s LIMIT 1",
+                (date_str,)
+            )
             if cursor.fetchone():
                 cursor.close()
                 return True
 
             # 3. Sprawdź potwierdzone dosypki
             cursor.execute(
-                f"SELECT id FROM {table_dosypki} WHERE (DATE(data_dodania) = %s OR DATE(data_potwierdzenia) = %s) AND (anulowana = 0 OR anulowana IS NULL) LIMIT 1",
-                (date_str, date_str)
+                f"""SELECT id FROM {table_dosypki}
+                    WHERE potwierdzone = 1
+                      AND DATE(COALESCE(data_potwierdzenia, data_zlecenia)) = %s
+                      AND (anulowana = 0 OR anulowana IS NULL)
+                    LIMIT 1""",
+                (date_str,)
             )
             if cursor.fetchone():
                 cursor.close()

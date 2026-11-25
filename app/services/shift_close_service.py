@@ -58,28 +58,18 @@ def get_shift_actual_production(date_str: str, linia: str = 'PSD') -> dict:
                     FROM {table_dosypki} d
                     WHERE d.potwierdzone = 1
                       AND (d.anulowana = 0 OR d.anulowana IS NULL)
-                      AND (
-                          DATE(COALESCE(d.data_potwierdzenia, d.data_zlecenia)) = %s
-                          OR d.szarza_id IN (SELECT sz.id FROM {table_szarze} sz WHERE DATE(sz.data_dodania) = %s)
-                      )
+                      AND DATE(COALESCE(d.data_potwierdzenia, d.data_zlecenia)) = %s
                 ), 0)
             ) as s
-        """, (date_str, date_str, date_str))
+        """, (date_str, date_str))
         r_z = cursor.fetchone()
         suma_zasyp = int(r_z['s']) if r_z and r_z['s'] else 0
 
-        if linia_u == 'AGRO':
-            cursor.execute(f"""
-                SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s
-                FROM {table_palety}
-                WHERE DATE(data_dodania) = %s OR DATE(data_potwierdzenia) = %s
-            """, (date_str, date_str))
-        else:
-            cursor.execute(f"""
-                SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s
-                FROM {table_palety}
-                WHERE DATE(data_dodania) = %s
-            """, (date_str,))
+        cursor.execute(f"""
+            SELECT COUNT(id) as cnt, COALESCE(SUM(waga), 0) as s
+            FROM {table_palety}
+            WHERE DATE(data_dodania) = %s
+        """, (date_str,))
         r_w = cursor.fetchone()
         if r_w:
             palety_count = int(r_w['cnt'] or 0)

@@ -271,8 +271,9 @@ def dispatch():
             from datetime import datetime
             printer = get_printer()
             
-            # 1. Drukowanie zaktualizowanej palety matki (2 sztuki z pozostałą ilością)
-            label_data = ScannerService.get_label_data(int(surowiec_id), linia=linia)
+            # 1. Drukowanie zaktualizowanej palety matki (2 sztuki z pozostałą ilością) — wyłącznie po unikalnym SSCC
+            mother_sscc = str(extra_data.get('nr_palety') or '').strip()
+            label_data = ScannerService.get_label_data(mother_sscc, linia=linia, pallet_type=pallet_type) if mother_sscc else None
             if label_data:
                 printer.print_pallet_label(label_data, copies=2)
                 
@@ -433,6 +434,8 @@ def print_label():
     identifier = sscc or surowiec_id
     if not identifier:
         return jsonify({'success': False, 'error': 'Brak identyfikatora palety (SSCC/ID)'}), 400
+    if not sscc and not pallet_type and label_type != 'location':
+        return jsonify({'success': False, 'error': 'Wymagany kod SSCC lub jawny typ palety przy druku etykiety'}), 400
 
     label_data = ScannerService.get_label_data(identifier, linia=linia, pallet_type=pallet_type)
     if not label_data:
@@ -469,7 +472,8 @@ def print_label():
 
     # Always return label URL so frontend can open it
     safe_id = label_data.get('nr_palety') or label_data.get('id') or identifier
-    label_url = f"/agro/scanner/label/{safe_id}?linia={linia}&autoprint=1"
+    pt_query = f"&pallet_type={pallet_type}" if pallet_type else ""
+    label_url = f"/agro/scanner/label/{safe_id}?linia={linia}&autoprint=1{pt_query}"
     return jsonify({
         'success': ok,
         'message': msg,

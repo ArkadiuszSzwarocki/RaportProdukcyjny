@@ -43,7 +43,7 @@ class PalletLabelController:
 
             # 1. Primary lookup using unified prepare_pallet_label_data
             try:
-                label_data = prepare_pallet_label_data(cursor, search_sscc or search_id, linia=linia)
+                label_data = prepare_pallet_label_data(cursor, search_sscc or search_id, linia=linia, source_table=pallet_type)
             except Exception:
                 label_data = None
 

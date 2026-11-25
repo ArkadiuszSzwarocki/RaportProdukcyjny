@@ -104,13 +104,8 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
     table_dosypki = 'dosypki_agro' if linia == 'AGRO' else 'dosypki'
     table_palety = 'palety_agro' if linia == 'AGRO' else 'palety_workowanie'
 
-    has_pal_confirm = False
-    if has_pal_confirm:
-        pal_date_expr = "(DATE(pal.data_dodania) = %s OR DATE(pal.data_potwierdzenia) = %s)"
-        pal_params_single = (data_raportu, data_raportu)
-    else:
-        pal_date_expr = "DATE(pal.data_dodania) = %s"
-        pal_params_single = (data_raportu,)
+    pal_date_expr = "DATE(pal.data_dodania) = %s"
+    pal_params_single = (data_raportu,)
 
     sql_plan = f"""
         SELECT 
@@ -129,10 +124,7 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
                      WHERE d.plan_id = p.id 
                        AND d.potwierdzone = 1 
                        AND (d.anulowana = 0 OR d.anulowana IS NULL)
-                       AND (
-                           DATE(COALESCE(d.data_potwierdzenia, d.data_zlecenia)) = %s
-                           OR d.szarza_id IN (SELECT sz.id FROM {table_szarze} sz WHERE DATE(sz.data_dodania) = %s)
-                       ))
+                       AND DATE(COALESCE(d.data_potwierdzenia, d.data_zlecenia)) = %s)
                 )
                 ELSE (
                     SELECT COALESCE(SUM(pal.waga), 0) 
@@ -144,17 +136,19 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
             p.real_stop, 
             p.nazwa_zlecenia 
         FROM {table_plan} p
-        WHERE p.data_planu = %s 
-           OR p.id IN (
-               SELECT sz.plan_id FROM {table_szarze} sz WHERE DATE(sz.data_dodania) = %s
-           )
-           OR p.id IN (
-               SELECT pal.plan_id FROM {table_palety} pal WHERE {pal_date_expr}
-           )
+        WHERE COALESCE(p.is_deleted, 0) = 0
+          AND (
+              (p.data_planu = %s AND COALESCE(p.typ_zlecenia, '') != 'carry_over_ghost')
+              OR p.id IN (
+                  SELECT sz.plan_id FROM {table_szarze} sz WHERE DATE(sz.data_dodania) = %s
+              )
+              OR p.id IN (
+                  SELECT pal.plan_id FROM {table_palety} pal WHERE {pal_date_expr}
+              )
+          )
         ORDER BY p.real_start IS NULL,p.real_start,p.real_stop IS NULL,p.real_stop,p.id
     """
     plan_params = (
-        data_raportu,
         data_raportu,
         data_raportu,
         *pal_params_single,
@@ -463,12 +457,8 @@ def _generuj_paczke_raportow_sync(data_raportu, uwagi_lidera, lider_name='', lin
         try:
             table_palety = get_table_name('palety_workowanie', linia)
             typ_opak_col = "MAX(COALESCE(p.typ_opakowania, 'worki')) as typ_opakowania" if str(linia).upper() != 'AGRO' else "'worki' as typ_opakowania"
-            if str(linia).upper() == 'AGRO':
-                pal_where = "(DATE(pw.data_dodania) = %s OR DATE(pw.data_potwierdzenia) = %s)"
-                pal_params = (data_raportu, data_raportu)
-            else:
-                pal_where = "DATE(pw.data_dodania) = %s"
-                pal_params = (data_raportu,)
+            pal_where = "DATE(pw.data_dodania) = %s"
+            pal_params = (data_raportu,)
 
             sql_palety = f"""
                 SELECT p.id as plan_id, p.nazwa_zlecenia, p.produkt, COUNT(pw.id) as ilosc_palet, SUM(pw.waga) as laczna_waga,
@@ -591,7 +581,7 @@ def generuj_excel_zmiany(data_raportu, linia='PSD'):
         except Exception:
             new_pdf = None
 
-        return new_xls, new_txt, new_pdf
+        return new_xls, txt, new_pdf
     except Exception as e:
         print(f"Błąd generowania excela: {e}")
         return None, None, None

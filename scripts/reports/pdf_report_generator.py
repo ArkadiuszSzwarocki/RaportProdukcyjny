@@ -54,10 +54,10 @@ class PdfReportGenerator:
 
         # Notes
 
-        # Map products
+        # Map production orders individually by plan_id + section to prevent overwriting duplicate product names
         products = []
         prod_map = {}
-        for r in prod_rows:
+        for row_idx, r in enumerate(prod_rows):
             sec = r[0] if len(r) > 0 else ''
             prod = r[1] if len(r) > 1 else ''
             plan = r[2] if len(r) > 2 else None
@@ -66,17 +66,22 @@ class PdfReportGenerator:
             r_stop = r[5] if len(r) > 5 else None
             zlec = r[6] if len(r) > 6 else ''
             plan_id = r[7] if len(r) > 7 else ''
-            if not zlec or not str(zlec).strip():
-                zlec = f"ID: {plan_id}"
+            plan_id_str = str(plan_id).strip() if plan_id is not None else ''
+            zlec_clean = str(zlec).strip() if zlec is not None else ''
+            if not zlec_clean:
+                zlec_clean = f"ID: {plan_id_str}" if plan_id_str else "Brak"
+            elif plan_id_str and f"#{plan_id_str}" not in zlec_clean and f"ID: {plan_id_str}" not in zlec_clean:
+                zlec_clean = f"#{plan_id_str} {zlec_clean}"
 
-            key = ' '.join(str(prod).strip().split()) if prod is not None else ""
+            norm_prod = ' '.join(str(prod).strip().split()) if prod is not None else ''
+            key = f"order_{plan_id_str}_{sec}" if plan_id_str else f"{norm_prod}_{sec}_{row_idx}"
             if key not in prod_map:
                 prod_map[key] = {'_display': prod}
                 products.append(key)
-            prod_map[key][sec] = (plan, wyk, r_start, r_stop, zlec)
+            prod_map[key][sec] = (plan, wyk, r_start, r_stop, zlec_clean)
             if str(linia).upper() == 'AGRO' and sec in ('Workowanie', 'Czyszczenie'):
                 prod_map[key]['_zasyp_excel_kg'] = r[8] if len(r) > 8 else None
-                prod_map[key]['_settlement'] = r[9] if len(r)>9 else None
+                prod_map[key]['_settlement'] = r[9] if len(r) > 9 else None
 
         # Production, Pallets, Downtime
         from scripts.reports.pdf_table_renderer import rysuj_wiersz_multicell,format_kg

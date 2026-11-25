@@ -56,7 +56,7 @@ class PalletPrintController:
             from app.utils.pallet_label import prepare_pallet_label_data
 
             try:
-                label_data = prepare_pallet_label_data(cursor, pallet_id, linia=linia)
+                label_data = prepare_pallet_label_data(cursor, pallet_id, linia=linia, source_table=pallet_type)
             except Exception:
                 label_data = None
 

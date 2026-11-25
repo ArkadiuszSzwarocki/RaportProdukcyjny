@@ -220,7 +220,8 @@ def return_from_production():
             from app.services.print_server import get_printer
             from app.services.scanner_service import ScannerService
             printer = get_printer()
-            label_data = ScannerService.get_label_data(int(target_print_id), linia=linia)
+            print_identifier = new_sscc or int(target_print_id)
+            label_data = ScannerService.get_label_data(print_identifier, linia=linia, pallet_type='Surowiec')
             if label_data:
                 printer.print_pallet_label(label_data, copies=2)
         except Exception as pe:
