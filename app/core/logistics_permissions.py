@@ -56,7 +56,9 @@ def enforce_logistics_permissions(default_line='ALL'):
             if not row and not saving:
                 return jsonify(success=False, error='document_not_found'), 404
             if row:
-                document_line = str(row.get('linia') or '').upper()
+                document_line = str(row.get('linia') or '').strip().upper()
+                if document_line in {'', 'CENTRALA'}:
+                    document_line = 'ALL'
                 line = document_line
         except Exception:
             current_app.logger.exception('Delivery authorization failed closed')
@@ -64,8 +66,20 @@ def enforce_logistics_permissions(default_line='ALL'):
         finally:
             if conn is not None:
                 conn.close()
+    if line == 'CENTRALA':
+        line = 'ALL'
     if line not in {'PSD', 'AGRO', 'OSIP', 'ALL'}:
         return jsonify(success=False, error='forbidden'), 403
+    from flask import session
+    from app.decorators import _normalize_role
+    from app.core.hall_roles import worker_role
+    raw_role = _normalize_role(session.get('rola'))
+    if raw_role == 'masteradmin':
+        return None
+    if request.endpoint == 'magazyn_dostawy.anuluj_dostawe' and (
+        raw_role in {'admin', 'administrator', 'lider'} or raw_role.startswith('lider') or worker_role(raw_role) in {'admin', 'lider'}
+    ):
+        return None
     write = request.method not in {'GET', 'HEAD', 'OPTIONS'}
     if line == 'OSIP':
         from app.core.navigation_group_permissions import group_allowed

@@ -72,21 +72,18 @@ class DodajPlanyBatchCommand:
                 
                 opakowanie_id = None
                 if opakowanie_id_val not in (None, '', 'None'):
-                    try:
-                        opakowanie_id = int(opakowanie_id_val)
-                    except (ValueError, TypeError):
+                    from app.services.folio.folio_queries import FolioQueries
+                    opakowanie_id = FolioQueries.resolve_warehouse_packaging_id(cursor, opakowanie_id_val)
+                    if opakowanie_id is None and not str(opakowanie_id_val).strip().isdigit():
                         name_str = str(opakowanie_id_val).strip()
-                        cursor.execute("SELECT id FROM magazyn_opakowania WHERE LOWER(TRIM(nazwa)) = LOWER(%s) ORDER BY id DESC LIMIT 1", (name_str,))
-                        op_row = cursor.fetchone()
-                        if op_row:
-                            opakowanie_id = op_row[0]
-                        else:
-                            from app.services.agro.agro_opakowania_service import AgroOpakowaniaService
-                            try:
-                                opakowanie_id = AgroOpakowaniaService.create_packaging(name_str, 0, lokalizacja='MOP01', linia='Agro')
-                            except Exception as create_err:
-                                current_app.logger.warning(f"Failed auto-creating packaging '{name_str}': {create_err}")
-                                opakowanie_id = None
+                        from app.services.agro.agro_opakowania_service import AgroOpakowaniaService
+                        try:
+                            opakowanie_id = AgroOpakowaniaService.create_packaging(
+                                name_str, 0, lokalizacja='MOP01', linia='Agro'
+                            )
+                        except Exception as create_err:
+                            current_app.logger.warning(f"Failed auto-creating packaging '{name_str}': {create_err}")
+                            opakowanie_id = None
                     
                 etykieta_id = None
                 if etykieta_id_val not in (None, '', 'None'):

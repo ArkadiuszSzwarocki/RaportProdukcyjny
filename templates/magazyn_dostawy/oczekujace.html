@@ -522,6 +522,14 @@
     display: inline;
 }
 
+.icon-action-sm {
+    font-size: 16px;
+}
+
+.wg-action-col {
+    width: 220px;
+}
+
 /* Medium screens (< 1300px): Action buttons turn into compact clickable icons */
 @media (max-width: 1300px) {
     .modern-waiting-table th.table-action-col {
@@ -895,6 +903,8 @@
     </div>
 
     <!-- TAB: WG -->
+    {% set wg_role_norm = (session.get('rola') or session.get('role') or '')|lower|replace(' ','')|replace('_','')|replace('-','') %}
+    {% set can_delete_pending_wg = has_master_access or wg_role_norm in ('masteradmin', 'admin', 'administrator', 'lider') or wg_role_norm.startswith('lider') %}
     <div id="tab-wg" class="tab-content" style="display:none;">
         {% if dostawy.wg %}
         <div class="waiting-table-card">
@@ -908,7 +918,7 @@
                             <th>Produkt</th>
                             <th>Nr Palety (SSCC)</th>
                             <th>Ilość / Waga</th>
-                            <th class="text-right table-action-col" style="width: 140px;">Akcja</th>
+                            <th class="text-right table-action-col wg-action-col">Akcja</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -933,9 +943,21 @@
                                         title="Przyjmij paletę WG"
                                         aria-label="Przyjmij paletę WG"
                                     >
-                                        <span class="material-icons" style="font-size: 16px;">task_alt</span>
+                                        <span class="material-icons icon-action-sm">task_alt</span>
                                         <span class="btn-action-text">PRZYJMIJ</span>
                                     </button>
+                                    {% if can_delete_pending_wg %}
+                                    <button
+                                        type="button"
+                                        class="btn-action-danger-ghost"
+                                        onclick="deletePendingWG({{ p.id }}, '{{ (p.nr_palety or '')|replace("'", "\\'") }}', '{{ p.linia }}')"
+                                        title="Usuń oczekującą paletę"
+                                        aria-label="Usuń oczekującą paletę"
+                                    >
+                                        <span class="material-icons icon-action-sm">delete_outline</span>
+                                        <span class="btn-action-text">USUŃ</span>
+                                    </button>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

@@ -456,18 +456,12 @@ class DashboardService:
             finally:
                 cur_act.close()
 
-            today_date = date.today()
-
             def _is_valid_packaging_item(item):
                 if item['id'] in active_opak_ids:
                     return False
-                if item.get('lokalizacja') == 'Maszyna':
-                    up_at = item.get('updated_at')
-                    if not up_at:
-                        return False
-                    if hasattr(up_at, 'date'):
-                        return up_at.date() >= today_date
-                    return str(up_at)[:10] >= str(today_date)
+                loc_upper = str(item.get('lokalizacja') or '').strip().upper()
+                if loc_upper in ('', 'NONE', 'ZUZYTE', 'ZUŻYTE', 'DO_ZWROTU', 'ARCHIWUM'):
+                    return False
                 return True
 
             przydzielone_opakowanie_id = active_plan.get('opakowanie_id')

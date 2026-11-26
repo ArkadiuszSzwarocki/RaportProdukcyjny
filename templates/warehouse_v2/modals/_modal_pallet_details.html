@@ -75,7 +75,7 @@
                 {% if has_master_access %}
                 <span>Paleta oczekuje na przyjęcie. MasterAdmin ma dostęp do wszystkich operacji właściwych dla typu palety.</span>
                 {% else %}
-                <span>Paleta w buforze produkcyjnym (oczekuje na przyjęcie). Dostępne operacje: <strong>Zmień ilość</strong>, <strong>Blokada jakościowa</strong>, <strong>Drukuj / Podgląd etykiety</strong> oraz <strong>Trwałe usunięcie</strong> (Admin). Przypisanie do regału następuje przez skaner.</span>
+                <span>Paleta w buforze produkcyjnym (oczekuje na przyjęcie). Dostępne operacje: <strong>Zmień ilość</strong>, <strong>Blokada jakościowa</strong>, <strong>Drukuj / Podgląd etykiety</strong> oraz <strong>Trwałe usunięcie</strong> (Admin / Lider). Przypisanie do regału następuje przez skaner.</span>
                 {% endif %}
             </div>
 
@@ -172,11 +172,11 @@
             </div>
 
             {% set role = (session.get('rola') or '')|lower|replace(' ','')|replace('_','')|replace('-','') %}
-            {% if has_master_access or role in ('admin', 'administrator') %}
+            {% if has_master_access or role in ('masteradmin', 'admin', 'administrator', 'lider') or role.startswith('lider') %}
             <div id="adminDeleteContainer" style="margin-top: 20px; padding-top: 15px; border-top: 2px dashed #fecaca;">
-                <div style="font-size: 11px; font-weight: 800; color: #9f1239; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;">⚠️ Strefa Administratora</div>
+                <div style="font-size: 11px; font-weight: 800; color: #9f1239; letter-spacing: 0.5px; margin-bottom: 8px; text-transform: uppercase;">⚠️ Strefa Administratora / Lidera</div>
                 <button type="button" onclick="deletePalletPermanently()" class="btn-modal-outline" style="color: #dc2626; border-color: #fca5a5; font-size: 12px; width: 100%;">
-                    <span class="material-icons" style="font-size:16px;">delete_forever</span> USUŃ TRWALE Z BAZY (DUPLIKAT / TESTOWA)
+                    <span class="material-icons" style="font-size:16px;">delete_forever</span> USUŃ TRWALE Z BAZY (DUPLIKAT / OCZEKUJĄCA / TESTOWA)
                 </button>
             </div>
             {% endif %}

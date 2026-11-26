@@ -483,13 +483,16 @@ def print_pallet_label():
 
 @warehouse_v2_bp.route('/api/pallet/delete', methods=['POST'])
 def delete_pallet():
-    """Trwałe usunięcie palety z bazy danych (np. duplikaty testowe). Wymaga roli admin/masteradmin."""
-    from flask import session as session
-    role = (session.get('rola') or '').lower().replace(' ', '').replace('_', '').strip()
-    if role not in ('masteradmin', 'admin', 'administrator'):
-        return jsonify({'success': False, 'error': 'Brak uprawnień. Wymagana rola admin.'}), 403
+    """Permanently delete duplicate, test, or pending pallets. Allowed for masteradmin, admin, and lider."""
+    from flask import g, session as session
+    from app.decorators import _normalize_role
+    from app.core.hall_roles import worker_role
+    raw_role = _normalize_role(session.get('rola'))
+    effective_role = worker_role(raw_role)
+    if raw_role not in ('masteradmin', 'admin', 'administrator', 'lider') and not raw_role.startswith('lider') and effective_role not in ('masteradmin', 'admin', 'lider'):
+        return jsonify({'success': False, 'error': 'Brak uprawnień. Wymagana rola masteradmin, admin lub lider.'}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     pallet_id = data.get('id')
     pallet_type = data.get('type')
     linia = data.get('linia', 'PSD')
@@ -509,26 +512,45 @@ def delete_pallet():
             table = get_table_name('magazyn_opakowania', linia)
             col_amount = 'stan_magazynowy'
             col_name = 'nazwa'
+        elif pallet_type in ('Dodatek',):
+            table = 'magazyn_dodatki'
+            col_amount = 'stan_magazynowy'
+            col_name = 'nazwa'
         else:
             table = get_table_name('magazyn_palety', linia)
             col_amount = 'waga_netto'
             col_name = 'produkt'
 
-        target_sscc = data.get('sscc')
-        cursor.execute(f"SELECT * FROM {table} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
-        row = cursor.fetchone()
+        target_sscc = str(data.get('sscc') or '').strip()
+        verified = getattr(g, 'warehouse_resource', None)
+        row = None
+        if verified and verified.get('table') in ('palety_workowanie', 'palety_agro'):
+            table = verified['table']
+            col_name = 'produkt'
+            col_amount = 'waga'
+            linia = 'AGRO' if table == 'palety_agro' else 'PSD'
+            cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (verified['id'],))
+            row = cursor.fetchone()
+        else:
+            if target_sscc:
+                cursor.execute(f"SELECT * FROM {table} WHERE nr_palety = %s", (target_sscc,))
+                row = cursor.fetchone()
+            if not row:
+                cursor.execute(f"SELECT * FROM {table} WHERE id = %s", (pallet_id,))
+                candidate = cursor.fetchone()
+                if candidate and (not target_sscc or not candidate.get('nr_palety') or str(candidate.get('nr_palety')) == target_sscc):
+                    row = candidate
 
         if not row and pallet_type in ('Wyrób Gotowy', 'wyrob_gotowy', 'Paleta'):
             buf_tbl = 'palety_workowanie' if str(linia).upper() == 'PSD' else 'palety_agro'
-            cursor.execute(f"SELECT * FROM {buf_tbl} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
-            row = cursor.fetchone()
-            if not row:
-                alt_buf = 'palety_agro' if buf_tbl == 'palety_workowanie' else 'palety_workowanie'
-                cursor.execute(f"SELECT * FROM {alt_buf} WHERE id = %s OR nr_palety = %s", (pallet_id, target_sscc or str(pallet_id)))
+            if target_sscc:
+                cursor.execute(f"SELECT * FROM {buf_tbl} WHERE nr_palety = %s", (target_sscc,))
                 row = cursor.fetchone()
-                if row:
-                    buf_tbl = alt_buf
-                    linia = 'AGRO' if alt_buf == 'palety_agro' else 'PSD'
+            if not row:
+                cursor.execute(f"SELECT * FROM {buf_tbl} WHERE id = %s", (pallet_id,))
+                candidate = cursor.fetchone()
+                if candidate and (not target_sscc or not candidate.get('nr_palety') or str(candidate.get('nr_palety')) == target_sscc):
+                    row = candidate
             if row:
                 table = buf_tbl
                 col_name = 'produkt'
@@ -540,6 +562,7 @@ def delete_pallet():
         real_id = row['id']
         p_sscc = row.get('nr_palety') or target_sscc or str(pallet_id)
         loc_val = row.get('lokalizacja') or 'OCZEKUJĄCE'
+        user_login = session.get('login', 'admin')
 
         # Archive before delete
         try:
@@ -547,10 +570,20 @@ def delete_pallet():
                 INSERT INTO magazyn_archiwum (original_id, nr_palety, nazwa, typ_palety, linia, waga_ostatnia, lokalizacja_ostatnia, user_login, komentarz)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (real_id, p_sscc, row.get(col_name), pallet_type, linia,
-                  row.get(col_amount, 0), loc_val, session.get('login', 'admin'),
+                  row.get(col_amount, 0), loc_val, user_login,
                   'USUNIĘTO: duplikat/paleta testowa'))
         except Exception as ae:
             print(f"Archive warning (non-fatal): {ae}")
+
+        if table in ('palety_workowanie', 'palety_agro'):
+            from app.services.pallets.pallet_management_service import PalletManagementService
+            result, status_code, _ = PalletManagementService.usun_palete(
+                real_id, linia, user_login, is_ajax=True, safe_return_url='/', conn=conn
+            )
+            if status_code >= 400:
+                msg = result.get('message') if isinstance(result, dict) else str(result)
+                return jsonify({'success': False, 'error': msg}), status_code
+            return jsonify({'success': True, 'message': f'Paleta {p_sscc} usunięta trwale.'})
 
         cursor.execute(f"DELETE FROM {table} WHERE id = %s", (real_id,))
         

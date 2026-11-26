@@ -316,6 +316,39 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                             """,
                             (start_counter, start_pallet_counter, operator_login, id),
                         )
+                        # Auto-activate first prepared roll when starting an order so bag counting has no gap
+                        cursor.execute(
+                            "SELECT COUNT(*) FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE AND licznik_start IS NOT NULL",
+                            (id,),
+                        )
+                        active_cnt_row = cursor.fetchone()
+                        if not (active_cnt_row and active_cnt_row[0]):
+                            cursor.execute(
+                                """
+                                SELECT id, opakowanie_id
+                                FROM agro_plan_opakowania
+                                WHERE plan_id=%s AND is_active=TRUE AND licznik_start IS NULL
+                                ORDER BY id ASC LIMIT 1
+                                """,
+                                (id,),
+                            )
+                            prep_row = cursor.fetchone()
+                            if prep_row:
+                                from app.services.folio.folio_ledger_writer import FolioLedgerWriter
+                                cursor.execute(
+                                    "UPDATE agro_plan_opakowania SET licznik_start=%s WHERE id=%s",
+                                    (start_counter, prep_row[0]),
+                                )
+                                cursor.execute(
+                                    "UPDATE agro_workowanie_rozliczenie SET licznik_start=%s WHERE link_id=%s AND typ_zdarzenia='WSADZENIE'",
+                                    (start_counter, prep_row[0]),
+                                )
+                                FolioLedgerWriter.record_foil_activation(
+                                    cursor,
+                                    opakowanie_id=int(prep_row[1]),
+                                    plan_id=int(id),
+                                    user_login=operator_login or 'System',
+                                )
                     else:
                         if linia == 'AGRO':
                             cursor.execute(
@@ -558,16 +591,20 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 except Exception as _sync_err:
                     current_app.logger.warning('[SYNC] Błąd synchronizacji tonaz Workowania: %s', _sync_err)
 
-            if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+            if str(linia).upper() == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+                from app.services.folio.folio_queries import FolioQueries
                 from app.services.folio_service import FolioService
-                from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
                 from app.services.mqtt_service import get_latest_data
-                
+
                 # Close any remaining active rolls for this plan
                 active_rolls = FolioService.get_active_rolls(id, external_conn=conn)
                 for roll in active_rolls:
                     link_id = roll['link_id']
-                    form_pozostalo = str(roll['stan_poczatkowy']) if roll.get('is_prepared') else request.form.get(f'pozostalo_szt_{link_id}')
+                    form_pozostalo = (
+                        str(roll['stan_poczatkowy'])
+                        if roll.get('is_prepared')
+                        else request.form.get(f'pozostalo_szt_{link_id}')
+                    )
                     if form_pozostalo is not None and str(form_pozostalo).strip() != '':
                         try:
                             pozostalo_szt = float(str(form_pozostalo).replace(',', '.'))
@@ -575,17 +612,24 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                             pozostalo_szt = float(roll.get('szacowane_pozostalo', 0))
                     else:
                         pozostalo_szt = float(roll.get('szacowane_pozostalo', 0))
-                    
+
                     closed, close_error = FolioService.close_roll(
                         link_id=link_id,
                         pozostalo_szt=pozostalo_szt,
                         user_login=session.get('login', 'System'),
-                        external_conn=conn, label_jobs=roll_label_jobs
+                        external_conn=conn,
+                        label_jobs=roll_label_jobs,
                     )
                     if not closed:
                         current_app.logger.error('Roll closure failed: %s', close_error)
-                        raise RuntimeError('Nie rozliczono rolki folii.')
-                
+                        conn.rollback()
+                        roll_label_jobs.clear()
+                        err_text = f'Nie rozliczono rolki folii: {close_error}'
+                        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                            return jsonify({'success': False, 'message': err_text}), 400
+                        flash(f'❌ {err_text}', 'error')
+                        return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
+
                 # Fetch stop counter
                 stop_counter = 0
                 stop_local = 0
@@ -593,53 +637,36 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                     latest_d = get_latest_data()
                     stop_counter = latest_d.get('counter', 0)
                     stop_local = latest_d.get('local_counter', 0)
-                except:
+                except Exception:
                     pass
-                
+
                 # Save stop_machine_counter and stop_local_counter
-                cursor.execute(f"UPDATE {table_plan} SET stop_machine_counter=%s, stop_local_counter=%s WHERE id=%s", (stop_counter, stop_local, id))
-                
-                # Get start_machine_counter
-                cursor.execute(f"SELECT start_machine_counter FROM {table_plan} WHERE id=%s", (id,))
-                plan_row_agro = cursor.fetchone()
-                start_counter = plan_row_agro[0] if plan_row_agro and plan_row_agro[0] else 0
-                
-                # Calculate total pulled bags
-                total_pulled = max(stop_counter - start_counter, 0)
-                if stop_counter == 0 or start_counter == 0:
-                    total_pulled = 0
-                    
-                # Find total usage already logged by previously closed rolls
-                cursor.execute("SELECT COALESCE(SUM(zuzyte_worki), 0) FROM agro_workowanie_rozliczenie WHERE plan_id=%s", (id,))
-                already_logged_row = cursor.fetchone()
-                already_logged = float(already_logged_row[0]) if already_logged_row else 0.0
-                
-                # Get all currently active rolls
-                cursor.execute("SELECT id, opakowanie_id, stan_poczatkowy FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE", (id,))
-                active_rolls = cursor.fetchall()
-                
-                packaging_results = []
-                remaining_usage = max(total_pulled - already_logged, 0)
-                
-                for roll in active_rolls:
-                    link_id = roll[0]
-                    stan_przed = float(roll[2])
-                    
-                    usage_for_this_roll = min(remaining_usage, stan_przed)
-                    stan_po = stan_przed - usage_for_this_roll
-                    
-                    packaging_results.append({
-                        'link_id': link_id,
-                        'stan_po': stan_po
-                    })
-                    
-                    remaining_usage -= usage_for_this_roll
-                
-                if packaging_results:
-                    szt_na_palecie = int(request.form.get('szt_na_palecie', 40))
-                    if not AgroOpakowaniaPlanService.finalize_packaging_usage(
-                            id, szt_na_palecie, packaging_results, session.get('login'), external_conn=conn):
-                        raise ValueError('Nie rozliczono opakowań zlecenia.')
+                cursor.execute(
+                    f"UPDATE {table_plan} SET stop_machine_counter=%s, stop_local_counter=%s WHERE id=%s",
+                    (stop_counter, stop_local, id),
+                )
+
+                # Hard block order completion if settled film bags do not cover produced bags on pallets
+                cov_ok, cov_error, cov_metrics = FolioQueries.validate_plan_foil_coverage(cursor, id)
+                if not cov_ok:
+                    conn.rollback()
+                    roll_label_jobs.clear()
+                    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                        return jsonify({'success': False, 'message': cov_error}), 400
+                    flash(f'❌ {cov_error}', 'error')
+                    return redirect(url_for('production.koniec_zlecenie_page', id=id, sekcja=sekcja, linia=linia))
+
+                manual_damaged = 0
+                if uszkodzone_worki:
+                    try:
+                        manual_damaged = max(int(uszkodzone_worki), 0)
+                    except (ValueError, TypeError):
+                        manual_damaged = 0
+                effective_damaged = max(manual_damaged, int(cov_metrics.get('uszkodzone_worki') or 0))
+                cursor.execute(
+                    f"UPDATE {table_plan} SET uszkodzone_worki=%s WHERE id=%s",
+                    (effective_damaged, id),
+                )
 
             conn.commit()
             if roll_label_jobs:
@@ -819,11 +846,14 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
                 
         active_rolls_to_close = []
         linked_packaging = []
+        foil_coverage = None
         if linia == 'AGRO' and sekcja in ('Workowanie', 'Czyszczenie'):
+            from app.services.folio.folio_queries import FolioQueries
             from app.services.folio_service import FolioService
             from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
             active_rolls_to_close = FolioService.get_active_rolls(id)
             linked_packaging = AgroOpakowaniaPlanService.get_linked_packaging(id)
+            foil_coverage = FolioQueries.get_order_close_foil_preview(id, active_rolls=active_rolls_to_close)
 
         return render_template(
             'koniec_zlecenie.html',
@@ -833,6 +863,7 @@ def register_production_order_routes(production_bp, bezpieczny_powrot):
             tonaz=tonaz_rzeczywisty,
             linked_packaging=linked_packaging,
             active_rolls_to_close=active_rolls_to_close,
+            foil_coverage=foil_coverage,
             linia=linia,
             unused_buckets=unused_buckets,
             dumped_buckets_count=dumped_buckets_count

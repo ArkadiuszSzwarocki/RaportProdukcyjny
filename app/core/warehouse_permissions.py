@@ -86,19 +86,38 @@ def enforce_warehouse_write():
             for identifier in identifiers:
                 if identifier is None or str(identifier).strip() == '':
                     return _deny('Brak identyfikatora palety.', 400)
+                resolved_table = table
                 if str(identifier).isdigit():
                     cursor.execute(f'SELECT * FROM {table} WHERE id=%s', (int(identifier),))
                 else:
                     cursor.execute(f'SELECT * FROM {table} WHERE nr_palety=%s', (str(identifier),))
                 row = cursor.fetchone()
+                if row and endpoint == 'warehouse_v2.delete_pallet' and kind == 'Wyrób Gotowy' and data.get('sscc') and str(row.get('nr_palety')) != str(data['sscc']):
+                    row = None
+                if not row and endpoint == 'warehouse_v2.delete_pallet' and kind == 'Wyrób Gotowy' and line in {'PSD', 'AGRO'}:
+                    buf_table = get_table_name('palety_workowanie', line)
+                    if data.get('sscc'):
+                        cursor.execute(
+                            f"SELECT * FROM {buf_table} WHERE nr_palety=%s AND LOWER(COALESCE(status, '')) NOT IN ('w_magazynie', 'przyjeta', 'wydana', 'anulowana')",
+                            (str(data['sscc']),),
+                        )
+                        row = cursor.fetchone()
+                    if not row and str(identifier).isdigit():
+                        cursor.execute(
+                            f"SELECT * FROM {buf_table} WHERE id=%s AND LOWER(COALESCE(status, '')) NOT IN ('w_magazynie', 'przyjeta', 'wydana', 'anulowana')",
+                            (int(identifier),),
+                        )
+                        row = cursor.fetchone()
+                    if row:
+                        resolved_table = buf_table
                 if not row:
                     # Never let a service silently search another hall or pending delivery.
                     return _deny('Nie znaleziono palety w wybranym magazynie.', 404)
-                if shared_move and table in SHARED_MATERIAL_TABLES:
+                if shared_move and resolved_table in SHARED_MATERIAL_TABLES:
                     from app.utils.location_validator import is_production_tank_code
                     if is_production_tank_code(str(data.get('location') or '').strip().upper()) and not _page_allowed(line, 'zasyp', write=True):
                         return _deny()
-                elif table == 'magazyn_surowce':
+                elif resolved_table == 'magazyn_surowce':
                     if not shared_raw_stock_allowed(row, line, write=True):
                         return _deny()
                 else:
@@ -109,9 +128,14 @@ def enforce_warehouse_write():
                     from app.core.shared_inventory_permissions import can_archive_stock
                     if not can_archive_stock(row):
                         return _deny('Archiwizacja materiału na magazynie wymaga roli admin, masteradmin, zarzad lub lider. Pracownik może zużywać materiał na produkcji i LP01.')
-                if data.get('sscc') and str(row.get('nr_palety')) != str(data['sscc']):
+                is_unlabelled_buffer = (
+                    resolved_table in {'palety_workowanie', 'palety_agro'}
+                    and not row.get('nr_palety')
+                    and str(data.get('sscc') or '') == f"PAL-{row['id']}"
+                )
+                if data.get('sscc') and not is_unlabelled_buffer and str(row.get('nr_palety')) != str(data['sscc']):
                     return _deny('Kod palety nie odpowiada identyfikatorowi.', 400)
-            g.warehouse_resource = {'table': table, 'id': row['id'], 'nr_palety': row.get('nr_palety')}
+            g.warehouse_resource = {'table': resolved_table, 'id': row['id'], 'nr_palety': row.get('nr_palety')}
             if endpoint == 'warehouse_v2.toggle_block':
                 # This action synchronizes the quality lock across all stock representations.
                 if not all(_page_allowed(hall, 'magazyn') for hall in ('PSD', 'AGRO', 'OSIP')):

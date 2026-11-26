@@ -93,8 +93,9 @@ class AgroOpakowaniaRepository:
                 cursor = conn.cursor(dictionary=True)
                 cursor.execute(
                     f"SELECT * FROM {table_opak} "
-                    f"WHERE (lokalizacja != 'ZUŻYTE' OR lokalizacja IS NULL) AND stan_magazynowy > 0 "
-                    f"ORDER BY nazwa, id"
+                    f"WHERE UPPER(COALESCE(lokalizacja, '')) NOT IN ('ZUZYTE', 'ZUŻYTE', 'ARCHIWUM', 'DO_ZWROTU') "
+                    f"AND COALESCE(is_blocked, 0) = 0 AND stan_magazynowy > 0 "
+                    f"ORDER BY CASE WHEN UPPER(COALESCE(lokalizacja, '')) IN ('LP01', 'MASZYNA') THEN 0 ELSE 1 END ASC, nazwa, id"
                 )
                 return cursor.fetchall()
             finally:

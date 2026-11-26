@@ -138,6 +138,7 @@ def _compute_static_version():
             os.path.join(current_app.static_folder, 'js', 'warehouse_v2', 'orders.js'),
             os.path.join(current_app.static_folder, 'js', 'dashboard', 'picking_3d_rack_view.js'),
             os.path.join(current_app.static_folder, 'css', 'picking_3d.css'),
+            os.path.join(current_app.static_folder, 'css', 'bucket_stations.css'),
         ]
         mtimes = []
         for p in candidates:

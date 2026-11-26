@@ -48,6 +48,36 @@
         padding: 10px 12px;
         margin-bottom: 12px;
     }
+
+    .koniec-foil-deficit {
+        background: #fef2f2;
+        border: 1px solid #ef4444;
+        border-left: 4px solid #dc2626;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 12px;
+        color: #991b1b;
+        font-size: 13px;
+    }
+
+    .koniec-foil-deficit-title {
+        display: block;
+        font-weight: 700;
+        font-size: 14px;
+        margin-bottom: 6px;
+        color: #b91c1c;
+    }
+
+    .koniec-foil-deficit-link {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 6px 12px;
+        background: #dc2626;
+        color: #ffffff;
+        border-radius: 4px;
+        font-weight: 600;
+        text-decoration: none;
+    }
     .koniec-bucket-warning .bucket-warn-title {
         font-weight: 800;
         font-size: 13px;
@@ -187,6 +217,19 @@
             {% endif %}
         </div>
         {% endif %}
+        {% if foil_coverage and foil_coverage.is_blocked %}
+        <div class="koniec-foil-deficit">
+            <span class="koniec-foil-deficit-title">⛔ Blokada zakończenia — brak rozliczonej folii!</span>
+            <div>
+                Na paletach wyprodukowano <strong>{{ foil_coverage.expected_bags }} worków</strong> ({{ foil_coverage.palety_kg|int }} kg),
+                a pobrano łącznie tylko <strong>{{ foil_coverage.max_possible_settled_bags }} szt.</strong> folii
+                (brakuje min. <strong>{{ foil_coverage.deficit_bags }} szt.</strong>).
+            </div>
+            <a href="{{ url_for('production.agro_folio_rozliczenie', plan_id=id) }}" class="koniec-foil-deficit-link">
+                Przejdź do Rozliczenia Folii (LP01)
+            </a>
+        </div>
+        {% endif %}
         {% if sekcja in ('Workowanie', 'Czyszczenie') and linia|upper == 'AGRO' and active_rolls_to_close %}
         <div class="koniec-zlecenie-warning-box" style="background: #f0fdf4; border-left-color: #10b981; border: 1px solid #bbf7d0;">
             <label class="koniec-zlecenie-warning-label" style="color: #166534; display: flex; align-items: center; gap: 6px;">
@@ -218,7 +261,7 @@
         <textarea name="wyjasnienie" class="input-sm koniec-zlecenie-textarea" rows="3" title="{{ _('komentarz') }}" placeholder="{{ _('opcjonalny_komentarz') }}"></textarea>
 
         <div class="koniec-zlecenie-button-group">
-            <button type="submit" class="btn-action btn-stop" id="koniec-submit-btn">{{ _('zatwierdz') }}</button>
+            <button type="submit" class="btn-action btn-stop" id="koniec-submit-btn" {% if foil_coverage and foil_coverage.is_blocked %}disabled{% endif %}>{{ _('zatwierdz') }}</button>
             <button type="button" data-action="close-popup" class="btn-action btn-outline">{{ _('anuluj') }}</button>
         </div>
     </form>

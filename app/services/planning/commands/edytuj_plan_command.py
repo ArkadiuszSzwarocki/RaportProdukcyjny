@@ -113,13 +113,11 @@ class EdytujPlanCommand:
             changes['status'] = {'before': 'zakonczone', 'after': 'zaplanowane'}
 
         if linia.upper() == 'AGRO':
+            from app.services.folio.folio_queries import FolioQueries
             sekcja_name = (before[3] or '').lower()
             if sekcja_name == 'workowanie':
                 if opakowanie_id is not None:
-                    try:
-                        opakowanie_id_int = int(opakowanie_id) if opakowanie_id not in (None, '', 'None') else None
-                    except Exception:
-                        opakowanie_id_int = None
+                    opakowanie_id_int = FolioQueries.resolve_warehouse_packaging_id(cursor, opakowanie_id)
                 else:
                     opakowanie_id_int = before[11]
 
@@ -145,10 +143,7 @@ class EdytujPlanCommand:
                     changes['etykieta_id'] = {'before': before[12], 'after': etykieta_id_int}
             else:
                 if opakowanie_id is not None:
-                    try:
-                        opk_int = int(opakowanie_id) if opakowanie_id not in (None, '', 'None') else None
-                    except Exception:
-                        opk_int = None
+                    opk_int = FolioQueries.resolve_warehouse_packaging_id(cursor, opakowanie_id)
                     if opk_int != before[11]:
                         updates.append('opakowanie_id=%s')
                         params.append(opk_int)

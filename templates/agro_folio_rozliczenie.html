@@ -103,8 +103,10 @@
     function confirmCloseRoll(event, form) {
         if (event) event.preventDefault();
         var pozostaloInput = form.querySelector('input[name="pozostalo_szt"]');
-        var pozostalo = parseFloat(pozostaloInput ? pozostaloInput.value : 0) || 0;
-        var msg = 'Zamknąć rolkę? Pozostałe <strong style="color:#d97706;">' + Math.round(pozostalo) + ' szt.</strong> zostaną zwrócone do magazynu.';
+        var pozostalo = Math.round(parseFloat(pozostaloInput ? pozostaloInput.value : 0) || 0);
+        var msg = pozostalo > 0
+            ? 'Zamknąć rolkę? Pozostałe <strong style="color:#d97706;">' + pozostalo + ' szt.</strong> pozostaną na stanowisku <strong>LP01</strong> z wydrukiem etykiety SSCC (do kolejnego zlecenia lub zwrotu skanerem na regał).'
+            : 'Zamknąć rolkę ze stanem <strong style="color:#dc2626;">0 szt.</strong>? Rolka zostanie oznaczona jako całkowicie zużyta.';
         
         document.getElementById('folio-confirm-text').innerHTML = msg;
         document.getElementById('folio-confirm-modal').style.display = 'flex';

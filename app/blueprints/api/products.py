@@ -66,6 +66,9 @@ def register_api_product_routes(api_bp):
             cursor = conn.cursor()
 
             try:
+                if opakowanie_id is not None:
+                    from app.services.folio.folio_queries import FolioQueries
+                    opakowanie_id = FolioQueries.resolve_warehouse_packaging_id(cursor, opakowanie_id)
                 cursor.execute(
                     """
                     INSERT INTO produkty_receptury (nazwa_produktu, nr_receptury, typ_produkcji, opakowanie_id, etykieta_id)
@@ -125,6 +128,9 @@ def register_api_product_routes(api_bp):
                 if not cursor.fetchone():
                     return jsonify({'success': False, 'message': 'Produkt nie znaleziony'}), 404
 
+                if opakowanie_id is not None:
+                    from app.services.folio.folio_queries import FolioQueries
+                    opakowanie_id = FolioQueries.resolve_warehouse_packaging_id(cursor, opakowanie_id)
                 cursor.execute(
                     """
                     UPDATE produkty_receptury

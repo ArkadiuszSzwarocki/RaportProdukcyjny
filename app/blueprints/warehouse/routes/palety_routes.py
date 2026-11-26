@@ -310,13 +310,14 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
     def usun_palete_ajax():
         """Delete paleta (AJAX)."""
         from flask import request
-        paleta_id = request.json.get('id')
+        payload = request.get_json(silent=True) or {}
+        paleta_id = payload.get('id')
         if not paleta_id:
             return jsonify({'success': False, 'message': 'Brak ID palety'}), 400
         
         from app.services.warehouse_pallet_service import WarehousePalletService
         from app.blueprints.warehouse.management import get_db_connection
-        linia = resolve_request_linia()
+        linia = resolve_payload_linia(payload)
         user_login = session.get('login', 'System')
         is_ajax = True
         conn = get_db_connection()

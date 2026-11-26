@@ -62,3 +62,36 @@ function submitAcceptWG() {
     });
 }
 
+async function deletePendingWG(id, nrPalety, linia) {
+    const label = nrPalety || `ID=${id}`;
+    const targetLine = linia || (String(nrPalety || '').startsWith('AGR') ? 'AGRO' : (window.MAGAZYN_CONFIG && window.MAGAZYN_CONFIG.linia) || 'PSD');
+    const confirmed = await AppDialog.confirm(`Czy na pewno usunąć oczekującą paletę ${label} z bufora produkcji (${targetLine})?`);
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/usun_palete_ajax?linia=${encodeURIComponent(targetLine)}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ id: id, linia: targetLine })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            if (typeof performSilentRefresh === 'function') {
+                await performSilentRefresh();
+            } else {
+                location.reload();
+            }
+            return;
+        }
+        AppDialog.alert(data.message || data.error || 'Nie udało się usunąć oczekującej palety.');
+    } catch (e) {
+        AppDialog.alert('Błąd połączenia z serwerem.');
+    }
+}
+
+

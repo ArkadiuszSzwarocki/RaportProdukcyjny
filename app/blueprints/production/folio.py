@@ -12,8 +12,8 @@ from flask import current_app, flash, jsonify, redirect, render_template, reques
 
 from app.db import get_db_connection, get_table_name
 from app.decorators import login_required, roles_required
+from app.services.folio.folio_queries import FolioQueries
 from app.services.folio_service import FolioService
-from app.services.agro.agro_opakowaniaplan_service import AgroOpakowaniaPlanService
 
 
 def register_production_folio_routes(production_bp, bezpieczny_powrot):
@@ -36,7 +36,8 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                 cursor.execute(
                     f"""
                     SELECT id, produkt, data_planu, status, tonaz, tonaz_rzeczywisty,
-                           start_machine_counter, stop_machine_counter, opakowanie_id
+                           start_machine_counter, stop_machine_counter, opakowanie_id,
+                           typ_produkcji
                     FROM {table_plan}
                     WHERE id = %s AND sekcja IN ('Workowanie', 'Czyszczenie')
                     LIMIT 1
@@ -120,32 +121,12 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                         h['stan_po'] = max(float(h.get('stan_przed') or 0) - zuzyte_segment, 0)
                         h['pozostalo_na_rolce'] = h['stan_po']
 
-                # Palety dla tego zlecenia
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) AS cnt, COALESCE(SUM(waga), 0) AS total_kg
-                    FROM palety_agro
-                    WHERE plan_id = %s
-                    """,
-                    (plan_id,),
-                )
-                pallet_row = cursor.fetchone() or {}
-                palety_count = int(pallet_row.get('cnt') or 0)
-                palety_kg = float(pallet_row.get('total_kg') or 0)
-
-                import re as _re
-                typ_prod = str(active_plan.get('typ_produkcji') or '')
-                m = _re.search(r'(\d+)\s*$', typ_prod)
-                if m:
-                    bag_kg = float(m.group(1))
-                else:
-                    # Fallback dla 'agro' - 20 kg jeśli mleko/20, inaczej 25 kg
-                    produkt_lc = str(active_plan.get('produkt') or '').lower()
-                    if 'mleko' in produkt_lc or '20' in produkt_lc:
-                        bag_kg = 20.0
-                    else:
-                        bag_kg = 25.0
-                worki_z_palet = int(palety_kg / bag_kg) if bag_kg > 0 and palety_kg > 0 else 0
+                # Produced pallets and expected bag count for this order
+                prod_bags = FolioQueries.get_plan_produced_bags(cursor, plan_id)
+                palety_count = prod_bags['palety_count']
+                palety_kg = prod_bags['palety_kg']
+                bag_kg = prod_bags['bag_kg']
+                worki_z_palet = prod_bags['expected_bags']
 
                 # Obliczamy na żywo brakujące "zepsute worki"
                 # (to co maszyna wybiła na liczniku MINUS to co faktycznie jest na paletach)
@@ -154,39 +135,14 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
                 # Straty całkowite to: Straty folii (z bazy z zamkniętych rolek) + uszkodzone worki na żywo
                 summary['suma_strat'] += defective_bags
 
-            # Dostępne opakowania w magazynie (filtrowane po zapotrzebowaniu ze zlecenia)
-            available_packaging = []
-            has_required_packaging = False
-
+            # Available LP01 leftover rolls + warehouse stock matching the order's required film
+            required_name = None
             if active_plan and active_plan.get('opakowanie_id'):
                 cursor.execute("SELECT nazwa FROM magazyn_opakowania WHERE id = %s", (active_plan['opakowanie_id'],))
                 req_opak = cursor.fetchone()
                 if req_opak:
-                    has_required_packaging = True
-                    cursor.execute("""
-                        SELECT id, nazwa, stan_magazynowy, lokalizacja, nr_palety
-                        FROM magazyn_opakowania
-                        WHERE nazwa = %s
-                          AND stan_magazynowy > 0
-                          AND IFNULL(lokalizacja, '') NOT IN ('', 'None', 'ZUZYTE', 'ZUŻYTE', 'DO_ZWROTU')
-                          AND (IFNULL(lokalizacja, '') != 'Maszyna' OR DATE(updated_at) >= CURDATE())
-                          AND id NOT IN (SELECT opakowanie_id FROM agro_plan_opakowania WHERE is_active = TRUE)
-                        ORDER BY nazwa ASC
-                    """, (req_opak['nazwa'],))
-                    available_packaging = cursor.fetchall()
-
-            # Fallback POKAZUJE CAŁY MAGAZYN TYLKO jeśli plan nie ma przypisanego konkretnego opakowania
-            if not has_required_packaging:
-                cursor.execute("""
-                    SELECT id, nazwa, stan_magazynowy, lokalizacja, nr_palety
-                    FROM magazyn_opakowania
-                    WHERE stan_magazynowy > 0
-                      AND IFNULL(lokalizacja, '') NOT IN ('', 'None', 'ZUZYTE', 'ZUŻYTE', 'DO_ZWROTU')
-                      AND (IFNULL(lokalizacja, '') != 'Maszyna' OR DATE(updated_at) >= CURDATE())
-                      AND id NOT IN (SELECT opakowanie_id FROM agro_plan_opakowania WHERE is_active = TRUE)
-                    ORDER BY nazwa ASC
-                """)
-                available_packaging = cursor.fetchall()
+                    required_name = req_opak['nazwa']
+            available_packaging = FolioQueries.get_available_foil_for_plan(cursor, required_name=required_name)
 
             return render_template(
                 'agro_folio_rozliczenie.html',
@@ -251,7 +207,13 @@ def register_production_folio_routes(production_bp, bezpieczny_powrot):
         source = request.form.get('source')
 
         if ok:
-            flash(f'✅ Rolka zamknięta. Pozostało {pozostalo_szt:.0f} szt. (rolka pozostała na maszynie).', 'success')
+            if pozostalo_szt > 0:
+                flash(
+                    f'✅ Rolka zamknięta. Pozostało {pozostalo_szt:.0f} szt. na LP01 (gotowa pod kolejne zlecenie lub do zwrotu na magazyn).',
+                    'success',
+                )
+            else:
+                flash('✅ Rolka zamknięta i oznaczona jako całkowicie zużyta (0 szt.).', 'success')
         else:
             flash(f'❌ Błąd zamknięcia rolki: {err}', 'danger')
 

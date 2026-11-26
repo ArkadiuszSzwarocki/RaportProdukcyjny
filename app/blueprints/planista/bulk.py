@@ -128,26 +128,8 @@ def register_planista_bulk_routes(planista_bp):
         conn = get_db_connection()
         try:
             cursor = conn.cursor(dictionary=True)
-            cursor.execute("""
-                SELECT id, nazwa, typ_opakowania, stan_magazynowy 
-                FROM magazyn_opakowania 
-                WHERE stan_magazynowy > 0 
-                AND nazwa NOT LIKE '%Etykieta%'
-                ORDER BY typ_opakowania, id DESC
-            """)
-            raw_opakowania = cursor.fetchall()
-            seen_names = set()
-            opakowania = []
-            for o in raw_opakowania:
-                name_clean = str(o.get('nazwa') or o.get('NAZWA') or '').strip()
-                name_key = name_clean.lower()
-                if name_key and name_key not in seen_names:
-                    seen_names.add(name_key)
-                    opakowania.append({
-                        'id': o['id'], 
-                        'nazwa': name_clean,
-                        'typ_opakowania': o.get('typ_opakowania') or 'Karton'
-                    })
+            from app.services.folio.folio_queries import FolioQueries
+            opakowania = FolioQueries.get_planning_packaging_options(cursor, exclude_labels=True)
             cursor.execute("SELECT id, nazwa FROM slownik_etykiety_agro ORDER BY id")
             etykiety = cursor.fetchall()
         except Exception as e:

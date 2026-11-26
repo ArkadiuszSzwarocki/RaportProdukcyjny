@@ -3,10 +3,12 @@
 Each withdrawal owns a separate packaging row. Source pallet identity is preserved
 in the existing warehouse movement metadata, so no remote schema migration is needed.
 """
-import json
 import math
 import unicodedata
-from app.db import get_db_connection
+from app.core.database import get_db_connection
+from app.dto.folio_events import FoilRollTarget, FoilSourceSnapshot, FoilWithdrawalEvent
+from app.services.folio.folio_ledger_writer import FolioLedgerWriter
+from app.services.folio.folio_queries import FolioQueries
 
 
 def _film_name(value):
@@ -66,15 +68,21 @@ class FolioAssignmentService:
         try:
             cur = conn.cursor(dictionary=True)
             # Lock the order before slots/source: concurrent requests cannot overfill it.
-            cur.execute("SELECT id,produkt,data_planu,status,opakowanie_id FROM plan_produkcji_agro WHERE id=%s AND sekcja='Workowanie' AND COALESCE(is_deleted,0)=0 FOR UPDATE", (plan_id,))
+            cur.execute(
+                """
+                SELECT id, produkt, data_planu, status, opakowanie_id, start_machine_counter
+                FROM plan_produkcji_agro
+                WHERE id=%s AND sekcja='Workowanie' AND COALESCE(is_deleted,0)=0
+                FOR UPDATE
+                """,
+                (plan_id,),
+            )
             plan = cur.fetchone()
             if not plan or plan['status'] not in ('zaplanowane','w toku','zawieszone','wstrzymane'):
                 raise ValueError('Wybierz niezakończone zlecenie Workowania AGRO.')
-            if request_key:
-                cur.execute("SELECT id FROM magazyn_ruch WHERE typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", ('%'+request_key+'%',))
-                if cur.fetchone():
-                    conn.rollback()
-                    return True, 'To pobranie zostało już zapisane.'
+            if request_key and FolioLedgerWriter.has_request_key(cur, request_key):
+                conn.rollback()
+                return True, 'To pobranie zostało już zapisane.'
             cur.execute("SELECT id,licznik_start FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE FOR UPDATE", (plan_id,))
             slots = cur.fetchall()
             used = [row for row in slots if row['licznik_start'] is not None]
@@ -108,7 +116,7 @@ class FolioAssignmentService:
                 required = cur.fetchone()
                 if not required or _film_name(required['nazwa']) != _film_name(source['nazwa']):
                     raise ValueError('Ta folia nie odpowiada folii wymaganej przez wybrane zlecenie.')
-            from app.utils.pallet_id import generate_pallet_id
+            from app.utils.pallet_id import generate_pallet_id, is_valid_pallet_id
             from app.services.folio_service import _get_mqtt_counter
             if replacing:
                 from app.services.folio_service import FolioService
@@ -117,19 +125,96 @@ class FolioAssignmentService:
                 if not ok:
                     raise ValueError(error)
                 role = 'active'
-            remaining = float(source['stan_magazynowy']) - amount
-            cur.execute("UPDATE magazyn_opakowania SET stan_magazynowy=%s,updated_at=NOW() WHERE id=%s", (remaining,source_id))
-            cur.execute("""INSERT INTO magazyn_opakowania
-                (nazwa,stan_magazynowy,lokalizacja,nr_palety,nr_partii,data_produkcji,data_przydatnosci,typ_opakowania,linia)
-                VALUES (%s,%s,'LP01',%s,%s,%s,%s,%s,%s)""",
-                (source['nazwa'],amount,generate_pallet_id('AGRO','opakowanie'),source.get('nr_partii'),source.get('data_produkcji'),source.get('data_przydatnosci'),source.get('typ_opakowania'),'AGRO'))
-            roll_id = cur.lastrowid
-            counter = _get_mqtt_counter() if role=='active' else None
-            cur.execute("INSERT INTO agro_plan_opakowania (plan_id,opakowanie_id,stan_poczatkowy,is_active,licznik_start) VALUES (%s,%s,%s,TRUE,%s)", (plan_id,roll_id,amount,counter))
+            source_qty_before = float(source['stan_magazynowy'] or 0)
+            remaining = source_qty_before - amount
+            source_loc = str(source.get('lokalizacja') or '').strip()
+            source_sscc = str(source.get('nr_palety') or '').strip()
+            if not source_sscc or not is_valid_pallet_id(source_sscc):
+                source_sscc = generate_pallet_id('AGRO', 'opakowanie')
+                cur.execute("UPDATE magazyn_opakowania SET nr_palety=%s WHERE id=%s", (source_sscc, source_id))
+
+            reused_lp01_roll = (
+                source_loc.upper() in ('LP01', 'MASZYNA')
+                and abs(remaining) < 1e-6
+            )
+            if reused_lp01_roll:
+                prior_meta = FolioLedgerWriter.find_roll_source_metadata(cur, source_id)
+                origin_sscc = str(prior_meta.get('source_sscc') or source_sscc)
+                origin_id = int(prior_meta.get('source_id') or source_id)
+                cur.execute(
+                    "UPDATE magazyn_opakowania SET stan_magazynowy=%s, lokalizacja='LP01', updated_at=NOW() WHERE id=%s",
+                    (amount, source_id),
+                )
+                roll_id = source_id
+                roll_sscc = source_sscc
+            else:
+                origin_sscc = source_sscc
+                origin_id = source_id
+                if remaining <= 0:
+                    cur.execute(
+                        "UPDATE magazyn_opakowania SET stan_magazynowy=0, lokalizacja='ZUŻYTE', updated_at=NOW() WHERE id=%s",
+                        (source_id,),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE magazyn_opakowania SET stan_magazynowy=%s, updated_at=NOW() WHERE id=%s",
+                        (remaining, source_id),
+                    )
+                roll_sscc = generate_pallet_id('AGRO', 'opakowanie')
+                cur.execute(
+                    """INSERT INTO magazyn_opakowania
+                    (nazwa,stan_magazynowy,lokalizacja,nr_palety,nr_partii,data_produkcji,data_przydatnosci,typ_opakowania,linia)
+                    VALUES (%s,%s,'LP01',%s,%s,%s,%s,%s,%s)""",
+                    (
+                        source['nazwa'],
+                        amount,
+                        roll_sscc,
+                        source.get('nr_partii'),
+                        source.get('data_produkcji'),
+                        source.get('data_przydatnosci'),
+                        source.get('typ_opakowania'),
+                        'AGRO',
+                    ),
+                )
+                roll_id = cur.lastrowid
+
+            counter = (
+                FolioQueries.resolve_effective_start_counter(
+                    cur,
+                    plan_id,
+                    plan.get('start_machine_counter'),
+                    _get_mqtt_counter(),
+                )
+                if role == 'active'
+                else None
+            )
+            cur.execute(
+                "INSERT INTO agro_plan_opakowania (plan_id,opakowanie_id,stan_poczatkowy,is_active,licznik_start) VALUES (%s,%s,%s,TRUE,%s)",
+                (plan_id, roll_id, amount, counter),
+            )
             link_id = cur.lastrowid
-            meta = json.dumps({'source_id':source_id,'source_sscc':source.get('nr_palety') or '', 'plan_id':plan_id,'link_id':link_id,'request_key':request_key},ensure_ascii=False)
-            for material_id, kind, qty, stock in [(source_id,'POBRANIE_DO_PRODUKCJI',-amount,remaining),(roll_id,'POBRANIE_NA_MASZYNE',amount,amount)]:
-                cur.execute("INSERT INTO magazyn_ruch (surowiec_id,typ_ruchu,ilosc,ilosc_po,status,autor_login,autor_data,komentarz) VALUES (%s,%s,%s,%s,'POTWIERDZONE',%s,NOW(),%s)", (material_id,kind,qty,stock,user,meta))
+            FolioLedgerWriter.record_foil_withdrawal(
+                cur,
+                FoilWithdrawalEvent(
+                    source=FoilSourceSnapshot(
+                        source_id=origin_id,
+                        source_sscc=origin_sscc,
+                        source_name=source['nazwa'],
+                        source_location=source_loc,
+                        qty_before=source_qty_before,
+                        qty_after=max(remaining, 0.0),
+                    ),
+                    roll=FoilRollTarget(
+                        roll_id=roll_id,
+                        roll_sscc=roll_sscc,
+                        amount=amount,
+                    ),
+                    plan_id=plan_id,
+                    link_id=link_id,
+                    user_login=user,
+                    request_key=request_key,
+                ),
+            )
             cur.execute("""INSERT INTO agro_workowanie_rozliczenie
                 (plan_id,data_planu,produkt,opakowanie_id,opakowanie_nazwa,stan_przed,zuzyte_worki,stan_po,autor_login,typ_zdarzenia,licznik_start,link_id)
                 VALUES (%s,%s,%s,%s,%s,%s,0,%s,%s,'WSADZENIE',%s,%s)""",
@@ -158,11 +243,11 @@ class FolioAssignmentService:
             target = cur.fetchone()
             if not target:
                 raise ValueError('Nie znaleziono przygotowanej rolki.')
-            cur.execute("SELECT status FROM plan_produkcji_agro WHERE id=%s FOR UPDATE", (target['plan_id'],))
+            cur.execute("SELECT status, start_machine_counter FROM plan_produkcji_agro WHERE id=%s FOR UPDATE", (target['plan_id'],))
             plan = cur.fetchone()
             if not plan or plan['status']!='w toku':
                 raise ValueError('Rolkę można założyć dopiero, gdy zlecenie jest w toku.')
-            cur.execute("SELECT id,licznik_start FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE FOR UPDATE", (target['plan_id'],))
+            cur.execute("SELECT id, opakowanie_id, licznik_start FROM agro_plan_opakowania WHERE plan_id=%s AND is_active=TRUE FOR UPDATE", (target['plan_id'],))
             slots = cur.fetchall()
             prepared = next((row for row in slots if row['id']==int(link_id) and row['licznik_start'] is None),None)
             if not prepared:
@@ -174,10 +259,20 @@ class FolioAssignmentService:
                 ok,error = FolioService.close_roll(int(close_link_id),remaining,user,external_conn=conn,label_jobs=labels)
                 if not ok:
                     raise ValueError(error)
-            counter = _get_mqtt_counter()
+            counter = FolioQueries.resolve_effective_start_counter(
+                cur,
+                target['plan_id'],
+                plan.get('start_machine_counter'),
+                _get_mqtt_counter(),
+            )
             cur.execute("UPDATE agro_plan_opakowania SET licznik_start=%s WHERE id=%s",(counter,link_id))
             cur.execute("UPDATE agro_workowanie_rozliczenie SET licznik_start=%s WHERE link_id=%s AND typ_zdarzenia='WSADZENIE'",(counter,link_id))
-            cur.execute("INSERT INTO magazyn_ruch (surowiec_id,typ_ruchu,ilosc,status,autor_login,autor_data,komentarz) SELECT opakowanie_id,'ZALOZENIE_ROLKI',0,'POTWIERDZONE',%s,NOW(),%s FROM agro_plan_opakowania WHERE id=%s",(user,'Założenie przygotowanej rolki do zlecenia #'+str(target['plan_id']),link_id))
+            FolioLedgerWriter.record_foil_activation(
+                cur,
+                opakowanie_id=int(prepared['opakowanie_id']),
+                plan_id=int(target['plan_id']),
+                user_login=user,
+            )
             conn.commit()
             FolioService.print_closed_roll_labels(labels)
             return True, 'Przygotowana rolka jest teraz używana.'

@@ -4,10 +4,13 @@ from app.db import get_db_connection, get_table_name
 class PalletDeleteController:
     @staticmethod
     def delete_pallet():
-        """Permanently delete duplicate or test pallets from database (requires admin role)."""
-        role = (session.get('rola') or '').lower().replace(' ', '').replace('_', '').strip()
-        if role not in ('masteradmin', 'admin', 'administrator'):
-            return jsonify({'success': False, 'error': 'Brak uprawnień. Wymagana rola admin.'}), 403
+        """Permanently delete duplicate, test, or pending pallets (masteradmin, admin, lider)."""
+        from app.decorators import _normalize_role
+        from app.core.hall_roles import worker_role
+        raw_role = _normalize_role(session.get('rola'))
+        effective_role = worker_role(raw_role)
+        if raw_role not in ('masteradmin', 'admin', 'administrator', 'lider') and not raw_role.startswith('lider') and effective_role not in ('masteradmin', 'admin', 'lider'):
+            return jsonify({'success': False, 'error': 'Brak uprawnień. Wymagana rola masteradmin, admin lub lider.'}), 403
 
         data = request.get_json() or {}
         pallet_id = data.get('id')

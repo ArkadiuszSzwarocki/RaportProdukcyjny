@@ -11,10 +11,11 @@ from __future__ import annotations
 
 from datetime import datetime
 import math
-import json
 from typing import Optional
 
-from app.db import get_db_connection, get_table_name
+from app.core.database import get_db_connection, get_table_name
+from app.dto.folio_events import FoilClosureEvent
+from app.services.folio.folio_ledger_writer import FolioLedgerWriter
 
 
 def _get_mqtt_counter() -> int:
@@ -51,7 +52,6 @@ class FolioService:
                        ap.licznik_start,
                        o.nazwa, o.stan_magazynowy AS stan_na_maszynie,
                        o.lokalizacja,
-                       (SELECT mr.komentarz FROM magazyn_ruch mr WHERE mr.surowiec_id=o.id AND mr.typ_ruchu='POBRANIE_NA_MASZYNE' ORDER BY mr.id DESC LIMIT 1) AS source_metadata,
                        (SELECT r.autor_login FROM agro_workowanie_rozliczenie r WHERE r.link_id=ap.id AND r.typ_zdarzenia='WSADZENIE' ORDER BY r.id LIMIT 1) AS assigned_by,
                        ap.created_at
                 FROM agro_plan_opakowania ap
@@ -70,10 +70,7 @@ class FolioService:
                 stan_poczatkowy = float(r.get('stan_poczatkowy') or 0)
                 is_prepared = r.get('licznik_start') is None
                 licznik_start = int(r.get('licznik_start') or 0)
-                try:
-                    source_meta = json.loads(r.get('source_metadata') or '{}')
-                except (ValueError, TypeError):
-                    source_meta = {}
+                source_meta = FolioLedgerWriter.find_roll_source_metadata(cursor, int(r['opakowanie_id']))
 
                 # Zużycie z licznika MQTT
                 live_zuzyte = 0
@@ -117,7 +114,10 @@ class FolioService:
                        r.straty_worki, r.pozostalo_na_rolce,
                        r.lokalizacja_zwrotu, r.licznik_start, r.licznik_stop,
                        r.link_id, r.autor_login, r.created_at,
-                       EXISTS(SELECT 1 FROM magazyn_ruch mr WHERE mr.surowiec_id=r.opakowanie_id AND mr.typ_ruchu='POBRANIE_NA_MASZYNE' AND LOCATE('source_sscc',mr.komentarz)>0) AS individual_roll
+                       (
+                           EXISTS(SELECT 1 FROM magazyn_agro_ruch mar WHERE mar.surowiec_id=r.opakowanie_id AND mar.typ_ruchu='POBRANIE_NA_MASZYNE' AND LOCATE('source_sscc',mar.komentarz)>0)
+                           OR EXISTS(SELECT 1 FROM magazyn_ruch mr WHERE mr.surowiec_id=r.opakowanie_id AND mr.typ_ruchu='POBRANIE_NA_MASZYNE' AND LOCATE('source_sscc',mr.komentarz)>0)
+                       ) AS individual_roll
                 FROM agro_workowanie_rozliczenie r
                 WHERE r.plan_id = %s
                 ORDER BY r.created_at ASC
@@ -230,16 +230,27 @@ class FolioService:
             cursor.execute("SELECT data_planu, produkt FROM plan_produkcji_agro WHERE id = %s", (plan_id,))
             p_meta = cursor.fetchone() or {'data_planu': None, 'produkt': ''}
 
-            # 5. Zamknij link
+            # 5. Close active roll link
             cursor.execute(
                 "UPDATE agro_plan_opakowania SET stan_koncowy = %s, is_active = FALSE WHERE id = %s",
                 (pozostalo_szt, link_id)
             )
 
-            # 6. Zaktualizuj stan na maszynie (pozostaje na Maszynie)
+            # 6. Ensure roll SSCC exists and keep remainder on LP01 (or mark ZUŻYTE when 0)
+            from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+            cursor.execute(
+                "SELECT nr_palety, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s",
+                (opakowanie_id,),
+            )
+            rolka_dane = cursor.fetchone() or {}
+            sscc = str(rolka_dane.get('nr_palety') or '').strip()
+            if not sscc or not is_valid_pallet_id(sscc):
+                sscc = generate_pallet_id('AGRO', 'opakowanie')
+                cursor.execute("UPDATE magazyn_opakowania SET nr_palety = %s WHERE id = %s", (sscc, opakowanie_id))
+
             if pozostalo_szt > 0:
                 cursor.execute(
-                    "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = 'Maszyna', updated_at = NOW() WHERE id = %s",
+                    "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = 'LP01', updated_at = NOW() WHERE id = %s",
                     (pozostalo_szt, opakowanie_id)
                 )
             else:
@@ -248,19 +259,18 @@ class FolioService:
                     (opakowanie_id,)
                 )
 
-            # 8. Ruch magazynowy: ODPIECIE_OD_ZLECENIA
-            table_ruch = get_table_name('magazyn_ruch', 'AGRO')
-            cursor.execute(
-                f"INSERT INTO {table_ruch} "
-                "(surowiec_id, typ_ruchu, ilosc, ilosc_po, status, autor_login, autor_data, komentarz) "
-                "VALUES (%s, 'ODPIECIE_OD_ZLECENIA', %s, %s, 'POTWIERDZONE', %s, NOW(), %s)",
-                (
-                    opakowanie_id,
-                    pozostalo_szt,
-                    pozostalo_szt,
-                    user_login,
-                    f"Zamknięcie rolki (plan #{plan_id}), pozostawiono na: Maszyna",
-                )
+            # 8. Write unified movement and pallet history records
+            FolioLedgerWriter.record_foil_closure(
+                cursor,
+                FoilClosureEvent(
+                    opakowanie_id=int(opakowanie_id),
+                    opak_nazwa=opak_nazwa,
+                    nr_palety=sscc,
+                    plan_id=int(plan_id),
+                    stan_poczatkowy=stan_poczatkowy,
+                    pozostalo_szt=pozostalo_szt,
+                    user_login=user_login,
+                ),
             )
 
             # 9. Wpis do agro_workowanie_rozliczenie z typem ZAMKNIECIE
@@ -278,7 +288,7 @@ class FolioService:
                     plan_id, p_meta['data_planu'], p_meta['produkt'],
                     opakowanie_id, opak_nazwa,
                     stan_poczatkowy, fizycznie_zuzyto, pozostalo_szt,
-                    straty, pozostalo_szt, 'Maszyna' if pozostalo_szt > 0 else '',
+                    straty, pozostalo_szt, 'LP01' if pozostalo_szt > 0 else 'ZUŻYTE',
                     licznik_start, licznik_stop,
                     link_id, user_login,
                 )
@@ -295,16 +305,6 @@ class FolioService:
                         cursor.execute("SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 LIMIT 1")
                         printer = cursor.fetchone()
 
-                    # Pobieramy dane rolki
-                    cursor.execute("SELECT nr_palety, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s", (opakowanie_id,))
-                    rolka_dane = cursor.fetchone() or {}
-
-                    from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
-                    sscc = str(rolka_dane.get('nr_palety') or '').strip()
-                    if not sscc or not is_valid_pallet_id(sscc):
-                        sscc = generate_pallet_id('AGRO', 'opakowanie')
-                        cursor.execute("UPDATE magazyn_opakowania SET nr_palety = %s WHERE id = %s", (sscc, opakowanie_id))
-
                     dp = rolka_dane.get('data_produkcji')
                     dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else datetime.now().strftime('%Y-%m-%d'))
                     dz = rolka_dane.get('data_przydatnosci')
@@ -320,7 +320,7 @@ class FolioService:
                         "termin": dz_str,
                         "ilosc": float(pozostalo_szt),
                         "linia": "AGRO",
-                        "lokalizacja": "Maszyna"
+                        "lokalizacja": "LP01"
                     }
 
                     target_ip = printer['ip'] if printer else None
@@ -377,7 +377,7 @@ class FolioService:
         try:
             cursor = conn.cursor(dictionary=True)
             cursor.execute("""
-                SELECT id, plan_id, opakowanie_id, straty_worki, link_id, pozostalo_na_rolce
+                SELECT id, plan_id, opakowanie_id, stan_przed, straty_worki, link_id, pozostalo_na_rolce
                 FROM agro_workowanie_rozliczenie 
                 WHERE id = %s AND typ_zdarzenia = 'ZAMKNIECIE'
             """, (rozliczenie_id,))
@@ -388,11 +388,11 @@ class FolioService:
             plan_id = roz['plan_id']
             opak_id = roz['opakowanie_id']
             link_id = roz['link_id']
+            stan_przed = float(roz.get('stan_przed') or 0)
             straty = float(roz['straty_worki'] or 0)
 
-            cursor.execute("SELECT id FROM magazyn_ruch WHERE surowiec_id=%s AND typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", (opak_id,'%source_sscc%'))
-            if cursor.fetchone():
-                return False, 'Ta rolka została rozliczona osobno. Pozostałość pobierz ponownie przez LP01; cofnięcie mogłoby zmienić rozliczenie kolejnej rolki.'
+            if FolioLedgerWriter.is_individual_roll(cursor, int(opak_id)):
+                return False, 'Ta rolka została rozliczona osobno. Pozostałość na LP01 podepnij ponownie do zlecenia; cofnięcie mogłoby zmienić rozliczenie kolejnej rolki.'
 
             # Re-activate the roll link
             if link_id:
@@ -401,10 +401,10 @@ class FolioService:
                     (link_id,)
                 )
 
-            # Bring it back to Maszyna
+            # Restore initial stock on LP01
             cursor.execute(
-                "UPDATE magazyn_opakowania SET stan_magazynowy = 0, lokalizacja = 'Maszyna', updated_at = NOW() WHERE id = %s",
-                (opak_id,)
+                "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = 'LP01', updated_at = NOW() WHERE id = %s",
+                (stan_przed, opak_id)
             )
 
             # Subtract from defective bags if needed
@@ -414,11 +414,11 @@ class FolioService:
                     (int(straty), plan_id)
                 )
 
-            # Delete the movement log
+            # Delete the closure movement log
             table_ruch = get_table_name('magazyn_ruch', 'AGRO')
             cursor.execute(f"""
                 DELETE FROM {table_ruch}
-                WHERE surowiec_id = %s AND typ_ruchu = 'ZWROT_Z_PRODUKCJI'
+                WHERE surowiec_id = %s AND typ_ruchu IN ('ODPIECIE_OD_ZLECENIA', 'ZWROT_Z_PRODUKCJI')
                 ORDER BY id DESC LIMIT 1
             """, (opak_id,))
 
@@ -450,8 +450,7 @@ class FolioService:
                 return False, "Nie znaleziono aktywnego podpięcia na maszynie."
 
             opakowanie_id = link['opakowanie_id']
-            cursor.execute("SELECT id FROM magazyn_ruch WHERE surowiec_id=%s AND typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", (opakowanie_id,'%source_sscc%'))
-            if cursor.fetchone():
+            if FolioLedgerWriter.is_individual_roll(cursor, int(opakowanie_id)):
                 return False, 'Pobranie jest przypisane do osobnej rolki. Przygotowaną rolkę zwolnij i pobierz ponownie z prawidłową ilością.'
             old_amount = float(link['stan_poczatkowy'] or 0)
             diff = new_amount - old_amount

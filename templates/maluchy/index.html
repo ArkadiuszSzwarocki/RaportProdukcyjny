@@ -1,6 +1,7 @@
 {% extends "layout.html" %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/bucket_stations.css') }}?v={{ static_version or '2.0.1' }}">
 <style>
     .maluchy-page, .maluchy-page * {
         box-sizing: border-box !important;
@@ -219,46 +220,6 @@
     .m-btn-success:hover {
         background: #059669;
         transform: translateY(-1px);
-    }
-
-    /* ── STATIONS GRID (KO01 - KO40) ── */
-    .m-stations-grid {
-        display: grid;
-        grid-template-columns: repeat(8, 1fr);
-        gap: 6px;
-        margin-bottom: 16px;
-    }
-    @media (max-width: 768px) {
-        .m-stations-grid {
-            grid-template-columns: repeat(5, 1fr);
-        }
-    }
-    @media (max-width: 480px) {
-        .m-stations-grid {
-            grid-template-columns: repeat(4, 1fr);
-        }
-    }
-    .m-st-btn {
-        padding: 9px 2px;
-        border: 1.5px solid #cbd5e1;
-        border-radius: 8px;
-        background: #ffffff;
-        font-weight: 800;
-        font-size: 13px;
-        color: #334155;
-        cursor: pointer;
-        transition: all 0.15s;
-        text-align: center;
-    }
-    .m-st-btn:hover {
-        background: #f1f5f9;
-        border-color: #94a3b8;
-    }
-    .m-st-btn.active {
-        background: #2563eb;
-        color: #ffffff;
-        border-color: #1d4ed8;
-        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
     }
 
     /* ── BUCKET BADGE ── */
@@ -512,10 +473,13 @@
                            style="text-transform: uppercase; font-weight: 800; font-size: 16px; border: 2px solid #2563eb;" />
                 </div>
 
-                <label class="m-label" style="font-size: 11px; color: #64748b;">Lub wybierz dotykowo zbiornik z listy:</label>
+                <label class="m-label m-stations-label">Lub wybierz dotykowo zbiornik z listy:</label>
                 <div class="m-stations-grid">
                     {% for st in ko_stations %}
-                    <button type="button" class="m-st-btn" data-stacja="{{ st }}" title="{{ station_materials[st] }}">{{ st }}</button>
+                    <button type="button" class="m-st-btn" data-stacja="{{ st }}" title="{{ st }} — {{ station_materials[st] }}">
+                        <span class="m-st-code">{{ st }}</span>
+                        <span class="m-st-material">{{ station_materials[st] }}</span>
+                    </button>
                     {% else %}
                     <p class="text-muted">Brak stacji KO z przypisanym surowcem. Uzupełnij przypisania zbiorników.</p>
                     {% endfor %}

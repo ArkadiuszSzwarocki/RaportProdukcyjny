@@ -168,8 +168,8 @@ class AgroOpakowaniaPlanRepository:
                 if not row:
                     return False, "Nie znaleziono takiego powiązania"
                 
-                cursor.execute("SELECT id FROM magazyn_ruch WHERE surowiec_id=%s AND typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", (row['opakowanie_id'],'%source_sscc%'))
-                if cursor.fetchone():
+                from app.services.folio.folio_ledger_writer import FolioLedgerWriter
+                if FolioLedgerWriter.is_individual_roll(cursor, int(row['opakowanie_id'])):
                     return False, 'Rolkę zwolnij lub rozlicz w sekcji Folia zlecenia.'
 
                 cursor.execute("DELETE FROM agro_plan_opakowania WHERE id = %s", (link_id,))
@@ -334,8 +334,8 @@ class AgroOpakowaniaPlanRepository:
                 )
                 link = cursor.fetchone()
                 if link:
-                    cursor.execute("SELECT id FROM magazyn_ruch WHERE surowiec_id=%s AND typ_ruchu='POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1", (opakowanie_id,'%source_sscc%'))
-                    if cursor.fetchone():
+                    from app.services.folio.folio_ledger_writer import FolioLedgerWriter
+                    if FolioLedgerWriter.is_individual_roll(cursor, int(opakowanie_id)):
                         return False, 'Najpierw rozlicz lub zwolnij rolkę w sekcji Folia.', {'print_result': print_result}
 
                 if is_partial:
