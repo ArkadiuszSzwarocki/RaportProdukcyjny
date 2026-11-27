@@ -106,11 +106,11 @@ class LocationService:
                 'MDO01', 'MD01',
             }
 
-            # Standard rack map: R01-R07 - R04 has 6 places, R07 has 11 places x 4 rows, others have up to 10 places x 3 rows
+            # Standard rack map: R01-R07 - R04 has 6 places, R05 has 4 rows, R06 has 5 rows, R07 has 11 places x 4 rows
             for rack_no in range(1, 8):
                 rack_prefix = f"R{rack_no:02d}"
                 max_places = 6 if rack_prefix == 'R04' else (11 if rack_prefix == 'R07' else 10)
-                max_rows = 4 if rack_prefix == 'R07' else 3
+                max_rows = 5 if rack_prefix == 'R06' else (4 if rack_prefix in ('R05', 'R07') else 3)
                 for place in range(1, max_places + 1):
                     for row in range(1, max_rows + 1):
                         candidates.add(f"{rack_prefix}{place:02d}{row:02d}")

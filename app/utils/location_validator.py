@@ -197,7 +197,7 @@ def validate_registered_warehouse_location(cursor, location_code):
         # not arbitrary coordinates such as R019999. Custom slots require exact entries.
         rack_no, place, level = int(rack[1]), int(rack[2]), int(rack[3])
         limits = {1: (10, 3), 2: (10, 3), 3: (10, 3), 4: (6, 3),
-                  5: (10, 3), 6: (10, 3), 7: (11, 4), 9: (4, 6)}
+                  5: (10, 4), 6: (10, 5), 7: (11, 4), 9: (4, 6)}
         max_place, max_level = limits.get(rack_no, (0, 0))
         if place <= max_place and level <= max_level and (location[:3] in allowed or location[:5] in allowed):
             return True, None
