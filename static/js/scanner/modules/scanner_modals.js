@@ -317,8 +317,9 @@ function submitScannerSplit() {
     });
 }
 
-/* ─── Direct Tape Split into Individual Rolls (kg -> szt) ─────── */
+/* ─── Direct Tape Split into Individual Rolls (kg / szt) ─────── */
 let _scannerTapeRolls = ['', ''];
+let _scannerTapeSplitMode = 'kg'; // 'kg' | 'szt'
 
 function _parseScannerTapeDecimal(raw) {
   if (raw === null || raw === undefined) return NaN;
@@ -326,11 +327,57 @@ function _parseScannerTapeDecimal(raw) {
   return cleaned ? parseFloat(cleaned) : NaN;
 }
 
+function setScannerTapeSplitMode(mode) {
+  _scannerTapeSplitMode = mode === 'szt' ? 'szt' : 'kg';
+  const kgBtn = document.getElementById('tapeSplitModeKgBtn');
+  const sztBtn = document.getElementById('tapeSplitModeSztBtn');
+  const bagRow = document.getElementById('tapeSplitBagWeightRow');
+  const lbl = document.getElementById('scannerTapeRollsLabel');
+
+  if (kgBtn && sztBtn) {
+    const isKg = _scannerTapeSplitMode === 'kg';
+    kgBtn.style.background = isKg ? '#2563eb' : '#0f172a';
+    kgBtn.style.borderColor = isKg ? '#3b82f6' : '#475569';
+    kgBtn.style.color = isKg ? '#fff' : '#cbd5e1';
+    sztBtn.style.background = !isKg ? '#2563eb' : '#0f172a';
+    sztBtn.style.borderColor = !isKg ? '#3b82f6' : '#475569';
+    sztBtn.style.color = !isKg ? '#fff' : '#cbd5e1';
+  }
+  if (bagRow) bagRow.style.display = _scannerTapeSplitMode === 'kg' ? 'block' : 'none';
+  if (lbl) lbl.textContent = _scannerTapeSplitMode === 'kg' ? 'Pojedyncze rolki (wpisz kg):' : 'Pojedyncze rolki (wpisz szt):';
+
+  _renderScannerTapeRolls();
+  _updateScannerTapeSummary();
+  const firstRoll = document.querySelector('#scannerTapeRollsList .scanner-tape-roll-kg');
+  if (firstRoll) firstRoll.focus();
+}
+
 function _updateScannerTapeSummary() {
   const bagInp = document.getElementById('tapeSplitBagWeightKg');
   const sumEl = document.getElementById('scannerTapeSplitSummary');
-  if (!bagInp || !sumEl) return;
-  const bagKg = _parseScannerTapeDecimal(bagInp.value);
+  if (!sumEl) return;
+
+  if (_scannerTapeSplitMode === 'szt') {
+    let totalPcs = 0;
+    let count = 0;
+    _scannerTapeRolls.forEach((v) => {
+      const val = _parseScannerTapeDecimal(v);
+      if (isFinite(val) && val > 0) {
+        totalPcs += Math.round(val);
+        count += 1;
+      }
+    });
+    if (count === 0) {
+      sumEl.style.color = '#93c5fd';
+      sumEl.textContent = 'Wpisz liczbę sztuk (szt) dla co najmniej 2 rolek.';
+    } else {
+      sumEl.style.color = count >= 2 ? '#34d399' : '#fbbf24';
+      sumEl.innerHTML = `Razem: <strong>${count} ${count === 1 ? 'rolka' : (count < 5 ? 'rolki' : 'rolek')}</strong> → <strong>${totalPcs.toLocaleString('pl-PL')} szt</strong>`;
+    }
+    return;
+  }
+
+  const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
   if (!isFinite(bagKg) || bagKg <= 0) {
     sumEl.style.color = '#fbbf24';
     sumEl.textContent = 'Wpisz wagę 1 worka w kg (np. 0.150), aby przeliczyć rolki.';
@@ -360,18 +407,22 @@ function _renderScannerTapeRolls() {
   const listEl = document.getElementById('scannerTapeRollsList');
   const bagInp = document.getElementById('tapeSplitBagWeightKg');
   if (!listEl) return;
+  const isSzt = _scannerTapeSplitMode === 'szt';
   const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
 
   listEl.innerHTML = _scannerTapeRolls.map((val, idx) => {
-    const kg = _parseScannerTapeDecimal(val);
-    const pcsText = (isFinite(kg) && kg > 0 && isFinite(bagKg) && bagKg > 0)
-      ? `= ${Math.round(kg / bagKg).toLocaleString('pl-PL')} szt`
-      : '—';
+    const num = _parseScannerTapeDecimal(val);
+    let pcsText = '—';
+    if (isSzt) {
+      pcsText = (isFinite(num) && num > 0) ? `${Math.round(num).toLocaleString('pl-PL')} szt` : '—';
+    } else if (isFinite(num) && num > 0 && isFinite(bagKg) && bagKg > 0) {
+      pcsText = `= ${Math.round(num / bagKg).toLocaleString('pl-PL')} szt`;
+    }
     return `
       <div style="display:flex; align-items:center; gap:8px;">
         <span style="font-size:12px; font-weight:800; color:#94a3b8; width:62px; flex-shrink:0;">Rolka #${idx + 1}</span>
         <input type="text" inputmode="decimal" class="scanner-tape-roll-kg" data-idx="${idx}"
-               value="${String(val || '').replace(/"/g, '&quot;')}" placeholder="kg..."
+               value="${String(val || '').replace(/"/g, '&quot;')}" placeholder="${isSzt ? 'szt...' : 'kg...'}"
                style="flex:1; min-width:0; padding:9px 10px; font-size:16px; font-weight:800; background:#0f172a; border:2px solid #475569; border-radius:8px; color:#fff; outline:none;">
         <span class="scanner-tape-roll-pcs" style="font-size:13px; font-weight:800; color:#34d399; min-width:86px; text-align:right;">${pcsText}</span>
         ${_scannerTapeRolls.length > 2 ? `<button type="button" class="scanner-tape-remove-roll" data-idx="${idx}" style="background:#7f1d1d; color:#fecaca; border:none; border-radius:8px; width:30px; height:34px; font-weight:900; cursor:pointer; flex-shrink:0;">&times;</button>` : ''}
@@ -383,13 +434,17 @@ function _renderScannerTapeRolls() {
     inp.addEventListener('input', () => {
       const idx = parseInt(inp.dataset.idx, 10);
       _scannerTapeRolls[idx] = inp.value;
-      const bKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
-      const kg = _parseScannerTapeDecimal(inp.value);
+      const num = _parseScannerTapeDecimal(inp.value);
       const pcsEl = inp.parentElement && inp.parentElement.querySelector('.scanner-tape-roll-pcs');
       if (pcsEl) {
-        pcsEl.textContent = (isFinite(kg) && kg > 0 && isFinite(bKg) && bKg > 0)
-          ? `= ${Math.round(kg / bKg).toLocaleString('pl-PL')} szt`
-          : '—';
+        if (_scannerTapeSplitMode === 'szt') {
+          pcsEl.textContent = (isFinite(num) && num > 0) ? `${Math.round(num).toLocaleString('pl-PL')} szt` : '—';
+        } else {
+          const bKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
+          pcsEl.textContent = (isFinite(num) && num > 0 && isFinite(bKg) && bKg > 0)
+            ? `= ${Math.round(num / bKg).toLocaleString('pl-PL')} szt`
+            : '—';
+        }
       }
       _updateScannerTapeSummary();
     });
@@ -514,9 +569,10 @@ function saveScannerTapeBagWeight() {
 
 function submitScannerTapeSplit() {
   if (!currentPallet) return;
+  const isSzt = _scannerTapeSplitMode === 'szt';
   const bagInp = document.getElementById('tapeSplitBagWeightKg');
   const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
-  if (!isFinite(bagKg) || bagKg <= 0) {
+  if (!isSzt && (!isFinite(bagKg) || bagKg <= 0)) {
     showToast('Najpierw wpisz wagę 1 worka w kg (np. 0.150)!', 'warn');
     if (bagInp) bagInp.focus();
     return;
@@ -526,12 +582,12 @@ function submitScannerTapeSplit() {
   for (let i = 0; i < _scannerTapeRolls.length; i += 1) {
     const raw = String(_scannerTapeRolls[i] || '').trim();
     if (!raw) continue;
-    const kg = _parseScannerTapeDecimal(raw);
-    if (!isFinite(kg) || kg <= 0) {
-      showToast(`Podaj poprawną wagę > 0 kg dla rolki #${i + 1}`, 'warn');
+    const num = _parseScannerTapeDecimal(raw);
+    if (!isFinite(num) || num <= 0) {
+      showToast(`Podaj poprawną wartość > 0 ${isSzt ? 'szt' : 'kg'} dla rolki #${i + 1}`, 'warn');
       return;
     }
-    const pcs = Math.round(kg / bagKg);
+    const pcs = isSzt ? Math.round(num) : Math.round(num / bagKg);
     if (pcs <= 0) {
       showToast(`Rolka #${i + 1} ma 0 szt po przeliczeniu`, 'warn');
       return;
@@ -540,7 +596,7 @@ function submitScannerTapeSplit() {
   }
 
   if (rollsSzt.length < 2) {
-    showToast('Wpisz wagę (kg) dla co najmniej 2 rolek!', 'warn');
+    showToast(`Wpisz ${isSzt ? 'sztuki' : 'wagę (kg)'} dla co najmniej 2 rolek!`, 'warn');
     return;
   }
 
@@ -560,8 +616,8 @@ function submitScannerTapeSplit() {
       pallet_id: currentPallet.id,
       nr_palety: currentPallet.nr_palety,
       rolls_szt: rollsSzt,
-      bag_weight_kg: bagKg,
-      save_bag_weight: true,
+      bag_weight_kg: !isSzt ? bagKg : null,
+      save_bag_weight: !isSzt,
       print_labels: printChecked
     })
   })

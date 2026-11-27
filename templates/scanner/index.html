@@ -424,7 +424,18 @@
       </div>
     </div>
 
-    <div style="margin-bottom:14px;">
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <button type="button" id="tapeSplitModeKgBtn" onclick="setScannerTapeSplitMode('kg')"
+        style="flex:1; padding:9px 10px; border-radius:10px; border:2px solid #3b82f6; background:#2563eb; color:#fff; font-size:13px; font-weight:800; cursor:pointer;">
+        Wpisuję w kg (→ szt)
+      </button>
+      <button type="button" id="tapeSplitModeSztBtn" onclick="setScannerTapeSplitMode('szt')"
+        style="flex:1; padding:9px 10px; border-radius:10px; border:2px solid #475569; background:#0f172a; color:#cbd5e1; font-size:13px; font-weight:800; cursor:pointer;">
+        Wpisuję w szt
+      </button>
+    </div>
+
+    <div id="tapeSplitBagWeightRow" style="margin-bottom:14px;">
       <label
         style="display:block; font-size:11px; font-weight:800; color:#94a3b8; margin-bottom:5px; text-transform:uppercase;">Waga
         1 worka dla tej taśmy (kg):</label>
@@ -440,7 +451,7 @@
 
     <div style="margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <label style="font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase;">Pojedyncze rolki (wpisz
+        <label id="scannerTapeRollsLabel" style="font-size:11px; font-weight:800; color:#94a3b8; text-transform:uppercase;">Pojedyncze rolki (wpisz
           kg):</label>
         <button type="button" onclick="addScannerTapeRoll()"
           style="background:#2563eb; color:#fff; border:none; border-radius:8px; padding:5px 10px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:4px;">
@@ -902,7 +913,7 @@
   src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v={{ scanner_ui_version }}&bucket=20261003-wxx"></script>
 <script src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js', v=scanner_ui_version) }}"></script>
 <script
-  src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js', v=scanner_ui_version) }}&tape_split=1"></script>
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js', v=scanner_ui_version) }}&tape_split=2"></script>
 <script
   src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js', v=scanner_ui_version) }}"></script>
 <script

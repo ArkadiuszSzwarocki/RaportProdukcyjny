@@ -274,12 +274,18 @@ function mountTapeConverterWidget(containerEl, pallet, targetQtyInput, targetUni
                 </div>
             </div>
             <div class="tape-split-panel" style="display: none; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #93c5fd;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase;">Pojedyncze rolki (kg):</span>
-                    <button type="button" class="tape-add-roll-btn" ${disabledAttr}
-                            style="background: #2563eb; color: white; border: none; border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 3px;">
-                        <span class="material-icons" style="font-size: 14px;">add</span> Dodaj rolkę
-                    </button>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap;">
+                    <span class="tape-split-unit-label" style="font-size: 11px; font-weight: 800; color: #1e40af; text-transform: uppercase;">Pojedyncze rolki (kg):</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <button type="button" class="tape-split-unit-toggle" ${disabledAttr}
+                                style="background: white; color: #1d4ed8; border: 1px solid #93c5fd; border-radius: 8px; padding: 3px 8px; font-size: 11px; font-weight: 800; cursor: pointer;">
+                            Jednostka: kg ⇄ szt
+                        </button>
+                        <button type="button" class="tape-add-roll-btn" ${disabledAttr}
+                                style="background: #2563eb; color: white; border: none; border-radius: 8px; padding: 4px 10px; font-size: 11px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 3px;">
+                            <span class="material-icons" style="font-size: 14px;">add</span> Dodaj rolkę
+                        </button>
+                    </div>
                 </div>
                 <div class="tape-rolls-list" style="display: flex; flex-direction: column; gap: 6px;"></div>
                 <div style="margin-top: 6px; font-size: 10px; color: #475569; font-weight: 600;">
@@ -296,25 +302,32 @@ function mountTapeConverterWidget(containerEl, pallet, targetQtyInput, targetUni
     const saveBagBtn = containerEl.querySelector('.tape-save-bag-btn');
     const toggleSplitBtn = containerEl.querySelector('.tape-toggle-split-btn');
     const splitPanel = containerEl.querySelector('.tape-split-panel');
+    const splitUnitLabel = containerEl.querySelector('.tape-split-unit-label');
+    const splitUnitToggle = containerEl.querySelector('.tape-split-unit-toggle');
     const addRollBtn = containerEl.querySelector('.tape-add-roll-btn');
     const rollsListEl = containerEl.querySelector('.tape-rolls-list');
     const resultEl = containerEl.querySelector('.tape-conv-result');
 
     let splitMode = false;
+    let splitUnit = 'kg'; // 'kg' | 'szt'
     let rollValues = ['', ''];
 
     function renderSplitRolls() {
+        const isSzt = splitUnit === 'szt';
         const bagKg = parseTapeDecimal(bagInput.value);
         rollsListEl.innerHTML = rollValues.map((val, idx) => {
-            const kg = parseTapeDecimal(val);
-            const pcsText = (isFinite(kg) && kg > 0 && isFinite(bagKg) && bagKg > 0)
-                ? `= ${Math.round(kg / bagKg).toLocaleString('pl-PL')} szt`
-                : '—';
+            const num = parseTapeDecimal(val);
+            let pcsText = '—';
+            if (isSzt) {
+                pcsText = (isFinite(num) && num > 0) ? `${Math.round(num).toLocaleString('pl-PL')} szt` : '—';
+            } else if (isFinite(num) && num > 0 && isFinite(bagKg) && bagKg > 0) {
+                pcsText = `= ${Math.round(num / bagKg).toLocaleString('pl-PL')} szt`;
+            }
             return `
                 <div style="display: flex; align-items: center; gap: 6px;">
                     <span style="font-size: 11px; font-weight: 800; color: #475569; width: 54px; flex-shrink: 0;">Rolka #${idx + 1}</span>
                     <input type="text" inputmode="decimal" class="tape-split-roll-input" data-roll-idx="${idx}" ${disabledAttr}
-                           value="${String(val || '').replace(/"/g, '&quot;')}" placeholder="kg..."
+                           value="${String(val || '').replace(/"/g, '&quot;')}" placeholder="${isSzt ? 'szt...' : 'kg...'}"
                            style="flex: 1; min-width: 0; border: 1.5px solid #3b82f6; border-radius: 8px; padding: 6px 8px; font-size: 14px; font-weight: 800; background: white; outline: none;">
                     <span class="tape-split-roll-pcs" style="font-size: 12px; font-weight: 800; color: #059669; min-width: 78px; text-align: right;">${pcsText}</span>
                     ${rollValues.length > 2 ? `<button type="button" class="tape-remove-roll-btn" data-roll-idx="${idx}" ${disabledAttr} style="background: #fee2e2; color: #dc2626; border: none; border-radius: 8px; width: 28px; height: 28px; font-weight: 900; cursor: pointer; flex-shrink: 0;">&times;</button>` : ''}
@@ -327,12 +340,16 @@ function mountTapeConverterWidget(containerEl, pallet, targetQtyInput, targetUni
                 const idx = parseInt(inp.dataset.rollIdx, 10);
                 rollValues[idx] = inp.value;
                 const rowPcs = inp.parentElement && inp.parentElement.querySelector('.tape-split-roll-pcs');
-                const kg = parseTapeDecimal(inp.value);
-                const bKg = parseTapeDecimal(bagInput.value);
+                const num = parseTapeDecimal(inp.value);
                 if (rowPcs) {
-                    rowPcs.textContent = (isFinite(kg) && kg > 0 && isFinite(bKg) && bKg > 0)
-                        ? `= ${Math.round(kg / bKg).toLocaleString('pl-PL')} szt`
-                        : '—';
+                    if (splitUnit === 'szt') {
+                        rowPcs.textContent = (isFinite(num) && num > 0) ? `${Math.round(num).toLocaleString('pl-PL')} szt` : '—';
+                    } else {
+                        const bKg = parseTapeDecimal(bagInput.value);
+                        rowPcs.textContent = (isFinite(num) && num > 0 && isFinite(bKg) && bKg > 0)
+                            ? `= ${Math.round(num / bKg).toLocaleString('pl-PL')} szt`
+                            : '—';
+                    }
                 }
                 recalc();
             });
@@ -364,22 +381,23 @@ function mountTapeConverterWidget(containerEl, pallet, targetQtyInput, targetUni
 
     function getSplitRollsSzt() {
         if (!splitMode) return null;
+        const isSzt = splitUnit === 'szt';
         const bagKg = parseTapeDecimal(bagInput.value);
-        if (!isFinite(bagKg) || bagKg <= 0) {
+        if (!isSzt && (!isFinite(bagKg) || bagKg <= 0)) {
             return { error: 'Wpisz wagę 1 worka (kg), aby przeliczyć rolki.' };
         }
         const filled = rollValues
-            .map((v, i) => ({ idx: i + 1, raw: String(v || '').trim(), kg: parseTapeDecimal(v) }))
+            .map((v, i) => ({ idx: i + 1, raw: String(v || '').trim(), num: parseTapeDecimal(v) }))
             .filter(r => r.raw !== '');
         if (filled.length < 2) {
-            return { error: 'Wpisz wagę (kg) dla co najmniej 2 rolek albo wyłącz rozbijanie.' };
+            return { error: `Wpisz ${isSzt ? 'sztuki' : 'wagę (kg)'} dla co najmniej 2 rolek albo wyłącz rozbijanie.` };
         }
         const result = [];
         for (const r of filled) {
-            if (!isFinite(r.kg) || r.kg <= 0) {
-                return { error: `Podaj poprawną wagę > 0 kg dla rolki #${r.idx}.` };
+            if (!isFinite(r.num) || r.num <= 0) {
+                return { error: `Podaj poprawną wartość > 0 ${isSzt ? 'szt' : 'kg'} dla rolki #${r.idx}.` };
             }
-            const pcs = Math.round(r.kg / bagKg);
+            const pcs = isSzt ? Math.round(r.num) : Math.round(r.num / bagKg);
             if (pcs <= 0) {
                 return { error: `Przeliczona ilość dla rolki #${r.idx} wynosi 0 szt.` };
             }
@@ -392,6 +410,28 @@ function mountTapeConverterWidget(containerEl, pallet, targetQtyInput, targetUni
         const bagKg = parseTapeDecimal(bagInput.value);
 
         if (splitMode) {
+            if (splitUnit === 'szt') {
+                let totalPcs = 0;
+                let validCount = 0;
+                for (const v of rollValues) {
+                    const num = parseTapeDecimal(v);
+                    if (isFinite(num) && num > 0) {
+                        totalPcs += Math.round(num);
+                        validCount += 1;
+                    }
+                }
+                if (validCount > 0) {
+                    targetQtyInput.value = String(totalPcs);
+                    if (targetUnitSelect) targetUnitSelect.value = 'szt';
+                    targetQtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    resultEl.style.color = validCount >= 2 ? '#059669' : '#b45309';
+                    resultEl.innerHTML = `Razem: <strong>${validCount} ${validCount === 1 ? 'rolka' : (validCount < 5 ? 'rolki' : 'rolek')}</strong> → <strong>${totalPcs.toLocaleString('pl-PL')} szt</strong>`;
+                } else {
+                    resultEl.style.color = '#475569';
+                    resultEl.textContent = 'Wpisz liczbę sztuk (szt) dla każdej rolki.';
+                }
+                return;
+            }
             if (!isFinite(bagKg) || bagKg <= 0) {
                 resultEl.style.color = '#dc2626';
                 resultEl.textContent = 'Najpierw wpisz wagę 1 worka w kg (np. 0.150).';
@@ -475,6 +515,18 @@ function mountTapeConverterWidget(containerEl, pallet, targetQtyInput, targetUni
                 const firstRoll = rollsListEl.querySelector('.tape-split-roll-input');
                 if (firstRoll) firstRoll.focus();
             }
+            recalc();
+        });
+    }
+
+    if (splitUnitToggle) {
+        splitUnitToggle.addEventListener('click', () => {
+            splitUnit = splitUnit === 'kg' ? 'szt' : 'kg';
+            if (splitUnitLabel) {
+                splitUnitLabel.textContent = splitUnit === 'szt' ? 'Pojedyncze rolki (szt):' : 'Pojedyncze rolki (kg):';
+            }
+            splitUnitToggle.textContent = splitUnit === 'szt' ? 'Jednostka: szt ⇄ kg' : 'Jednostka: kg ⇄ szt';
+            renderSplitRolls();
             recalc();
         });
     }
