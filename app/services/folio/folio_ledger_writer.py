@@ -13,16 +13,12 @@ class FolioLedgerWriter:
 
     @staticmethod
     def has_request_key(cursor, request_key: str) -> bool:
-        """Check idempotency key across both AGRO and legacy movement tables."""
+        """Check idempotency key across movement tables."""
         pattern = f'%{request_key}%'
-        for table_name in ('magazyn_agro_ruch', 'magazyn_ruch'):
+        for table_name in ('magazyn_ruch', 'magazyn_agro_ruch'):
             cursor.execute(
-                f"""
-                SELECT id
-                FROM {table_name}
-                WHERE typ_ruchu = 'POBRANIE_NA_MASZYNE' AND komentarz LIKE %s
-                LIMIT 1
-                """,
+                f"SELECT id FROM {table_name} "
+                "WHERE typ_ruchu = 'POBRANIE_NA_MASZYNE' AND komentarz LIKE %s LIMIT 1",
                 (pattern,),
             )
             if cursor.fetchone():
@@ -79,9 +75,8 @@ class FolioLedgerWriter:
 
     @staticmethod
     def record_foil_withdrawal(cursor, event: FoilWithdrawalEvent) -> None:
-        """Write withdrawal ledger entries to magazyn_agro_ruch and palety_historia."""
+        """Write withdrawal ledger entries to magazyn_ruch and palety_historia."""
         now_dt = datetime.now()
-        table_ruch = get_table_name('magazyn_ruch', 'AGRO')
         src = event.source
         roll = event.roll
         meta_json = json.dumps(
@@ -97,13 +92,11 @@ class FolioLedgerWriter:
 
         if not event.reused_lp01_roll:
             cursor.execute(
-                f"""
-                INSERT INTO {table_ruch}
-                (surowiec_id, surowiec_nazwa, lokalizacja, typ_ruchu, ilosc, ilosc_po,
-                 status, autor_login, autor_data, plan_id, komentarz)
-                VALUES (%s, %s, %s, 'POBRANIE_DO_PRODUKCJI', %s, %s,
-                        'POTWIERDZONE', %s, %s, %s, %s)
-                """,
+                "INSERT INTO magazyn_ruch "
+                "(surowiec_id, surowiec_nazwa, lokalizacja, typ_ruchu, ilosc, ilosc_po, "
+                "status, autor_login, autor_data, plan_id, komentarz) "
+                "VALUES (%s, %s, %s, 'POBRANIE_DO_PRODUKCJI', %s, %s, "
+                "'POTWIERDZONE', %s, %s, %s, %s)",
                 (
                     src.source_id,
                     src.source_name,
@@ -118,13 +111,11 @@ class FolioLedgerWriter:
             )
 
         cursor.execute(
-            f"""
-            INSERT INTO {table_ruch}
-            (surowiec_id, surowiec_nazwa, lokalizacja, typ_ruchu, ilosc, ilosc_po,
-             status, autor_login, autor_data, plan_id, komentarz)
-            VALUES (%s, %s, 'LP01', 'POBRANIE_NA_MASZYNE', %s, %s,
-                    'POTWIERDZONE', %s, %s, %s, %s)
-            """,
+            "INSERT INTO magazyn_ruch "
+            "(surowiec_id, surowiec_nazwa, lokalizacja, typ_ruchu, ilosc, ilosc_po, "
+            "status, autor_login, autor_data, plan_id, komentarz) "
+            "VALUES (%s, %s, 'LP01', 'POBRANIE_NA_MASZYNE', %s, %s, "
+            "'POTWIERDZONE', %s, %s, %s, %s)",
             (
                 roll.roll_id,
                 src.source_name,

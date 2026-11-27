@@ -82,6 +82,7 @@ def _format_quantity_label(value):
     return f"{numeric:.2f}".rstrip('0').rstrip('.')
 
 class AgroOpakowaniaPlanRepository:
+    @staticmethod
     def get_linked_packaging(plan_id):
             """Get all packaging items linked to a production plan."""
             conn = get_db_connection()
@@ -99,6 +100,7 @@ class AgroOpakowaniaPlanRepository:
             finally:
                 conn.close()
 
+    @staticmethod
     def get_all_linked_packaging(plan_id, conn=None):
             """Get ALL packaging items linked to a production plan, active and inactive."""
             own_conn = conn is None
@@ -122,6 +124,7 @@ class AgroOpakowaniaPlanRepository:
                 if own_conn:
                     conn.close()
 
+    @staticmethod
     def _link_to_active_plan(cursor, opakowanie_id, lokalizacja, linia='Agro'):
             """Internal helper to link packaging to active plan if moved to machine."""
             if str(lokalizacja).lower() != 'maszyna' or str(linia).upper() != 'AGRO':
@@ -154,10 +157,12 @@ class AgroOpakowaniaPlanRepository:
                 (plan_id, opakowanie_id, stan_poczatkowy)
             )
 
+    @staticmethod
     def link_packaging_to_plan(opakowanie_id, plan_id, ilosc_pobrana=None, user_login=None):
         from app.services.folio_assignment_service import FolioAssignmentService
         return FolioAssignmentService.assign(opakowanie_id, plan_id, ilosc_pobrana, user_login or 'System', role='auto')
 
+    @staticmethod
     def undo_packaging_link(link_id):
             """Delete an active packaging link (Undo addition)."""
             conn = get_db_connection()
@@ -187,6 +192,7 @@ class AgroOpakowaniaPlanRepository:
             finally:
                 conn.close()
 
+    @staticmethod
     def finalize_packaging_usage(plan_id, szt_na_palecie, packaging_results, user_login, external_conn=None):
             """Processes final states for all packaging items used in a plan."""
             conn = external_conn if external_conn is not None else get_db_connection()
@@ -298,6 +304,7 @@ class AgroOpakowaniaPlanRepository:
                 if external_conn is None:
                     conn.close()
 
+    @staticmethod
     def return_packaging_from_machine(opakowanie_id, stan_po, lokalizacja, user_login, is_partial=False, print_label=False):
             """Return a roll from machine back to warehouse.
 
@@ -501,6 +508,7 @@ class AgroOpakowaniaPlanRepository:
 
             return True, None, {'return_label': return_label, 'print_result': print_result}
 
+    @staticmethod
     def undo_packaging_return(link_id, user_login):
             """Restore an inactive packaging link to active state and revert warehouse stock."""
             conn = get_db_connection()
@@ -536,6 +544,7 @@ class AgroOpakowaniaPlanRepository:
             finally:
                 conn.close()
 
+    @staticmethod
     def build_packaging_return_label_zpl(label_data):
             """Build informational ZPL label for packaging returns."""
             opakowanie_nazwa = _sanitize_zpl_text(label_data.get('opakowanie_nazwa'), 58) or 'BRAK NAZWY'
@@ -570,6 +579,7 @@ class AgroOpakowaniaPlanRepository:
     {nr_partii_line}
     ^XZ"""
 
+    @staticmethod
     def print_packaging_return_label(label_data):
             """Print informational packaging-return label via print bridge."""
             from app.services.print_server import get_printer

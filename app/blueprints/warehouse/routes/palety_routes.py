@@ -14,9 +14,9 @@ from app.services.planning.status import PlanningStatusService
 from app.utils.validation import require_field
 from app.utils.pallet_id import generate_pallet_id
 
-from .printing_routes import _select_preferred_printer
-from .misc_routes import _parse_data_produkcji_input
-from .palety_helpers import _resolve_plan_id_for_paleta
+from app.blueprints.warehouse.routes.printing_routes import _select_preferred_printer
+from app.blueprints.warehouse.routes.misc_routes import _parse_data_produkcji_input
+from app.blueprints.warehouse.routes.palety_helpers import _resolve_plan_id_for_paleta
 
 def _resolve_plan_id_for_paleta(cursor, paleta_id, linia, requested_plan_id=None):
     """Resolve Workowanie plan_id for a pallet id from magazyn/buffer tables safely."""

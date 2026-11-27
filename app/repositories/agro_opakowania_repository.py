@@ -82,6 +82,7 @@ def _format_quantity_label(value):
     return f"{numeric:.2f}".rstrip('0').rstrip('.')
 
 class AgroOpakowaniaRepository:
+    @staticmethod
     def get_packaging_inventory(linia='Agro', conn=None):
             """Return packaging inventory rows from magazyn_opakowania."""
             table_opak = get_table_name('magazyn_opakowania', linia)
@@ -104,6 +105,7 @@ class AgroOpakowaniaRepository:
                 if own_conn:
                     conn.close()
 
+    @staticmethod
     def create_packaging(nazwa, ilosc, lokalizacja=None, linia='Agro'):
             table_opak = get_table_name('magazyn_opakowania', linia)
             conn = get_db_connection()
@@ -115,6 +117,7 @@ class AgroOpakowaniaRepository:
             finally:
                 conn.close()
 
+    @staticmethod
     def edit_packaging(record_id, nazwa=None, ilosc=None, lokalizacja=None, linia='Agro'):
             table_opak = get_table_name('magazyn_opakowania', linia)
             conn = get_db_connection()
@@ -141,6 +144,7 @@ class AgroOpakowaniaRepository:
             finally:
                 conn.close()
 
+    @staticmethod
     def delete_packaging(record_id, linia='Agro'):
             table_opak = get_table_name('magazyn_opakowania', linia)
             conn = get_db_connection()
@@ -152,6 +156,7 @@ class AgroOpakowaniaRepository:
             finally:
                 conn.close()
 
+    @staticmethod
     def adjust_packaging_inventory(record_id, actual_qty, worker_login=None, linia='Agro'):
             table_opak = get_table_name('magazyn_opakowania', linia)
             # We will reuse magazyn_ruch for audit if available

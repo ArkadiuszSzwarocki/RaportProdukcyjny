@@ -10,6 +10,7 @@ Obsługuje:
 from __future__ import annotations
 
 from datetime import datetime
+import json
 import math
 from typing import Optional
 
@@ -52,6 +53,10 @@ class FolioService:
                        ap.licznik_start,
                        o.nazwa, o.stan_magazynowy AS stan_na_maszynie,
                        o.lokalizacja,
+                       COALESCE(
+                           (SELECT mar.komentarz FROM magazyn_agro_ruch mar WHERE mar.surowiec_id=o.id AND mar.typ_ruchu='POBRANIE_NA_MASZYNE' ORDER BY mar.id DESC LIMIT 1),
+                           (SELECT mr.komentarz FROM magazyn_ruch mr WHERE mr.surowiec_id=o.id AND mr.typ_ruchu='POBRANIE_NA_MASZYNE' ORDER BY mr.id DESC LIMIT 1)
+                       ) AS source_metadata,
                        (SELECT r.autor_login FROM agro_workowanie_rozliczenie r WHERE r.link_id=ap.id AND r.typ_zdarzenia='WSADZENIE' ORDER BY r.id LIMIT 1) AS assigned_by,
                        ap.created_at
                 FROM agro_plan_opakowania ap
@@ -70,7 +75,10 @@ class FolioService:
                 stan_poczatkowy = float(r.get('stan_poczatkowy') or 0)
                 is_prepared = r.get('licznik_start') is None
                 licznik_start = int(r.get('licznik_start') or 0)
-                source_meta = FolioLedgerWriter.find_roll_source_metadata(cursor, int(r['opakowanie_id']))
+                try:
+                    source_meta = json.loads(r.get('source_metadata') or '{}')
+                except (ValueError, TypeError):
+                    source_meta = {}
 
                 # Zużycie z licznika MQTT
                 live_zuzyte = 0
@@ -178,7 +186,8 @@ class FolioService:
             cursor.execute(
                 """
                 SELECT ap.plan_id, ap.opakowanie_id, ap.stan_poczatkowy, ap.licznik_start,
-                       o.nazwa AS opak_nazwa, o.stan_magazynowy AS stan_na_maszynie
+                       o.nazwa AS opak_nazwa, o.stan_magazynowy AS stan_na_maszynie,
+                       o.nr_palety AS opak_sscc
                 FROM agro_plan_opakowania ap
                 JOIN magazyn_opakowania o ON ap.opakowanie_id = o.id
                 WHERE ap.id = %s AND ap.is_active = TRUE FOR UPDATE
@@ -236,18 +245,8 @@ class FolioService:
                 (pozostalo_szt, link_id)
             )
 
-            # 6. Ensure roll SSCC exists and keep remainder on LP01 (or mark ZUŻYTE when 0)
-            from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
-            cursor.execute(
-                "SELECT nr_palety, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s",
-                (opakowanie_id,),
-            )
-            rolka_dane = cursor.fetchone() or {}
-            sscc = str(rolka_dane.get('nr_palety') or '').strip()
-            if not sscc or not is_valid_pallet_id(sscc):
-                sscc = generate_pallet_id('AGRO', 'opakowanie')
-                cursor.execute("UPDATE magazyn_opakowania SET nr_palety = %s WHERE id = %s", (sscc, opakowanie_id))
-
+            # 6. Keep remainder on LP01 (or mark ZUŻYTE when 0)
+            initial_sscc = str(link.get('opak_sscc') or '').strip()
             if pozostalo_szt > 0:
                 cursor.execute(
                     "UPDATE magazyn_opakowania SET stan_magazynowy = %s, lokalizacja = 'LP01', updated_at = NOW() WHERE id = %s",
@@ -265,7 +264,7 @@ class FolioService:
                 FoilClosureEvent(
                     opakowanie_id=int(opakowanie_id),
                     opak_nazwa=opak_nazwa,
-                    nr_palety=sscc,
+                    nr_palety=initial_sscc,
                     plan_id=int(plan_id),
                     stan_poczatkowy=stan_poczatkowy,
                     pozostalo_szt=pozostalo_szt,
@@ -304,6 +303,17 @@ class FolioService:
                         # Fallback do jakiejkolwiek aktywnej drukarki etykiet
                         cursor.execute("SELECT ip, nazwa FROM drukarki WHERE aktywna = 1 LIMIT 1")
                         printer = cursor.fetchone()
+
+                    cursor.execute(
+                        "SELECT nr_palety, nr_partii, data_produkcji, data_przydatnosci FROM magazyn_opakowania WHERE id = %s",
+                        (opakowanie_id,),
+                    )
+                    rolka_dane = cursor.fetchone() or {}
+                    from app.utils.pallet_id import is_valid_pallet_id, generate_pallet_id
+                    sscc = str(rolka_dane.get('nr_palety') or initial_sscc).strip()
+                    if not sscc or not is_valid_pallet_id(sscc):
+                        sscc = generate_pallet_id('AGRO', 'opakowanie')
+                        cursor.execute("UPDATE magazyn_opakowania SET nr_palety = %s WHERE id = %s", (sscc, opakowanie_id))
 
                     dp = rolka_dane.get('data_produkcji')
                     dp_str = dp.strftime('%Y-%m-%d') if hasattr(dp, 'strftime') else (str(dp) if dp else datetime.now().strftime('%Y-%m-%d'))

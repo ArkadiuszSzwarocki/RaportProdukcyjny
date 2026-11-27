@@ -69,12 +69,9 @@ class FolioAssignmentService:
             cur = conn.cursor(dictionary=True)
             # Lock the order before slots/source: concurrent requests cannot overfill it.
             cur.execute(
-                """
-                SELECT id, produkt, data_planu, status, opakowanie_id, start_machine_counter
-                FROM plan_produkcji_agro
-                WHERE id=%s AND sekcja='Workowanie' AND COALESCE(is_deleted,0)=0
-                FOR UPDATE
-                """,
+                "SELECT id, produkt, data_planu, status, opakowanie_id, start_machine_counter "
+                "FROM plan_produkcji_agro "
+                "WHERE id=%s AND sekcja='Workowanie' AND COALESCE(is_deleted,0)=0 FOR UPDATE",
                 (plan_id,),
             )
             plan = cur.fetchone()
@@ -116,7 +113,7 @@ class FolioAssignmentService:
                 required = cur.fetchone()
                 if not required or _film_name(required['nazwa']) != _film_name(source['nazwa']):
                     raise ValueError('Ta folia nie odpowiada folii wymaganej przez wybrane zlecenie.')
-            from app.utils.pallet_id import generate_pallet_id, is_valid_pallet_id
+            from app.utils.pallet_id import generate_pallet_id
             from app.services.folio_service import _get_mqtt_counter
             if replacing:
                 from app.services.folio_service import FolioService
@@ -129,7 +126,7 @@ class FolioAssignmentService:
             remaining = source_qty_before - amount
             source_loc = str(source.get('lokalizacja') or '').strip()
             source_sscc = str(source.get('nr_palety') or '').strip()
-            if not source_sscc or not is_valid_pallet_id(source_sscc):
+            if not source_sscc:
                 source_sscc = generate_pallet_id('AGRO', 'opakowanie')
                 cur.execute("UPDATE magazyn_opakowania SET nr_palety=%s WHERE id=%s", (source_sscc, source_id))
 
@@ -152,12 +149,12 @@ class FolioAssignmentService:
                 origin_id = source_id
                 if remaining <= 0:
                     cur.execute(
-                        "UPDATE magazyn_opakowania SET stan_magazynowy=0, lokalizacja='ZUŻYTE', updated_at=NOW() WHERE id=%s",
-                        (source_id,),
+                        "UPDATE magazyn_opakowania SET stan_magazynowy=%s, lokalizacja='ZUŻYTE', updated_at=NOW() WHERE id=%s",
+                        (0.0, source_id),
                     )
                 else:
                     cur.execute(
-                        "UPDATE magazyn_opakowania SET stan_magazynowy=%s, updated_at=NOW() WHERE id=%s",
+                        "UPDATE magazyn_opakowania SET stan_magazynowy=%s,updated_at=NOW() WHERE id=%s",
                         (remaining, source_id),
                     )
                 roll_sscc = generate_pallet_id('AGRO', 'opakowanie')
@@ -178,16 +175,15 @@ class FolioAssignmentService:
                 )
                 roll_id = cur.lastrowid
 
-            counter = (
-                FolioQueries.resolve_effective_start_counter(
-                    cur,
-                    plan_id,
-                    plan.get('start_machine_counter'),
-                    _get_mqtt_counter(),
+            counter = None
+            if role == 'active':
+                live_cnt = _get_mqtt_counter()
+                order_start_cnt = int(plan.get('start_machine_counter') or 0)
+                counter = (
+                    FolioQueries.resolve_effective_start_counter(cur, plan_id, order_start_cnt, live_cnt)
+                    if order_start_cnt > 0
+                    else live_cnt
                 )
-                if role == 'active'
-                else None
-            )
             cur.execute(
                 "INSERT INTO agro_plan_opakowania (plan_id,opakowanie_id,stan_poczatkowy,is_active,licznik_start) VALUES (%s,%s,%s,TRUE,%s)",
                 (plan_id, roll_id, amount, counter),
@@ -259,19 +255,19 @@ class FolioAssignmentService:
                 ok,error = FolioService.close_roll(int(close_link_id),remaining,user,external_conn=conn,label_jobs=labels)
                 if not ok:
                     raise ValueError(error)
-            counter = FolioQueries.resolve_effective_start_counter(
-                cur,
-                target['plan_id'],
-                plan.get('start_machine_counter'),
-                _get_mqtt_counter(),
+            live_cnt = _get_mqtt_counter()
+            order_start_cnt = int(plan.get('start_machine_counter') or 0)
+            counter = (
+                FolioQueries.resolve_effective_start_counter(cur, target['plan_id'], order_start_cnt, live_cnt)
+                if order_start_cnt > 0
+                else live_cnt
             )
             cur.execute("UPDATE agro_plan_opakowania SET licznik_start=%s WHERE id=%s",(counter,link_id))
             cur.execute("UPDATE agro_workowanie_rozliczenie SET licznik_start=%s WHERE link_id=%s AND typ_zdarzenia='WSADZENIE'",(counter,link_id))
-            FolioLedgerWriter.record_foil_activation(
-                cur,
-                opakowanie_id=int(prepared['opakowanie_id']),
-                plan_id=int(target['plan_id']),
-                user_login=user,
+            cur.execute(
+                "INSERT INTO magazyn_agro_ruch (surowiec_id,lokalizacja,typ_ruchu,ilosc,status,autor_login,autor_data,plan_id,komentarz) "
+                "SELECT opakowanie_id,'LP01','ZALOZENIE_ROLKI',0,'POTWIERDZONE',%s,NOW(),%s,%s FROM agro_plan_opakowania WHERE id=%s",
+                (user, target['plan_id'], 'Założenie przygotowanej rolki do zlecenia #' + str(target['plan_id']), link_id),
             )
             conn.commit()
             FolioService.print_closed_roll_labels(labels)
