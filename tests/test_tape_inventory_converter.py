@@ -169,3 +169,55 @@ def test_api_zapisz_wpis_delegates_split_rolls(client):
     mock_split.assert_called_once()
 
 
+def test_scanner_split_tape_rolls_direct_endpoint(client):
+    with client.session_transaction() as sess:
+        sess['zalogowany'] = True
+        sess['rola'] = 'magazynier'
+        sess['login'] = 'szwarark'
+
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchone.return_value = {
+        'id': 42,
+        'nr_palety': 'OPK080520268220711005',
+        'nazwa': 'Fiolet',
+        'stan_magazynowy': 5277.0,
+        'lokalizacja': 'R060405',
+        'nr_partii': 'BRAK',
+        'data_produkcji': None,
+        'data_przydatnosci': None,
+        'typ_opakowania': 'Taśma',
+        'linia': 'PSD',
+    }
+    mock_cursor.lastrowid = 501
+
+    with patch('app.db.get_db_connection', return_value=mock_conn), \
+         patch('app.services.warehouse_history.movement_recorder.MovementRecorder.record_movement', return_value=True) as mock_rec, \
+         patch.object(InwentaryzacjaService, 'save_tape_conversions_bulk', return_value=(True, 'OK')):
+        resp = client.post(
+            '/agro/scanner/split-tape-rolls',
+            json={
+                'pallet_id': 42,
+                'nr_palety': 'OPK080520268220711005',
+                'rolls_szt': [1200, 1133, 1000],
+                'bag_weight_kg': 0.15,
+                'save_bag_weight': True,
+                'print_labels': False,
+            },
+            content_type='application/json',
+        )
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data['success'] is True
+    assert len(data['rolls']) == 3
+    assert data['rolls'][0]['stan_magazynowy'] == 1200
+    assert data['rolls'][0]['is_source'] is True
+    assert data['rolls'][1]['nr_palety'].startswith('OPK000')
+    assert data['rolls'][2]['nr_palety'].startswith('OPK000')
+    assert mock_conn.commit.called
+    assert mock_rec.call_count == 3
+
+
+

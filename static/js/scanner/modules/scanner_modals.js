@@ -316,3 +316,271 @@ function submitScannerSplit() {
     }
   });
 }
+
+/* ─── Direct Tape Split into Individual Rolls (kg -> szt) ─────── */
+let _scannerTapeRolls = ['', ''];
+
+function _parseScannerTapeDecimal(raw) {
+  if (raw === null || raw === undefined) return NaN;
+  const cleaned = String(raw).trim().replace(/\s+/g, '').replace(',', '.');
+  return cleaned ? parseFloat(cleaned) : NaN;
+}
+
+function _updateScannerTapeSummary() {
+  const bagInp = document.getElementById('tapeSplitBagWeightKg');
+  const sumEl = document.getElementById('scannerTapeSplitSummary');
+  if (!bagInp || !sumEl) return;
+  const bagKg = _parseScannerTapeDecimal(bagInp.value);
+  if (!isFinite(bagKg) || bagKg <= 0) {
+    sumEl.style.color = '#fbbf24';
+    sumEl.textContent = 'Wpisz wagę 1 worka w kg (np. 0.150), aby przeliczyć rolki.';
+    return;
+  }
+  let totalKg = 0;
+  let totalPcs = 0;
+  let count = 0;
+  _scannerTapeRolls.forEach((v) => {
+    const kg = _parseScannerTapeDecimal(v);
+    if (isFinite(kg) && kg > 0) {
+      totalKg += kg;
+      totalPcs += Math.round(kg / bagKg);
+      count += 1;
+    }
+  });
+  if (count === 0) {
+    sumEl.style.color = '#93c5fd';
+    sumEl.textContent = `Wpisz wagę (kg) dla co najmniej 2 rolek (dzielnik: ${bagKg} kg/worek).`;
+  } else {
+    sumEl.style.color = count >= 2 ? '#34d399' : '#fbbf24';
+    sumEl.innerHTML = `Razem: <strong>${count} ${count === 1 ? 'rolka' : (count < 5 ? 'rolki' : 'rolek')}</strong> | ${Math.round(totalKg * 100) / 100} kg → <strong>${totalPcs.toLocaleString('pl-PL')} szt</strong>`;
+  }
+}
+
+function _renderScannerTapeRolls() {
+  const listEl = document.getElementById('scannerTapeRollsList');
+  const bagInp = document.getElementById('tapeSplitBagWeightKg');
+  if (!listEl) return;
+  const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
+
+  listEl.innerHTML = _scannerTapeRolls.map((val, idx) => {
+    const kg = _parseScannerTapeDecimal(val);
+    const pcsText = (isFinite(kg) && kg > 0 && isFinite(bagKg) && bagKg > 0)
+      ? `= ${Math.round(kg / bagKg).toLocaleString('pl-PL')} szt`
+      : '—';
+    return `
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:12px; font-weight:800; color:#94a3b8; width:62px; flex-shrink:0;">Rolka #${idx + 1}</span>
+        <input type="text" inputmode="decimal" class="scanner-tape-roll-kg" data-idx="${idx}"
+               value="${String(val || '').replace(/"/g, '&quot;')}" placeholder="kg..."
+               style="flex:1; min-width:0; padding:9px 10px; font-size:16px; font-weight:800; background:#0f172a; border:2px solid #475569; border-radius:8px; color:#fff; outline:none;">
+        <span class="scanner-tape-roll-pcs" style="font-size:13px; font-weight:800; color:#34d399; min-width:86px; text-align:right;">${pcsText}</span>
+        ${_scannerTapeRolls.length > 2 ? `<button type="button" class="scanner-tape-remove-roll" data-idx="${idx}" style="background:#7f1d1d; color:#fecaca; border:none; border-radius:8px; width:30px; height:34px; font-weight:900; cursor:pointer; flex-shrink:0;">&times;</button>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  listEl.querySelectorAll('.scanner-tape-roll-kg').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const idx = parseInt(inp.dataset.idx, 10);
+      _scannerTapeRolls[idx] = inp.value;
+      const bKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
+      const kg = _parseScannerTapeDecimal(inp.value);
+      const pcsEl = inp.parentElement && inp.parentElement.querySelector('.scanner-tape-roll-pcs');
+      if (pcsEl) {
+        pcsEl.textContent = (isFinite(kg) && kg > 0 && isFinite(bKg) && bKg > 0)
+          ? `= ${Math.round(kg / bKg).toLocaleString('pl-PL')} szt`
+          : '—';
+      }
+      _updateScannerTapeSummary();
+    });
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const idx = parseInt(inp.dataset.idx, 10);
+        const next = listEl.querySelector(`.scanner-tape-roll-kg[data-idx="${idx + 1}"]`);
+        if (next) next.focus();
+      }
+    });
+  });
+
+  listEl.querySelectorAll('.scanner-tape-remove-roll').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx, 10);
+      if (_scannerTapeRolls.length > 2) {
+        _scannerTapeRolls.splice(idx, 1);
+        _renderScannerTapeRolls();
+        _updateScannerTapeSummary();
+      }
+    });
+  });
+}
+
+function addScannerTapeRoll() {
+  _scannerTapeRolls.push('');
+  _renderScannerTapeRolls();
+  _updateScannerTapeSummary();
+  const inputs = document.querySelectorAll('#scannerTapeRollsList .scanner-tape-roll-kg');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+function openScannerTapeSplitModal() {
+  if (!currentPallet) return;
+  const overlay = document.getElementById('scannerTapeSplitOverlay');
+  if (!overlay) return;
+
+  _scannerTapeRolls = ['', ''];
+  const nameEl = document.getElementById('tapeSplitPalletName');
+  const ssccEl = document.getElementById('tapeSplitPalletSSCC');
+  const locEl = document.getElementById('tapeSplitPalletLoc');
+  const qtyEl = document.getElementById('tapeSplitPalletQty');
+  const bagInp = document.getElementById('tapeSplitBagWeightKg');
+
+  if (nameEl) nameEl.textContent = currentPallet.nazwa || '—';
+  if (ssccEl) ssccEl.textContent = currentPallet.nr_palety || ('OPK-' + currentPallet.id);
+  if (locEl) locEl.textContent = currentPallet.lokalizacja || '—';
+  if (qtyEl) qtyEl.textContent = Math.round(parseFloat(currentPallet.stan_magazynowy || 0));
+  if (bagInp) {
+    bagInp.value = '';
+    if (!bagInp.dataset.boundTapeSplit) {
+      bagInp.dataset.boundTapeSplit = '1';
+      bagInp.addEventListener('input', () => {
+        _renderScannerTapeRolls();
+        _updateScannerTapeSummary();
+      });
+    }
+  }
+
+  _renderScannerTapeRolls();
+  _updateScannerTapeSummary();
+  overlay.style.display = 'flex';
+
+  // Fetch saved bag weight for this tape
+  fetch('/magazyn/inwentaryzacja/api/tasmy-przeliczniki', { credentials: 'same-origin' })
+    .then((r) => r.json())
+    .then((d) => {
+      if (d.success && d.map && currentPallet && currentPallet.nazwa && bagInp) {
+        const key = String(currentPallet.nazwa).trim().toLowerCase();
+        if (d.map[key]) {
+          bagInp.value = String(d.map[key]);
+          _renderScannerTapeRolls();
+          _updateScannerTapeSummary();
+          const firstRoll = document.querySelector('#scannerTapeRollsList .scanner-tape-roll-kg');
+          if (firstRoll) firstRoll.focus();
+        } else {
+          bagInp.focus();
+        }
+      }
+    })
+    .catch(() => {});
+}
+
+function closeScannerTapeSplitModal() {
+  const overlay = document.getElementById('scannerTapeSplitOverlay');
+  if (overlay) overlay.style.display = 'none';
+  const scanInput = document.getElementById('scanInput');
+  if (scanInput) {
+    scanInput.value = '';
+    scanInput.focus();
+  }
+}
+
+function saveScannerTapeBagWeight() {
+  if (!currentPallet || !currentPallet.nazwa) return;
+  const bagInp = document.getElementById('tapeSplitBagWeightKg');
+  const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
+  if (!isFinite(bagKg) || bagKg <= 0) {
+    showToast('Podaj poprawną wagę 1 worka > 0 (np. 0.150)', 'warn');
+    if (bagInp) bagInp.focus();
+    return;
+  }
+  fetch('/magazyn/inwentaryzacja/api/tasmy-przeliczniki', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ nazwa: currentPallet.nazwa, waga_worka_kg: bagKg })
+  })
+    .then((r) => r.json())
+    .then((d) => {
+      if (d.success) {
+        showToast(`✅ Zapisano ${bagKg} kg/worek dla ${currentPallet.nazwa}`, 'success');
+        _renderScannerTapeRolls();
+        _updateScannerTapeSummary();
+      } else {
+        showToast(d.message || 'Błąd zapisu wagi worka', 'danger');
+      }
+    })
+    .catch(() => showToast('Błąd połączenia z serwerem', 'danger'));
+}
+
+function submitScannerTapeSplit() {
+  if (!currentPallet) return;
+  const bagInp = document.getElementById('tapeSplitBagWeightKg');
+  const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
+  if (!isFinite(bagKg) || bagKg <= 0) {
+    showToast('Najpierw wpisz wagę 1 worka w kg (np. 0.150)!', 'warn');
+    if (bagInp) bagInp.focus();
+    return;
+  }
+
+  const rollsSzt = [];
+  for (let i = 0; i < _scannerTapeRolls.length; i += 1) {
+    const raw = String(_scannerTapeRolls[i] || '').trim();
+    if (!raw) continue;
+    const kg = _parseScannerTapeDecimal(raw);
+    if (!isFinite(kg) || kg <= 0) {
+      showToast(`Podaj poprawną wagę > 0 kg dla rolki #${i + 1}`, 'warn');
+      return;
+    }
+    const pcs = Math.round(kg / bagKg);
+    if (pcs <= 0) {
+      showToast(`Rolka #${i + 1} ma 0 szt po przeliczeniu`, 'warn');
+      return;
+    }
+    rollsSzt.push(pcs);
+  }
+
+  if (rollsSzt.length < 2) {
+    showToast('Wpisz wagę (kg) dla co najmniej 2 rolek!', 'warn');
+    return;
+  }
+
+  const printChecked = Boolean(document.getElementById('tapeSplitPrintLabels')?.checked);
+  const btn = document.getElementById('btnConfirmScannerTapeSplit');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite;">refresh</span> Rozbijanie...';
+  }
+
+  const targetCode = currentPallet.nr_palety || ('OPK-' + currentPallet.id);
+  fetch('/agro/scanner/split-tape-rolls', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      pallet_id: currentPallet.id,
+      nr_palety: currentPallet.nr_palety,
+      rolls_szt: rollsSzt,
+      bag_weight_kg: bagKg,
+      save_bag_weight: true,
+      print_labels: printChecked
+    })
+  })
+    .then((r) => r.json())
+    .then((d) => {
+      if (d.success) {
+        closeScannerTapeSplitModal();
+        const extraMsg = printChecked ? ` (wydrukowano etykiet: ${d.printed_count || 0})` : '';
+        showToast(`✅ ${d.message}${extraMsg}`, 'success');
+        if (targetCode) lookupPallet(targetCode);
+      } else {
+        showToast(d.error || d.message || 'Błąd rozbijania taśmy', 'danger');
+      }
+    })
+    .catch((e) => showToast('Błąd połączenia z serwerem: ' + e, 'danger'))
+    .finally(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons" style="font-size:18px;">call_split</span> Rozbij na rolki';
+      }
+    });
+}

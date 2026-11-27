@@ -369,6 +369,14 @@ function showPallet(p) {
     splitBtn.style.display = canSplit ? 'block' : 'none';
   }
 
+  const tapeSplitBtn = document.getElementById('scannerTapeSplitBtnContainer');
+  if (tapeSplitBtn) {
+    const pkgTypeLower = String(p.typ_opakowania || '').toLowerCase();
+    const isTapePkg = pkgTypeLower.includes('taśm') || pkgTypeLower.includes('tasm') || p.inventory_type === 'Opakowanie' || Boolean(p.is_pkg);
+    const canTapeSplit = !isTransferOrder && !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0 && isTapePkg;
+    tapeSplitBtn.style.display = canTapeSplit ? 'block' : 'none';
+  }
+
   const palletCard = document.getElementById('palletCard');
   if (palletCard) palletCard.classList.add('visible');
 
