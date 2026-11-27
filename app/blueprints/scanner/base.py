@@ -530,6 +530,168 @@ def get_printers():
 # Scanner UI
 # ─────────────────────────────────────────────────────────────────────────────
 
+@scanner_bp.route('/split-tape-rolls', methods=['POST'])
+def split_tape_rolls():
+    """Rozbija paletę taśmy w magazyn_opakowania bezpośrednio na pojedyncze rolki (bez inwentaryzacji)."""
+    import random
+    import time
+    from app.db import get_db_connection
+    from app.services.inwentaryzacja_service import InwentaryzacjaService
+    from app.services.warehouse_history.movement_recorder import MovementRecorder
+
+    data = request.get_json(silent=True) or {}
+    pallet_id = data.get('pallet_id') or data.get('surowiec_id') or data.get('id')
+    nr_palety = str(data.get('nr_palety') or data.get('sscc') or '').strip()
+    rolls_szt = data.get('rolls_szt')
+    bag_weight_kg = data.get('bag_weight_kg')
+    save_bag_weight = bool(data.get('save_bag_weight', False))
+    print_labels = bool(data.get('print_labels', True))
+    printer_ip = data.get('printer_ip') or data.get('override_ip')
+    printer_name = data.get('printer_name') or data.get('override_name')
+    copies = int(data.get('copies') or 2)
+    worker = _worker()
+
+    if not pallet_id and not nr_palety:
+        return jsonify({'success': False, 'error': 'Brak identyfikatora palety taśmy.'}), 400
+    if not isinstance(rolls_szt, list) or len(rolls_szt) < 2:
+        return jsonify({'success': False, 'error': 'Podaj co najmniej 2 rolki do rozbicia.'}), 400
+
+    cleaned_rolls = []
+    for idx, raw_val in enumerate(rolls_szt, start=1):
+        try:
+            qty = int(round(float(str(raw_val).replace(',', '.'))))
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': f'Nieprawidłowa ilość dla rolki #{idx}.'}), 400
+        if qty <= 0:
+            return jsonify({'success': False, 'error': f'Ilość dla rolki #{idx} musi być większa od 0.'}), 400
+        cleaned_rolls.append(qty)
+
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        if pallet_id:
+            cur.execute("SELECT * FROM magazyn_opakowania WHERE id = %s LIMIT 1 FOR UPDATE", (pallet_id,))
+        else:
+            cur.execute("SELECT * FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s LIMIT 1 FOR UPDATE", (nr_palety.upper(),))
+        pal = cur.fetchone()
+        if not pal:
+            conn.rollback()
+            return jsonify({'success': False, 'error': 'Nie znaleziono palety taśmy w magazynie opakowań.'}), 404
+
+        old_qty = float(pal.get('stan_magazynowy') or 0)
+        if old_qty <= 0:
+            conn.rollback()
+            return jsonify({'success': False, 'error': 'Paleta ma zerowy stan magazynowy.'}), 400
+
+        pal_linia = pal.get('linia') or _linia()
+        pal_loc = pal.get('lokalizacja') or 'MOP01'
+        pal_pkg = pal.get('typ_opakowania') or 'Taśma'
+        src_sscc = pal.get('nr_palety') or f"OPK-{pal['id']}"
+
+        # 1. Roll #1 updates original pallet
+        first_qty = cleaned_rolls[0]
+        cur.execute(
+            "UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s",
+            (first_qty, pal['id']),
+        )
+        MovementRecorder.record_movement(
+            pal['id'], pal_linia, 'opakowanie', 'ROZBICIE_ROLEK',
+            pal_loc, pal_loc,
+            f"Rozbicie palety taśmy na {len(cleaned_rolls)} rolek (Rolka #1: {old_qty:g} -> {first_qty} szt)",
+            worker, src_sscc,
+            cursor=cur, connection=conn,
+            quantity_before=old_qty, quantity_after=first_qty,
+        )
+
+        result_rolls = [{
+            'id': pal['id'],
+            'nr_palety': src_sscc,
+            'stan_magazynowy': first_qty,
+            'is_source': True,
+        }]
+
+        # 2. Rolls #2..#N inserted as separate pallets in magazyn_opakowania
+        base_ts = int(time.time() * 1000)
+        for idx, roll_qty in enumerate(cleaned_rolls[1:], start=2):
+            suffix = f"{(base_ts + idx) % 10000000000000:013d}{random.randint(10, 99)}"
+            new_sscc = f"OPK000{suffix}"
+            cur.execute(
+                """
+                INSERT INTO magazyn_opakowania
+                    (nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci,
+                     typ_opakowania, is_blocked, linia, is_loaded, is_depozyt)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 0, 0)
+                """,
+                (
+                    new_sscc, pal['nazwa'], roll_qty, pal_loc,
+                    pal.get('nr_partii'), pal.get('data_produkcji'), pal.get('data_przydatnosci'),
+                    pal_pkg, pal_linia,
+                ),
+            )
+            new_id = cur.lastrowid
+            MovementRecorder.record_movement(
+                new_id, pal_linia, 'opakowanie', 'ROZBICIE_ROLEK',
+                pal_loc, pal_loc,
+                f"Rolka #{idx} z rozbicia palety {src_sscc} ({roll_qty} szt)",
+                worker, new_sscc,
+                cursor=cur, connection=conn,
+                quantity_before=0, quantity_after=roll_qty,
+            )
+            result_rolls.append({
+                'id': new_id,
+                'nr_palety': new_sscc,
+                'stan_magazynowy': roll_qty,
+                'is_source': False,
+            })
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': f'Błąd rozbijania palety: {e}'}), 500
+    finally:
+        conn.close()
+
+    if save_bag_weight and bag_weight_kg not in (None, ''):
+        try:
+            InwentaryzacjaService.save_tape_conversions_bulk(
+                [{'nazwa': pal['nazwa'], 'waga_worka_kg': bag_weight_kg}],
+                user_login=worker,
+            )
+        except Exception:
+            pass
+
+    printed_count = 0
+    print_errors = []
+    if print_labels:
+        printer = get_printer()
+        for r_item in result_rolls:
+            try:
+                lbl_data = ScannerService.get_label_data(r_item['nr_palety'], linia=pal_linia, pallet_type='opakowanie')
+                if lbl_data:
+                    ok, msg = printer.print_pallet_label(
+                        lbl_data,
+                        override_ip=printer_ip,
+                        override_name=printer_name,
+                        copies=copies,
+                    )
+                    if ok:
+                        printed_count += 1
+                    else:
+                        print_errors.append(f"{r_item['nr_palety']}: {msg}")
+            except Exception as pe:
+                print_errors.append(f"{r_item['nr_palety']}: {pe}")
+
+    total_szt = sum(cleaned_rolls)
+    return jsonify({
+        'success': True,
+        'message': f"Rozbito na {len(cleaned_rolls)} rolek (razem {total_szt} szt)",
+        'source_sscc': src_sscc,
+        'rolls': result_rolls,
+        'printed_count': printed_count,
+        'print_errors': print_errors,
+    })
+
+
 @scanner_bp.route('/ui')
 def scanner_ui():
     linia = request.args.get('linia', 'AGRO').upper()

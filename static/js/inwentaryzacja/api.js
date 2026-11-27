@@ -17,8 +17,24 @@ function fetchProductNames(typ = '') {
 
 
 function saveEntry(pallet, actualWeight, cardElement, btn, unit) {
+    let splitRollsSzt = null;
+    if (cardElement) {
+        const tapeSlotEl = cardElement.querySelector('.tape-converter-slot');
+        if (tapeSlotEl && tapeSlotEl._tapeWidget && typeof tapeSlotEl._tapeWidget.getSplitRollsSzt === 'function') {
+            const splitRes = tapeSlotEl._tapeWidget.getSplitRollsSzt();
+            if (splitRes && splitRes.error) {
+                if (typeof safeToast === 'function') safeToast(splitRes.error, 'error');
+                else alert(splitRes.error);
+                return;
+            }
+            if (Array.isArray(splitRes) && splitRes.length >= 2) {
+                splitRollsSzt = splitRes;
+            }
+        }
+    }
+
     const weight = parseFloat(actualWeight);
-    if(isNaN(weight)) {
+    if(!splitRollsSzt && isNaN(weight)) {
         if (typeof safeToast === 'function') safeToast('Podaj poprawną wagę!', 'error');
         else alert('Podaj poprawną wagę!');
         return;
@@ -37,13 +53,14 @@ function saveEntry(pallet, actualWeight, cardElement, btn, unit) {
         lokalizacja: loc,
         nr_partii: pallet.nr_partii,
         waga_systemowa: pallet.stan_magazynowy !== undefined ? pallet.stan_magazynowy : (pallet.waga_systemowa || 0),
-        waga_faktyczna: weight,
+        waga_faktyczna: splitRollsSzt ? splitRollsSzt[0] : weight,
         linia: pallet.linia || 'PSD',
         data_produkcji: pallet.data_produkcji,
         data_przydatnosci: pallet.data_przydatnosci,
         typ_opakowania: pallet.typ_opakowania || pallet.packaging_type || 'brak',
-        jednostka: unit || pallet.jednostka || 'kg'
+        jednostka: splitRollsSzt ? 'szt' : (unit || pallet.jednostka || 'kg')
     };
+    if (splitRollsSzt) payload.rolls_szt = splitRollsSzt;
 
     fetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
         method: 'POST',
@@ -53,7 +70,7 @@ function saveEntry(pallet, actualWeight, cardElement, btn, unit) {
     .then(r => r.json())
     .then(data => {
         if(data.success) {
-            if(weight <= 0) {
+            if(!splitRollsSzt && weight <= 0) {
                 // Wizualnie usuń: przekreślenie, czerwone, szary przycisk
                 if(cardElement) cardElement.style.opacity = '0.6';
                 if(btn) { btn.innerHTML='<span class="material-icons">delete_forever</span>'; btn.style.background='#ef4444'; }
@@ -64,7 +81,7 @@ function saveEntry(pallet, actualWeight, cardElement, btn, unit) {
                     cardElement.style.background = '#f0fdf4';
                 }
                 if(btn) { btn.innerHTML='<span class="material-icons">done_all</span>'; btn.style.background='#059669'; }
-                if(typeof safeToast === 'function') safeToast(`✅ Zapisano: ${weight} ${unit || 'kg'}`, 'success');
+                if(typeof safeToast === 'function') safeToast(splitRollsSzt ? (`✅ ${data.message || 'Zapisano rolki'}`) : (`✅ Zapisano: ${weight} ${unit || 'kg'}`), 'success');
             }
         } else {
             if(btn) { btn.innerHTML='<span class="material-icons">error</span>'; btn.style.background='#ef4444'; }

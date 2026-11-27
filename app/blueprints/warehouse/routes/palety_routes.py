@@ -266,11 +266,14 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
         from app.services.warehouse_pallet_service import WarehousePalletService
         linia = resolve_request_linia()
         waga_palety = request.form.get('waga_palety', '0')
+        source = request.form.get('source') or (
+            'workowanie' if str(request.form.get('sekcja') or '').strip().lower() == 'workowanie' else None
+        )
         user_login = session.get('login', 'System')
         is_ajax = False
         
         result, status_code, redirect_url = WarehousePalletService.edytuj_palete(
-            paleta_id, linia, waga_palety, user_login, update_paleta_workowanie, is_ajax, safe_return()
+            paleta_id, linia, waga_palety, user_login, update_paleta_workowanie, is_ajax, safe_return(), source=source
         )
         
         if status_code != 302:
@@ -294,11 +297,12 @@ def register_palety_routes(warehouse_bp, *, resolve_request_linia, resolve_paylo
 
         linia = req_data.get('linia') or resolve_request_linia()
         waga_palety = req_data.get('waga') or req_data.get('waga_palety') or request.form.get('waga_palety') or '0'
+        source = req_data.get('source') or request.form.get('source')
         user_login = session.get('login', 'System')
         is_ajax = True
         
         result, status_code, redirect_url = WarehousePalletService.edytuj_palete(
-            paleta_id, linia, waga_palety, user_login, update_paleta_workowanie, is_ajax, safe_return()
+            paleta_id, linia, waga_palety, user_login, update_paleta_workowanie, is_ajax, safe_return(), source=source
         )
         
         if isinstance(result, dict):

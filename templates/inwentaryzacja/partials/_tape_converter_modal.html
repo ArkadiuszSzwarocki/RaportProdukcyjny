@@ -1,0 +1,258 @@
+<!-- MODAL: PRZELICZNIK TAŚM (WAGA 1 WORKA W KG) -->
+<div id="tapeConverterModal" class="modal-overlay" style="display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.82); backdrop-filter: blur(4px); z-index: 3500; align-items: center; justify-content: center; padding: 14px;">
+    <div style="background: white; width: 100%; max-width: 640px; max-height: 90vh; border-radius: 20px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; overflow: hidden;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px;">
+            <div>
+                <h3 style="margin: 0 0 4px 0; font-size: 20px; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px;">
+                    <span class="material-icons" style="color: #2563eb;">calculate</span>
+                    Przelicznik Taśm (kg → szt)
+                </h3>
+                <p style="margin: 0; color: #64748b; font-size: 13px;">
+                    Wpisz wagę jednego worka (kg) dla każdej taśmy. Zasada: <strong>kg rolki ÷ kg 1 worka = szt</strong> (np. <code>500 ÷ 0,150 = 3333 szt</code>).
+                </p>
+            </div>
+            <button type="button" onclick="closeTapeConverterModal()" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 26px; line-height: 1;">&times;</button>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+            <input type="text" id="tapeConverterSearch" placeholder="Szukaj taśmy..." oninput="filterTapeConverterRows()"
+                   style="flex: 1; min-width: 180px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 9px 12px; font-size: 14px; outline: none;">
+            <button type="button" onclick="addCustomTapeRow()" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <span class="material-icons" style="font-size: 16px;">add</span> Dodaj taśmę
+            </button>
+        </div>
+
+        <div style="flex: 1; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead style="background: #f8fafc; position: sticky; top: 0; z-index: 2;">
+                    <tr>
+                        <th style="padding: 10px 12px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;">Nazwa taśmy</th>
+                        <th style="padding: 10px 12px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; width: 170px;">Waga 1 worka (kg)</th>
+                        <th style="padding: 10px 12px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; width: 145px;">Dla 500 kg</th>
+                    </tr>
+                </thead>
+                <tbody id="tapeConverterTableBody">
+                    <tr><td colspan="3" style="padding: 20px; text-align: center; color: #94a3b8;">Ładowanie taśm...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="tapeConverterStatus" style="margin-top: 10px; font-size: 12px; font-weight: 700; min-height: 18px; color: #475569;"></div>
+
+        <div style="display: flex; gap: 10px; margin-top: 12px;">
+            <button type="button" id="saveTapeConversionsBtn" onclick="saveAllTapeConversions()" class="btn-primary"
+                    style="flex: 2; padding: 13px; border-radius: 12px; font-weight: 800; border: none; background: #2563eb; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                <span class="material-icons" style="font-size: 18px;">save</span> ZAPISZ PRZELICZNIKI
+            </button>
+            <button type="button" onclick="closeTapeConverterModal()"
+                    style="flex: 1; background: #f1f5f9; border: none; border-radius: 12px; color: #475569; font-weight: 700; cursor: pointer; padding: 13px;">
+                ZAMKNIJ
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const TAPE_CONV_URL = {{ url_for('inwentaryzacja.api_tasmy_przeliczniki')|tojson }};
+    let _tapeConvRows = [];
+
+    function parseDecimalValue(raw) {
+        if (raw === null || raw === undefined) return NaN;
+        const cleaned = String(raw).trim().replace(/\s+/g, '').replace(',', '.');
+        if (!cleaned) return NaN;
+        return parseFloat(cleaned);
+    }
+
+    function formatPreviewPieces(bagWeightKg) {
+        const w = parseDecimalValue(bagWeightKg);
+        if (!isFinite(w) || w <= 0) return '<span style="color:#94a3b8;">—</span>';
+        const pcs = Math.round(500 / w);
+        return `<span style="color:#059669; font-weight:800;">${pcs.toLocaleString('pl-PL')} szt</span>`;
+    }
+
+    function escapeHtmlText(str) {
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function renderTapeConverterRows() {
+        const tbody = document.getElementById('tapeConverterTableBody');
+        if (!tbody) return;
+        const filterVal = (document.getElementById('tapeConverterSearch')?.value || '').trim().toLowerCase();
+        const visible = _tapeConvRows.filter(r => !filterVal || (r.nazwa || '').toLowerCase().includes(filterVal));
+
+        if (!visible.length) {
+            tbody.innerHTML = '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #94a3b8;">Brak pasujących taśm.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = visible.map((row) => {
+            const idx = _tapeConvRows.indexOf(row);
+            const valStr = row.waga_worka_kg !== null && row.waga_worka_kg !== undefined && row.waga_worka_kg !== ''
+                ? String(row.waga_worka_kg)
+                : '';
+            return `
+                <tr style="border-bottom: 1px solid #f1f5f9;" data-tape-idx="${idx}">
+                    <td style="padding: 9px 12px; font-weight: 700; color: #0f172a;">
+                        ${row._isNew
+                            ? `<input type="text" class="tape-name-input" data-idx="${idx}" value="${escapeHtmlText(row.nazwa)}" placeholder="Nazwa taśmy..." style="width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:6px 8px; font-weight:700; font-size:13px;">`
+                            : escapeHtmlText(row.nazwa)}
+                    </td>
+                    <td style="padding: 9px 12px;">
+                        <input type="text" inputmode="decimal" class="tape-bag-weight-input" data-idx="${idx}"
+                               value="${escapeHtmlText(valStr)}" placeholder="np. 0.150"
+                               style="width: 100%; box-sizing: border-box; border: 2px solid ${valStr ? '#93c5fd' : '#e2e8f0'}; border-radius: 8px; padding: 7px 10px; font-size: 14px; font-weight: 800; color: #0f172a; outline: none;">
+                    </td>
+                    <td style="padding: 9px 12px; text-align: right;" class="tape-preview-cell">
+                        ${formatPreviewPieces(valStr)}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        tbody.querySelectorAll('.tape-bag-weight-input').forEach(inp => {
+            inp.addEventListener('input', () => {
+                const idx = parseInt(inp.dataset.idx, 10);
+                if (!isNaN(idx) && _tapeConvRows[idx]) {
+                    _tapeConvRows[idx].waga_worka_kg = inp.value;
+                    const tr = inp.closest('tr');
+                    const preview = tr && tr.querySelector('.tape-preview-cell');
+                    if (preview) preview.innerHTML = formatPreviewPieces(inp.value);
+                    inp.style.borderColor = inp.value.trim() ? '#3b82f6' : '#e2e8f0';
+                }
+            });
+        });
+
+        tbody.querySelectorAll('.tape-name-input').forEach(inp => {
+            inp.addEventListener('input', () => {
+                const idx = parseInt(inp.dataset.idx, 10);
+                if (!isNaN(idx) && _tapeConvRows[idx]) {
+                    _tapeConvRows[idx].nazwa = inp.value;
+                }
+            });
+        });
+    }
+
+    window.filterTapeConverterRows = function() {
+        renderTapeConverterRows();
+    };
+
+    window.addCustomTapeRow = function() {
+        _tapeConvRows.unshift({ nazwa: '', waga_worka_kg: '', _isNew: true });
+        renderTapeConverterRows();
+        const firstNew = document.querySelector('#tapeConverterTableBody .tape-name-input');
+        if (firstNew) firstNew.focus();
+    };
+
+    window.openTapeConverterModal = async function() {
+        const modal = document.getElementById('tapeConverterModal');
+        const status = document.getElementById('tapeConverterStatus');
+        if (!modal) return;
+        if (status) { status.textContent = ''; status.style.color = '#475569'; }
+        modal.style.display = 'flex';
+        const tbody = document.getElementById('tapeConverterTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="3" style="padding: 20px; text-align: center; color: #94a3b8;">Ładowanie taśm...</td></tr>';
+        }
+        try {
+            const resp = await fetch(TAPE_CONV_URL, { credentials: 'same-origin' });
+            const data = await resp.json();
+            if (data.success) {
+                _tapeConvRows = (data.items || []).map(it => ({
+                    nazwa: it.nazwa,
+                    waga_worka_kg: it.waga_worka_kg !== null && it.waga_worka_kg !== undefined ? it.waga_worka_kg : ''
+                }));
+                if (window.INVENTORY_CONFIG && data.map) {
+                    window.INVENTORY_CONFIG.tapeWeights = data.map;
+                }
+                renderTapeConverterRows();
+            } else if (status) {
+                status.style.color = '#dc2626';
+                status.textContent = data.message || 'Błąd ładowania listy taśm.';
+            }
+        } catch (err) {
+            if (status) {
+                status.style.color = '#dc2626';
+                status.textContent = 'Błąd połączenia z serwerem.';
+            }
+        }
+    };
+
+    window.closeTapeConverterModal = function() {
+        const modal = document.getElementById('tapeConverterModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.saveAllTapeConversions = async function() {
+        const btn = document.getElementById('saveTapeConversionsBtn');
+        const status = document.getElementById('tapeConverterStatus');
+        const payloadItems = [];
+        for (const row of _tapeConvRows) {
+            const name = String(row.nazwa || '').trim();
+            if (!name) continue;
+            const rawVal = row.waga_worka_kg !== null && row.waga_worka_kg !== undefined ? String(row.waga_worka_kg).trim() : '';
+            if (rawVal !== '') {
+                const parsed = parseDecimalValue(rawVal);
+                if (!isFinite(parsed) || parsed <= 0) {
+                    if (status) {
+                        status.style.color = '#dc2626';
+                        status.textContent = `Nieprawidłowa waga worka dla taśmy "${name}". Wpisz wartość > 0 (np. 0.150).`;
+                    }
+                    return;
+                }
+                payloadItems.push({ nazwa: name, waga_worka_kg: parsed });
+            } else {
+                payloadItems.push({ nazwa: name, waga_worka_kg: null });
+            }
+        }
+
+        if (!payloadItems.length) {
+            if (status) { status.style.color = '#dc2626'; status.textContent = 'Brak pozycji do zapisania.'; }
+            return;
+        }
+
+        if (btn) btn.disabled = true;
+        if (status) { status.style.color = '#2563eb'; status.textContent = 'Zapisywanie...'; }
+        try {
+            const resp = await fetch(TAPE_CONV_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ items: payloadItems })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                _tapeConvRows = (data.items || []).map(it => ({
+                    nazwa: it.nazwa,
+                    waga_worka_kg: it.waga_worka_kg !== null && it.waga_worka_kg !== undefined ? it.waga_worka_kg : ''
+                }));
+                if (window.INVENTORY_CONFIG && data.map) {
+                    window.INVENTORY_CONFIG.tapeWeights = data.map;
+                }
+                window.dispatchEvent(new CustomEvent('tapeWeightsUpdated', { detail: data.map || {} }));
+                renderTapeConverterRows();
+                if (status) {
+                    status.style.color = '#059669';
+                    status.textContent = '✅ Zapisano przeliczniki taśm.';
+                }
+                if (typeof safeToast === 'function') safeToast('Zapisano przeliczniki taśm', 'success');
+            } else if (status) {
+                status.style.color = '#dc2626';
+                status.textContent = data.message || 'Błąd zapisu.';
+            }
+        } catch (err) {
+            if (status) {
+                status.style.color = '#dc2626';
+                status.textContent = 'Błąd połączenia podczas zapisu.';
+            }
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    };
+})();
+</script>
+

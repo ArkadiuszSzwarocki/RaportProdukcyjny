@@ -279,7 +279,7 @@ function showPallet(p) {
       qtyContainer.innerHTML = `<span id="palletQty">${parseFloat(p.stan_magazynowy || 0).toFixed(1)}</span> ${scannerEscapeHtml(p.unit || 'kg')}`;
     }
   }
-  
+
   const isTransferOrder = Boolean(p.is_transfer || p.is_magazyn_dostawy || p.transfer);
   const isUsedUp = !isTransferOrder && (p.is_used_up || parseFloat(p.stan_magazynowy || 0) <= 0);
   const isBlocked = Boolean(p.is_blocked) && !isTransferOrder;
@@ -336,7 +336,7 @@ function showPallet(p) {
     }
     typePill.style.display = 'inline-block';
   }
-  
+
   const ssccEl = document.getElementById('palletSSCC');
   if (ssccEl) ssccEl.textContent = p.nr_palety || p.inventory_code || '—';
 
@@ -351,7 +351,7 @@ function showPallet(p) {
 
   const locUpper = (p.lokalizacja || '').toUpperCase();
   const isProductionStation = !isUsedUp && (locUpper.startsWith('BB') || locUpper.startsWith('MZ') || locUpper.startsWith('WZ') || locUpper.startsWith('Z') || locUpper.startsWith('KO') || (/^K\d+/i.test(locUpper)) || locUpper.startsWith('PSD') || locUpper.startsWith('MIX')) && !locUpper.startsWith('BF_') && !locUpper.startsWith('BF');
-  
+
   const returnBtn = document.getElementById('scannerReturnBtnContainer');
   if (returnBtn) {
     returnBtn.style.display = isProductionStation ? 'block' : 'none';
@@ -367,6 +367,14 @@ function showPallet(p) {
   if (splitBtn) {
     const canSplit = !isTransferOrder && !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0;
     splitBtn.style.display = canSplit ? 'block' : 'none';
+  }
+
+  const tapeSplitBtn = document.getElementById('scannerTapeSplitBtnContainer');
+  if (tapeSplitBtn) {
+    const pkgTypeLower = String(p.typ_opakowania || '').toLowerCase();
+    const isTapePkg = pkgTypeLower.includes('taśm') || pkgTypeLower.includes('tasm') || p.inventory_type === 'Opakowanie' || Boolean(p.is_pkg);
+    const canTapeSplit = !isTransferOrder && !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0 && isTapePkg;
+    tapeSplitBtn.style.display = canTapeSplit ? 'block' : 'none';
   }
 
   const palletCard = document.getElementById('palletCard');
@@ -475,7 +483,7 @@ function hidePallet() {
 
   const nopalletMsg = document.getElementById('nopalletMsg');
   if (nopalletMsg) nopalletMsg.style.display = '';
-  
+
   const idVal = document.getElementById('palletIdVal');
   if (idVal) idVal.textContent = '—';
 
@@ -488,7 +496,7 @@ function hidePallet() {
 
   const restoreBtn = document.getElementById('scannerRestoreBtnContainer');
   if (restoreBtn) restoreBtn.style.display = 'none';
-  
+
   const barContainer = document.getElementById('palletTimeoutBarContainer');
   if (barContainer) barContainer.style.display = 'none';
 

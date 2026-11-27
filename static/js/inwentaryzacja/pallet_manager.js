@@ -63,6 +63,7 @@ function renderPallets(pallets) {
                 </div>
             </div>
             <div id="change-indicator-${index}" style="display:none; padding:6px 10px; border-radius:8px; font-size:12px; font-weight:700; margin-bottom:8px;"></div>
+            <div class="tape-converter-slot"></div>
             <div style="display:flex; gap:10px; align-items:center;">
                 <div style="display: flex; flex: 1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
                     <input type="number" step="0.1" class="weight-input actual-weight-input" 
@@ -152,6 +153,15 @@ function renderPallets(pallets) {
         // Trigger live visual feedback on render if already counted
         if(isCounted) {
             updateListStyle();
+        }
+
+        if (typeof isTapePallet === 'function' && isTapePallet(p)) {
+            const tapeSlot = card.querySelector('.tape-converter-slot');
+            if (tapeSlot) {
+                mountTapeConverterWidget(tapeSlot, p, input, unitSelect, {
+                    onEnter: () => saveEntry(p, input.value, card, saveBtn, unitSelect.value)
+                });
+            }
         }
     });
     

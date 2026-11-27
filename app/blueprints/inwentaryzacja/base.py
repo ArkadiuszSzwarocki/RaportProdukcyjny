@@ -71,7 +71,47 @@ def skaner(sesja_id):
     conn.close()
     
     target_lokalizacja = sesja.get('lokalizacja') if sesja else 'WSZYSTKO'
-    return render_template('inwentaryzacja/skaner.html', sesja_id=sesja_id, target_lokalizacja=target_lokalizacja, printers=printers)
+    tape_weights = InwentaryzacjaService.get_tape_conversions_map()
+    return render_template(
+        'inwentaryzacja/skaner.html',
+        sesja_id=sesja_id,
+        target_lokalizacja=target_lokalizacja,
+        printers=printers,
+        tape_weights=tape_weights,
+    )
+
+
+@inwentaryzacja_bp.route('/api/tasmy-przeliczniki', methods=['GET', 'POST'])
+def api_tasmy_przeliczniki():
+    if request.method == 'GET':
+        items = InwentaryzacjaService.get_tape_conversions()
+        weights_map = {
+            it['nazwa'].strip().lower(): float(it['waga_worka_kg'])
+            for it in items
+            if it.get('waga_worka_kg') is not None and float(it['waga_worka_kg']) > 0
+        }
+        return jsonify({"success": True, "items": items, "map": weights_map})
+
+    data = request.get_json(silent=True) or {}
+    user_login = session.get('login', 'system')
+    if 'items' in data and isinstance(data['items'], list):
+        items_to_save = data['items']
+    elif data.get('nazwa'):
+        items_to_save = [{'nazwa': data.get('nazwa'), 'waga_worka_kg': data.get('waga_worka_kg')}]
+    else:
+        return jsonify({"success": False, "message": "Brak danych taśmy."}), 400
+
+    success, msg = InwentaryzacjaService.save_tape_conversions_bulk(items_to_save, user_login=user_login)
+    if not success:
+        return jsonify({"success": False, "message": msg}), 400
+
+    items = InwentaryzacjaService.get_tape_conversions()
+    weights_map = {
+        it['nazwa'].strip().lower(): float(it['waga_worka_kg'])
+        for it in items
+        if it.get('waga_worka_kg') is not None and float(it['waga_worka_kg']) > 0
+    }
+    return jsonify({"success": True, "message": msg, "items": items, "map": weights_map})
 
 @inwentaryzacja_bp.route('/api/verify-location', methods=['POST'])
 def verify_location():
@@ -259,6 +299,27 @@ def get_lokalizacje():
 @inwentaryzacja_bp.route('/api/zapisz-wpis', methods=['POST'])
 def zapisz_wpis():
     data = request.json
+    rolls_szt = data.get('rolls_szt')
+    if isinstance(rolls_szt, list) and len(rolls_szt) >= 2:
+        success, msg, created_ssccs = InwentaryzacjaService.save_split_tape_rolls(
+            data['sesja_id'],
+            data.get('paleta_id'),
+            data.get('typ_palety'),
+            data.get('nazwa'),
+            data.get('lokalizacja'),
+            data.get('nr_partii'),
+            data.get('waga_systemowa', 0),
+            rolls_szt,
+            session.get('login', 'system'),
+            data.get('linia', 'PSD'),
+            data.get('nr_palety'),
+            data.get('data_produkcji'),
+            data.get('data_przydatnosci'),
+            data.get('typ_opakowania', 'Taśma'),
+            data.get('jednostka', 'szt')
+        )
+        return jsonify({"success": success, "message": msg, "created_ssccs": created_ssccs})
+
     success, msg = InwentaryzacjaService.add_entry(
         data['sesja_id'],
         data.get('paleta_id'),

@@ -1116,6 +1116,17 @@ def _create_tables(cursor):
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS magazyn_tasmy_przeliczniki (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nazwa VARCHAR(255) NOT NULL,
+            waga_worka_kg DECIMAL(10, 4) NOT NULL,
+            updated_by VARCHAR(100) NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_mag_tasmy_przeliczniki_nazwa (nazwa)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """)
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS czyszczenie_magnesow (
             id INT AUTO_INCREMENT PRIMARY KEY,
             linia VARCHAR(10) NOT NULL,

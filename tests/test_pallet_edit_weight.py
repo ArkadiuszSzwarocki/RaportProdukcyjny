@@ -199,3 +199,54 @@ def test_api_edytuj_palete_ajax_endpoint_with_id_in_url(client):
     args, kwargs = mock_edit.call_args
     assert args[0] == 755
     assert args[2] == '1000'
+
+
+def test_edytuj_palete_workowanie_source_skips_magazyn_id_collision():
+    """Editing from Workowanie (source='workowanie') must not collide with magazyn_palety.id."""
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+
+    def fake_fetchone():
+        if mock_cursor.execute.call_args:
+            sql = str(mock_cursor.execute.call_args[0][0])
+            if 'FROM palety_agro WHERE id=%s' in sql:
+                return (1524, 436, 940.0, 940.0, 'przyjeta', 'AGR000001795692176338', 25.0)
+            if 'FROM magazyn_palety WHERE id=%s' in sql:
+                # Would be an unrelated old pallet if erroneously queried
+                return (1524, 139, 131, 1000.0, 'AGR000001779146732144', 25.0, 'AGRO')
+        return None
+
+    mock_cursor.fetchone.side_effect = fake_fetchone
+
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = 'test'
+
+    with app.test_request_context():
+        with patch('app.services.warehouse_pallet_service.get_db_connection', return_value=mock_conn):
+            result, status_code, redirect_url = WarehousePalletService.edytuj_palete(
+                paleta_id=1524,
+                linia='AGRO',
+                waga_palety='960',
+                user_login='boczkmar',
+                update_paleta_workowanie=None,
+                is_ajax=True,
+                safe_return_url='/dashboard',
+                source='workowanie'
+            )
+
+    assert status_code == 200
+    assert result['success'] is True
+    assert mock_conn.commit.called
+
+    executed_sqls = [str(call[0][0]) for call in mock_cursor.execute.call_args_list]
+    assert not any('FROM magazyn_palety WHERE id=%s' in sql for sql in executed_sqls)
+    assert any('UPDATE palety_agro SET waga_potwierdzona=%s, waga=%s WHERE id=%s' in sql for sql in executed_sqls)
+    mag_updates = [
+        call for call in mock_cursor.execute.call_args_list
+        if 'UPDATE magazyn_palety SET waga_netto=%s, waga_brutto=%s WHERE paleta_workowanie_id=%s' in str(call[0][0])
+    ]
+    assert len(mag_updates) == 1
+    assert mag_updates[0][0][1] == (960, 985.0, 1524, 'AGRO', 'AGR000001795692176338')
+    assert any('UPDATE plan_produkcji_agro pp' in sql for sql in executed_sqls)
+

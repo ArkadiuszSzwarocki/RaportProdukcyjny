@@ -8,10 +8,10 @@ LOKALIZACJE_ZRODLO = [
     'RAMPA', 'MIX01', 'W_TRANZYCIE_OSIP', 'OCZEKUJĄCE',
 ]
 
-# Regały R04 (18 poz.: 6 kolumn x 3 poziomy), R05 (20 poz.), R06 (10 poz.), R07 (44 poz.: 11 kolumn x 4 poziomy)
+# Regały R04 (18 poz.: 6 kolumn x 3 poziomy), R05 (16 poz.: 4x4), R06 (25 poz.: 5x5), R07 (44 poz.: 11 kolumn x 4 poziomy)
 _r04 = [f'R04{str(c).zfill(2)}{str(l).zfill(2)}' for l in range(1, 4) for c in range(1, 7)]
-_r05 = [f'R05{str(i+1).zfill(2)}01' for i in range(20)]
-_r06 = [f'R06{str(i+1).zfill(2)}01' for i in range(10)]
+_r05 = sorted([f'R05{str(c).zfill(2)}{str(l).zfill(2)}' for c in range(1, 5) for l in range(1, 5)])
+_r06 = sorted([f'R06{str(c).zfill(2)}{str(l).zfill(2)}' for c in range(1, 6) for l in range(1, 6)])
 _r07 = sorted([f'R07{str(c).zfill(2)}{str(l).zfill(2)}' for c in range(1, 12) for l in range(1, 5)])
 # OSIP – lokalizacje A01..A99 oraz BFOS (+ wsparcie legacy OS01..OS77)
 _osip = [f'A{str(i+1).zfill(2)}' for i in range(99)] + ['BFOS'] + [f'OS{str(i+1).zfill(2)}' for i in range(77)]

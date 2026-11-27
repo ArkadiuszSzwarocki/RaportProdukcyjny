@@ -132,6 +132,7 @@ function openSlotDetail(locId, scannedPallet = null) {
                     </div>
                 </div>
                 <div class="slot-change-indicator" style="display:none; padding:4px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-bottom:8px;"></div>
+                <div class="tape-converter-slot"></div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <div style="display: flex; flex-1; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: white; align-items: center;">
                         <input type="number" step="0.1" inputmode="decimal" class="weight-input slot-weight-input" placeholder="Wpisz wagę..." value="${displayWeight}" ${p === scannedPallet ? '' : 'disabled'} style="border: none; flex: 1; margin: 0; padding: 12px; font-weight: 800; font-size: 16px; outline: none; text-align: left;">
@@ -210,9 +211,21 @@ function openSlotDetail(locId, scannedPallet = null) {
             let isSaving = false;
             const doSave = async () => {
                 if (isSaving) return;
+                const tapeSlotEl = card.querySelector('.tape-converter-slot');
+                let splitRollsSzt = null;
+                if (tapeSlotEl && tapeSlotEl._tapeWidget && typeof tapeSlotEl._tapeWidget.getSplitRollsSzt === 'function') {
+                    const splitRes = tapeSlotEl._tapeWidget.getSplitRollsSzt();
+                    if (splitRes && splitRes.error) {
+                        safeToast(splitRes.error, 'error');
+                        return;
+                    }
+                    if (Array.isArray(splitRes) && splitRes.length >= 2) {
+                        splitRollsSzt = splitRes;
+                    }
+                }
                 const weight = parseFloat(input.value);
-                const unit = unitSelect.value;
-                if(isNaN(weight)) {
+                const unit = splitRollsSzt ? 'szt' : unitSelect.value;
+                if(!splitRollsSzt && isNaN(weight)) {
                     safeToast('Podaj poprawną wagę!', 'error');
                     return;
                 }
@@ -220,35 +233,39 @@ function openSlotDetail(locId, scannedPallet = null) {
                 isSaving = true;
                 saveBtn.innerHTML = '<span class="material-icons" style="font-size:16px; animation:spin 1s linear infinite;">hourglass_top</span>';
                 saveBtn.style.background = '#94a3b8';
-                safeToast('Zapisywanie wagi...', 'info');
+                safeToast(splitRollsSzt ? 'Zapisywanie rozbitych rolek...' : 'Zapisywanie wagi...', 'info');
 
                 try {
+                    const payload = {
+                        sesja_id: window.INVENTORY_CONFIG.sesjaId,
+                        paleta_id: p.id,
+                        nr_palety: p.nr_palety,
+                        typ_palety: p.typ_palety,
+                        nazwa: p.nazwa,
+                        lokalizacja: locId,
+                        nr_partii: p.nr_partii,
+                        waga_systemowa: systemQty,
+                        waga_faktyczna: splitRollsSzt ? splitRollsSzt[0] : weight,
+                        linia: p.linia || 'PSD',
+                        data_produkcji: p.data_produkcji,
+                        data_przydatnosci: p.data_przydatnosci,
+                        typ_opakowania: p.typ_opakowania || '',
+                        jednostka: unit
+                    };
+                    if (splitRollsSzt) payload.rolls_szt = splitRollsSzt;
+
                     const resp = await fetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            sesja_id: window.INVENTORY_CONFIG.sesjaId,
-                            paleta_id: p.id,
-                            nr_palety: p.nr_palety,
-                            typ_palety: p.typ_palety,
-                            nazwa: p.nazwa,
-                            lokalizacja: locId,
-                            nr_partii: p.nr_partii,
-                            waga_systemowa: systemQty,
-                            waga_faktyczna: weight,
-                            linia: p.linia || 'PSD',
-                            data_produkcji: p.data_produkcji,
-                            data_przydatnosci: p.data_przydatnosci,
-                            jednostka: unit
-                        })
+                        body: JSON.stringify(payload)
                     });
                     const data = await resp.json();
                     if(data.success) {
                         saveBtn.innerHTML = '<span class="material-icons">done_all</span>';
                         saveBtn.style.background = '#059669';
-                        safeToast('✅ Zapisano wagę ' + weight + ' ' + unit, 'success');
+                        safeToast(splitRollsSzt ? ('✅ ' + (data.message || 'Zapisano rolki')) : ('✅ Zapisano wagę ' + weight + ' ' + unit), 'success');
                         p.counted = true;
-                        p.waga_faktyczna = weight;
+                        p.waga_faktyczna = splitRollsSzt ? splitRollsSzt[0] : weight;
                         p._unhidden = false;
                         if (typeof refreshRackData === 'function') {
                             try {
@@ -293,6 +310,19 @@ function openSlotDetail(locId, scannedPallet = null) {
                     doSave();
                 }
             });
+
+            if (typeof isTapePallet === 'function' && isTapePallet(p)) {
+                const tapeSlot = card.querySelector('.tape-converter-slot');
+                if (tapeSlot) {
+                    const widget = mountTapeConverterWidget(tapeSlot, p, input, unitSelect, {
+                        disabled: p !== scannedPallet,
+                        onEnter: doSave
+                    });
+                    if (p === scannedPallet && widget && widget.rollInput) {
+                        setTimeout(() => widget.rollInput.focus(), 120);
+                    }
+                }
+            }
 
         });
         
