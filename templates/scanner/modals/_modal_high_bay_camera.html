@@ -1,0 +1,73 @@
+<div id="highBayCameraModal" class="high-bay-scanner-modal">
+  <div class="high-bay-header">
+    <div class="high-bay-title">
+      <span class="material-icons scn-title-icon-primary">photo_camera</span>
+      <span>Skaner Aparatem (Zoom 7m)</span>
+    </div>
+    <div class="high-bay-header-actions">
+      <button type="button" onclick="window.openNativeCameraCapture()" class="high-bay-tool-btn scn-hb-native-btn"
+        title="Zrób zdjęcie aparatem telefonu">
+        <span class="material-icons scn-icon-16">add_a_photo</span> Aparat tel.
+      </button>
+      <button type="button" id="cameraTorchBtn" onclick="window.toggleHighBayTorch()"
+        class="high-bay-tool-btn scn-init-hidden">
+        <span class="material-icons scn-icon-16">flash_off</span> Latarka
+      </button>
+      <button type="button" onclick="window.switchHighBayCamera()" class="high-bay-tool-btn" title="Zmień aparat">
+        <span class="material-icons scn-icon-16">flip_camera_android</span>
+      </button>
+      <button type="button" onclick="window.closeHighBayCameraScanner()" class="high-bay-close-btn">
+        <span class="material-icons scn-icon-16">close</span> Zamknij
+      </button>
+    </div>
+  </div>
+
+  <div class="high-bay-viewport-wrap">
+    <div id="camera-preview-container"></div>
+
+    <div class="high-bay-reticle">
+      <div class="reticle-corner-tr"></div>
+      <div class="reticle-corner-bl"></div>
+      <div class="reticle-crosshair"></div>
+      <div class="high-bay-scanline"></div>
+      <div class="high-bay-target-hint">🎯 Skieruj celownik na etykietę na regale (wysokość 7m)</div>
+    </div>
+
+    <div class="high-bay-zoom-badge" id="cameraZoomFloatingBadge">
+      🔍 1.0x
+    </div>
+  </div>
+
+  <div class="high-bay-controls">
+    <div class="high-bay-zoom-presets">
+      <button type="button" class="btn-zoom-preset active" data-zoom="1.0"
+        onclick="window.applyHighBayZoom(1.0)">1x</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="2.0"
+        onclick="window.applyHighBayZoom(2.0)">2x</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="3.0"
+        onclick="window.applyHighBayZoom(3.0)">3x</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="5.0"
+        onclick="window.applyHighBayZoom(5.0)">5x (7m)</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="8.0"
+        onclick="window.applyHighBayZoom(8.0)">8x</button>
+      <button type="button" class="btn-zoom-preset" data-zoom="10.0"
+        onclick="window.applyHighBayZoom(10.0)">10x Max</button>
+    </div>
+
+    <div class="high-bay-slider-row">
+      <button type="button" class="btn-step-zoom" onclick="window.stepHighBayZoom(-0.5)" title="Oddal">
+        <span class="material-icons">remove</span>
+      </button>
+      <input type="range" id="cameraZoomSlider" class="high-bay-range-slider" min="1.0" max="10.0" step="0.1"
+        value="1.0" oninput="window.applyHighBayZoom(this.value)">
+      <button type="button" class="btn-step-zoom" onclick="window.stepHighBayZoom(0.5)" title="Przybliż">
+        <span class="material-icons">add</span>
+      </button>
+    </div>
+
+    <div class="scn-hb-footer-hint">
+      <span>💡 Wskazówka: Możesz też szczypać ekran (Pinch-to-Zoom)</span>
+      <span class="scn-hb-footer-tag">Regały do 7m</span>
+    </div>
+  </div>
+</div>

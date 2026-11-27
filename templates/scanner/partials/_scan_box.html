@@ -1,0 +1,38 @@
+<div class="scan-card scn-scan-card">
+  <div class="scan-title scn-card-header scn-card-header--spaced">
+    <div class="scn-card-title-group">
+      <span class="material-icons scn-title-icon-primary" id="scanTitleIcon">barcode_reader</span>
+      <span id="scanTitleText">Skanuj kod regału lub palety</span>
+    </div>
+    <div class="scn-header-btn-group">
+      <button type="button" id="btnResetScannerHeader" class="scn-new-scan-btn" onclick="resetScanner()"
+        title="Zresetuj skaner / Skanuj inną paletę">
+        <span class="material-icons scn-header-refresh-icon">refresh</span>
+        <span>Nowy skan</span>
+      </button>
+      <button type="button" id="camera-scan-btn" class="scn-camera-btn" onclick="openHighBayCameraScanner()"
+        aria-label="Skaner na żywo w telefonie (Zoom 7m)" title="Skaner na żywo w telefonie (Zoom 7m)">
+        <span class="material-icons scn-camera-icon" aria-hidden="true">photo_camera</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="scn-input-wrap">
+    <input type="text" id="scanInput" class="scn-scan-input" autocomplete="off" autocorrect="off" spellcheck="false"
+      placeholder="Zeskanuj kod lub wpisz ostatnie 6 cyfr numeru palety" autofocus>
+    <button type="button" id="btnResetScannerInput" onclick="resetScanner()" title="Wyczyść pole skanowania"
+      class="input-clear-btn scn-clear-btn">
+      <span class="material-icons scn-clear-icon">close</span>
+    </button>
+  </div>
+
+  <div class="scn-submit-stack">
+    <button type="button" id="scan-btn" class="scn-confirm-code-btn" onclick="triggerScan()" title="Zatwierdź / Szukaj">
+      <span class="material-icons scn-icon-22">qr_code_scanner</span>
+      <span>Zatwierdź kod</span>
+    </button>
+
+    <input type="file" id="highBayNativeCameraInput" class="scn-init-hidden" accept="image/*" capture="environment"
+      onchange="handleHighBayNativePhotoCapture(this)">
+  </div>
+</div>

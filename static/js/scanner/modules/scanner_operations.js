@@ -1,12 +1,21 @@
 /* ─── Scanner LP01, Print & Restore Operations ─── */
+let activeSubrollForLP01 = null;
 
 function isLP01Packaging(pallet) {
   return Boolean(pallet && (pallet.inventory_type === 'Opakowanie' || pallet.is_pkg ||
     ['szt', 'szt.'].includes(String(pallet.jednostka || pallet.unit || '').trim().toLowerCase())));
 }
 
-function openLP01Modal(loc) {
+function openSubrollLP01Modal(subrollId) {
+  if (!currentPallet || !Array.isArray(currentPallet.subrolls)) return;
+  const sub = currentPallet.subrolls.find((item) => Number(item.id) === Number(subrollId));
+  if (!sub) return;
+  openLP01Modal('LP01', sub);
+}
+
+function openLP01Modal(loc, subrollOverride) {
   if (!currentPallet) return;
+  activeSubrollForLP01 = subrollOverride || null;
   const filmEnabled = String(LINIA).toUpperCase() === 'AGRO' && isLP01Packaging(currentPallet);
   if (filmEnabled && !window.Lp01Film) {
     showToast('Moduł wydania folii jeszcze się ładuje. Spróbuj ponownie za chwilę.', 'warn');
@@ -24,24 +33,32 @@ function openLP01Modal(loc) {
   const qtyInput = document.getElementById('lp01ModalQty');
   const unitEl = document.getElementById('lp01ModalUnit');
 
-  const maxQty = parseFloat(currentPallet.stan_magazynowy || 0);
+  const maxQty = activeSubrollForLP01
+    ? Number(activeSubrollForLP01.ilosc_szt || 0)
+    : parseFloat(currentPallet.stan_magazynowy || 0);
   const unit = currentPallet.jednostka || currentPallet.unit || 'szt.';
+  const baseName = currentPallet.nazwa || currentPallet.produkt || 'Materiał';
 
-  if (matNameEl) matNameEl.textContent = currentPallet.nazwa || currentPallet.produkt || 'Materiał';
+  if (matNameEl) {
+    matNameEl.textContent = activeSubrollForLP01
+      ? `${baseName} — Podrolka #${activeSubrollForLP01.nr_rolki} (${activeSubrollForLP01.kod_rolki})`
+      : baseName;
+  }
   if (sourceLocEl) sourceLocEl.textContent = currentPallet.lokalizacja || 'Magazyn';
   if (maxQtyEl) maxQtyEl.textContent = `${maxQty} ${unit}`;
   if (unitEl) unitEl.textContent = unit;
   if (qtyInput) {
+    qtyInput.readOnly = Boolean(activeSubrollForLP01);
     const defaultQty = (currentPallet.inventory_type === 'Opakowanie' && maxQty >= 1) ? 1 : maxQty;
-    qtyInput.value = defaultQty;
+    qtyInput.value = activeSubrollForLP01 ? maxQty : defaultQty;
     qtyInput.max = maxQty;
   }
 
-  if (window.Lp01Film) window.Lp01Film.load('lp01', currentPallet.nazwa || currentPallet.produkt, filmEnabled, currentPallet.id);
-  if (qtyInput && isLP01Packaging(currentPallet)) qtyInput.value = '';
+  if (window.Lp01Film) window.Lp01Film.load('lp01', baseName, filmEnabled, currentPallet.id);
+  if (qtyInput && isLP01Packaging(currentPallet) && !activeSubrollForLP01) qtyInput.value = '';
   overlay.style.display = 'flex';
   setTimeout(() => {
-    if (qtyInput) {
+    if (qtyInput && !activeSubrollForLP01) {
       qtyInput.focus();
       qtyInput.select();
     }
@@ -49,6 +66,9 @@ function openLP01Modal(loc) {
 }
 
 function closeLP01Modal() {
+  activeSubrollForLP01 = null;
+  const qtyInput = document.getElementById('lp01ModalQty');
+  if (qtyInput) qtyInput.readOnly = false;
   const overlay = document.getElementById('lp01ModalOverlay');
   if (overlay) overlay.style.display = 'none';
   const scanInput = document.getElementById('scanInput');
@@ -108,12 +128,17 @@ function submitLP01Modal() {
     );
 
     const film = window.Lp01Film ? window.Lp01Film.selection('lp01') : null;
-    return fetch(film ? '/api/lp01/film-roll' : '/agro/scanner/move', {
+    const subId = activeSubrollForLP01 ? activeSubrollForLP01.id : null;
+    const endpointUrl = film
+      ? '/api/lp01/film-roll'
+      : (subId ? '/agro/scanner/subroll/dispatch-lp01' : '/agro/scanner/move');
+    return fetch(endpointUrl, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         ...(film || {}),
         id: currentPallet.id,
+        subroll_id: subId,
         amount: parsedQty,
         surowiec_id: currentPallet.id,
         nr_palety: currentPallet.nr_palety || currentPallet.sscc,
@@ -147,6 +172,43 @@ function submitLP01Modal() {
       btn.innerHTML = '<span class="material-icons" style="font-size:18px;">check</span> Wydaj na LP01';
     }
   });
+}
+
+function printSubrollZpl(kodRolki) {
+  if (!kodRolki) return;
+  fetch('/agro/scanner/subroll/print-label', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ kod_rolki: kodRolki, copies: 2 })
+  })
+    .then((r) => r.json())
+    .then((d) => {
+      showToast(d.success ? `🖨️ Wysłano etykietę podrolki ${kodRolki}` : (d.error || d.message || 'Błąd druku'), d.success ? 'success' : 'danger');
+    })
+    .catch((e) => showToast('Błąd połączenia z drukarką: ' + e, 'danger'));
+}
+
+function returnRollToMotherPallet(motherCode) {
+  if (!currentPallet || !motherCode) return;
+  fetch('/agro/scanner/subroll/return-to-pallet', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      lp01_item_id: currentPallet.id,
+      mother_code: motherCode
+    })
+  })
+    .then((r) => r.json())
+    .then((d) => {
+      showToast(d.message || d.error || 'Zwrot na paletę-matkę', d.success ? 'success' : 'danger');
+      if (d.success) {
+        lookupPallet(motherCode);
+        refreshSidebarBadgesSilently();
+      }
+    })
+    .catch((e) => showToast('Błąd zwrotu na paletę: ' + e, 'danger'));
 }
 
 /* ─── Printing operations ─────────────────────────────────── */

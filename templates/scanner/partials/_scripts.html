@@ -1,0 +1,24 @@
+<script>
+  const LINIA = '{{ linia }}';
+  {% set user_role = (session.get('rola') or session.get('role') or '') | lower | trim %}
+  const CAN_RESTORE_PALLET = {{ 'true' if user_role in ['masteradmin', 'lider', 'admin', 'zarzad'] else 'false' }};
+</script>
+<script
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_audio_toast.js', v=scanner_ui_version) }}"></script>
+<script
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_hardware.js') }}?v={{ scanner_ui_version }}&subroll=20261127_2"></script>
+<script
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_history.js', v=scanner_ui_version) }}"></script>
+<script
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_modals.js') }}?v={{ scanner_ui_version }}&subroll=20261127_single2"></script>
+<script
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_operations.js') }}?v={{ scanner_ui_version }}&subroll=20261127_2"></script>
+<script
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_ui.js') }}?v={{ scanner_ui_version }}&subroll=20261127_single2"></script>
+<script
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_suggestions.js', v=scanner_ui_version, location_first=1) }}"></script>
+<script src="{{ url_for('static', filename='js/common/split_label_printer.js') }}?v={{ scanner_ui_version }}"></script>
+<script
+  src="{{ url_for('static', filename='js/scanner/modules/scanner_flow.js') }}?v={{ scanner_ui_version }}&subroll=20261127_2"></script>
+<script src="{{ url_for('static', filename='js/scanner/high_bay_camera_scanner.js', v=scanner_ui_version) }}"></script>
+<script src="{{ url_for('static', filename='js/lp01_film.js') }}?v={{ scanner_ui_version }}"></script>

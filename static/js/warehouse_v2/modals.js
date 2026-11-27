@@ -94,6 +94,11 @@ function openPalletModal(displayId, productName, amount, location, type, datePro
     setEl('modalDateProd', dateProd || '-');
     setEl('modalDateExp', dateExp || '-');
     setEl('modalDateAdded', dateAdded || '-');
+    const subrollsBox = document.getElementById('modalSubrollsSection');
+    if (subrollsBox) {
+        subrollsBox.innerHTML = '';
+        subrollsBox.classList.add('is-hidden');
+    }
 
     const pkgBadge = document.getElementById('modalPackagingBadge');
     if (pkgBadge) {
@@ -147,6 +152,23 @@ function openPalletModal(displayId, productName, amount, location, type, datePro
 
                     if (pkgBadge && typeof formatPackagingBadge === 'function') {
                         pkgBadge.innerHTML = formatPackagingBadge(currentPallet.packaging_type);
+                    }
+                    if (subrollsBox && Array.isArray(p.subrolls) && p.subrolls.length > 0) {
+                        const unassigned = Number(p.unassigned_szt || 0);
+                        const rows = p.subrolls.map((sr) => (
+                            `<div class="wh-modal-subrolls-row">
+                                <span><strong>Rolka #${Number(sr.nr_rolki)}</strong> · <code>${sr.kod_rolki}</code></span>
+                                <strong>${Number(sr.ilosc_szt).toLocaleString('pl-PL')} szt</strong>
+                             </div>`
+                        )).join('');
+                        subrollsBox.classList.remove('is-hidden');
+                        subrollsBox.innerHTML = `
+                            <div class="wh-modal-subrolls-header">
+                                <span>📦 Podrolki na palecie (${p.subrolls.length})</span>
+                                <span>Luzem: ${unassigned.toLocaleString('pl-PL')} szt</span>
+                            </div>
+                            <div class="wh-modal-subrolls-list">${rows}</div>
+                        `;
                     }
                 }
             })

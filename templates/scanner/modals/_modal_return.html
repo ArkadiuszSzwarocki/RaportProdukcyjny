@@ -1,0 +1,26 @@
+<div class="modal-overlay scn-overlay-dark" id="scannerReturnOverlay">
+  <div class="scn-dark-dialog">
+    <div class="scn-dark-header">
+      <h3 class="scn-dark-title scn-dark-title--emerald">
+        <span class="material-icons">keyboard_return</span>
+        Zwrot na magazyn
+      </h3>
+      <button type="button" class="scn-close-x" onclick="closeScannerReturnModal()">&times;</button>
+    </div>
+
+    <div class="scn-dark-subtext">
+      Zwracasz surowiec ze stacji <strong id="scannerReturnLoc" class="scn-text-white-lg"></strong>
+    </div>
+
+    <label class="scn-dark-label" for="scannerReturnQty">Ilość do zwrotu (kg):</label>
+    <div class="scn-input-wrap">
+      <input type="number" id="scannerReturnQty" class="scn-dark-input" step="0.1" placeholder="Wpisz wagę...">
+      <span id="scannerReturnMaxQty" class="scn-max-qty-suffix"></span>
+    </div>
+
+    <div class="scn-dark-actions">
+      <button type="button" class="scn-dark-btn-ghost" onclick="closeScannerReturnModal()">Anuluj</button>
+      <button type="button" class="scn-dark-btn-emerald" onclick="submitScannerReturn()">Zwróć</button>
+    </div>
+  </div>
+</div>

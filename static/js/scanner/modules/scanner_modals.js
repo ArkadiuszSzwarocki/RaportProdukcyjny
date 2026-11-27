@@ -317,8 +317,7 @@ function submitScannerSplit() {
     });
 }
 
-/* ─── Direct Tape Split into Individual Rolls (kg / szt) ─────── */
-let _scannerTapeRolls = ['', ''];
+/* ─── Single Sub-Roll Addition Modal (kg / szt) ─────── */
 let _scannerTapeSplitMode = 'kg'; // 'kg' | 'szt'
 
 function _parseScannerTapeDecimal(raw) {
@@ -327,155 +326,163 @@ function _parseScannerTapeDecimal(raw) {
   return cleaned ? parseFloat(cleaned) : NaN;
 }
 
+function _getScannerTapeSourceQty() {
+  if (!currentPallet) return 0;
+  if (currentPallet.unassigned_szt !== undefined && currentPallet.unassigned_szt !== null) {
+    return Math.max(0, Math.round(Number(currentPallet.unassigned_szt)));
+  }
+  const raw = parseFloat(currentPallet.stan_magazynowy || 0);
+  return isFinite(raw) && raw > 0 ? Math.round(raw) : 0;
+}
+
+function _applyScannerTapeSubmitState(canSubmit) {
+  const btn = document.getElementById('btnConfirmScannerTapeSplit');
+  if (btn) btn.disabled = !canSubmit;
+}
+
+function _setSummaryVariant(sumEl, variant) {
+  sumEl.classList.remove(
+    'subroll-summary-box--warn',
+    'subroll-summary-box--error',
+    'subroll-summary-box--valid'
+  );
+  if (variant) sumEl.classList.add(`subroll-summary-box--${variant}`);
+}
+
+function _refreshSingleSubrollBadge() {
+  const rollInp = document.getElementById('scannerSingleSubrollInput');
+  const bagInp = document.getElementById('tapeSplitBagWeightKg');
+  const badgeEl = document.getElementById('scannerSingleSubrollPcs');
+  if (!badgeEl) return;
+
+  const num = rollInp ? _parseScannerTapeDecimal(rollInp.value) : NaN;
+  if (_scannerTapeSplitMode === 'szt') {
+    badgeEl.textContent = (isFinite(num) && num > 0)
+      ? `${Math.round(num).toLocaleString('pl-PL')} szt`
+      : '—';
+    return;
+  }
+  const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
+  badgeEl.textContent = (isFinite(num) && num > 0 && isFinite(bagKg) && bagKg > 0)
+    ? `= ${Math.round(num / bagKg).toLocaleString('pl-PL')} szt`
+    : '—';
+}
+
 function setScannerTapeSplitMode(mode) {
   _scannerTapeSplitMode = mode === 'szt' ? 'szt' : 'kg';
   const kgBtn = document.getElementById('tapeSplitModeKgBtn');
   const sztBtn = document.getElementById('tapeSplitModeSztBtn');
   const bagRow = document.getElementById('tapeSplitBagWeightRow');
   const lbl = document.getElementById('scannerTapeRollsLabel');
+  const rollInp = document.getElementById('scannerSingleSubrollInput');
 
-  if (kgBtn && sztBtn) {
-    const isKg = _scannerTapeSplitMode === 'kg';
-    kgBtn.style.background = isKg ? '#2563eb' : '#0f172a';
-    kgBtn.style.borderColor = isKg ? '#3b82f6' : '#475569';
-    kgBtn.style.color = isKg ? '#fff' : '#cbd5e1';
-    sztBtn.style.background = !isKg ? '#2563eb' : '#0f172a';
-    sztBtn.style.borderColor = !isKg ? '#3b82f6' : '#475569';
-    sztBtn.style.color = !isKg ? '#fff' : '#cbd5e1';
+  const isKg = _scannerTapeSplitMode === 'kg';
+  if (kgBtn) kgBtn.classList.toggle('is-active', isKg);
+  if (sztBtn) sztBtn.classList.toggle('is-active', !isKg);
+  if (bagRow) bagRow.classList.toggle('is-hidden', !isKg);
+  if (lbl) {
+    lbl.textContent = isKg
+      ? 'Waga dodawanej podrolki (kg):'
+      : 'Ilość na dodawanej podrolce (szt):';
   }
-  if (bagRow) bagRow.style.display = _scannerTapeSplitMode === 'kg' ? 'block' : 'none';
-  if (lbl) lbl.textContent = _scannerTapeSplitMode === 'kg' ? 'Pojedyncze rolki (wpisz kg):' : 'Pojedyncze rolki (wpisz szt):';
+  if (rollInp) {
+    rollInp.placeholder = isKg ? 'kg...' : 'szt...';
+    rollInp.focus();
+  }
 
-  _renderScannerTapeRolls();
+  _refreshSingleSubrollBadge();
   _updateScannerTapeSummary();
-  const firstRoll = document.querySelector('#scannerTapeRollsList .scanner-tape-roll-kg');
-  if (firstRoll) firstRoll.focus();
 }
 
 function _updateScannerTapeSummary() {
   const bagInp = document.getElementById('tapeSplitBagWeightKg');
+  const rollInp = document.getElementById('scannerSingleSubrollInput');
   const sumEl = document.getElementById('scannerTapeSplitSummary');
   if (!sumEl) return;
 
+  const maxPcs = _getScannerTapeSourceQty();
+  const nextNr = Number(currentPallet?.subrolls_count || 0) + 1;
+  const rawVal = rollInp ? _parseScannerTapeDecimal(rollInp.value) : NaN;
+
   if (_scannerTapeSplitMode === 'szt') {
-    let totalPcs = 0;
-    let count = 0;
-    _scannerTapeRolls.forEach((v) => {
-      const val = _parseScannerTapeDecimal(v);
-      if (isFinite(val) && val > 0) {
-        totalPcs += Math.round(val);
-        count += 1;
-      }
-    });
-    if (count === 0) {
-      sumEl.style.color = '#93c5fd';
-      sumEl.textContent = 'Wpisz liczbę sztuk (szt) dla co najmniej 2 rolek.';
+    const pcs = (isFinite(rawVal) && rawVal > 0) ? Math.round(rawVal) : 0;
+    if (pcs <= 0) {
+      _setSummaryVariant(sumEl, null);
+      sumEl.textContent = `Wpisz liczbę sztuk (szt) dla dodawanej podrolki (dostępna pula: ${maxPcs.toLocaleString('pl-PL')} szt).`;
+      _applyScannerTapeSubmitState(false);
+    } else if (pcs > maxPcs) {
+      const diff = pcs - maxPcs;
+      _setSummaryVariant(sumEl, 'error');
+      sumEl.innerHTML = `⛔ Przekroczono dostępną pulę o <strong>${diff.toLocaleString('pl-PL')} szt</strong>! (Wpisano: <strong>${pcs.toLocaleString('pl-PL')} szt</strong> / Wolne: <strong>${maxPcs.toLocaleString('pl-PL')} szt</strong>)`;
+      _applyScannerTapeSubmitState(false);
     } else {
-      sumEl.style.color = count >= 2 ? '#34d399' : '#fbbf24';
-      sumEl.innerHTML = `Razem: <strong>${count} ${count === 1 ? 'rolka' : (count < 5 ? 'rolki' : 'rolek')}</strong> → <strong>${totalPcs.toLocaleString('pl-PL')} szt</strong>`;
+      const rem = maxPcs - pcs;
+      _setSummaryVariant(sumEl, 'valid');
+      const remNote = rem > 0
+        ? ` &nbsp;|&nbsp; Nierozpisane zostanie: <strong>${rem.toLocaleString('pl-PL')} szt</strong>`
+        : ' &nbsp;(100% wolnej puli przypisane)';
+      sumEl.innerHTML = `Podrolka #${nextNr}: <strong>${pcs.toLocaleString('pl-PL')} szt</strong>${remNote}`;
+      _applyScannerTapeSubmitState(true);
     }
     return;
   }
 
   const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
   if (!isFinite(bagKg) || bagKg <= 0) {
-    sumEl.style.color = '#fbbf24';
-    sumEl.textContent = 'Wpisz wagę 1 worka w kg (np. 0.150), aby przeliczyć rolki.';
+    _setSummaryVariant(sumEl, 'warn');
+    sumEl.textContent = 'Wpisz wagę 1 worka w kg (np. 0.150), aby przeliczyć podrolkę.';
+    _applyScannerTapeSubmitState(false);
     return;
   }
-  let totalKg = 0;
-  let totalPcs = 0;
-  let count = 0;
-  _scannerTapeRolls.forEach((v) => {
-    const kg = _parseScannerTapeDecimal(v);
-    if (isFinite(kg) && kg > 0) {
-      totalKg += kg;
-      totalPcs += Math.round(kg / bagKg);
-      count += 1;
-    }
-  });
-  if (count === 0) {
-    sumEl.style.color = '#93c5fd';
-    sumEl.textContent = `Wpisz wagę (kg) dla co najmniej 2 rolek (dzielnik: ${bagKg} kg/worek).`;
+
+  const kg = (isFinite(rawVal) && rawVal > 0) ? rawVal : 0;
+  const pcs = kg > 0 ? Math.round(kg / bagKg) : 0;
+  if (pcs <= 0) {
+    _setSummaryVariant(sumEl, null);
+    sumEl.textContent = `Wpisz wagę (kg) dodawanej podrolki (dzielnik: ${bagKg} kg/worek, wolna pula: ${maxPcs.toLocaleString('pl-PL')} szt).`;
+    _applyScannerTapeSubmitState(false);
+  } else if (pcs > maxPcs) {
+    const diff = pcs - maxPcs;
+    _setSummaryVariant(sumEl, 'error');
+    sumEl.innerHTML = `⛔ Przekroczono dostępną pulę o <strong>${diff.toLocaleString('pl-PL')} szt</strong>! (${Math.round(kg * 100) / 100} kg → <strong>${pcs.toLocaleString('pl-PL')} szt</strong> / Wolne: <strong>${maxPcs.toLocaleString('pl-PL')} szt</strong>)`;
+    _applyScannerTapeSubmitState(false);
   } else {
-    sumEl.style.color = count >= 2 ? '#34d399' : '#fbbf24';
-    sumEl.innerHTML = `Razem: <strong>${count} ${count === 1 ? 'rolka' : (count < 5 ? 'rolki' : 'rolek')}</strong> | ${Math.round(totalKg * 100) / 100} kg → <strong>${totalPcs.toLocaleString('pl-PL')} szt</strong>`;
+    const rem = maxPcs - pcs;
+    _setSummaryVariant(sumEl, 'valid');
+    const remNote = rem > 0
+      ? ` &nbsp;|&nbsp; Nierozpisane zostanie: <strong>${rem.toLocaleString('pl-PL')} szt</strong>`
+      : ' &nbsp;(100% wolnej puli przypisane)';
+    sumEl.innerHTML = `Podrolka #${nextNr}: ${Math.round(kg * 100) / 100} kg → <strong>${pcs.toLocaleString('pl-PL')} szt</strong>${remNote}`;
+    _applyScannerTapeSubmitState(true);
   }
 }
 
-function _renderScannerTapeRolls() {
-  const listEl = document.getElementById('scannerTapeRollsList');
+function _bindSingleSubrollInputs() {
   const bagInp = document.getElementById('tapeSplitBagWeightKg');
-  if (!listEl) return;
-  const isSzt = _scannerTapeSplitMode === 'szt';
-  const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
+  const rollInp = document.getElementById('scannerSingleSubrollInput');
 
-  listEl.innerHTML = _scannerTapeRolls.map((val, idx) => {
-    const num = _parseScannerTapeDecimal(val);
-    let pcsText = '—';
-    if (isSzt) {
-      pcsText = (isFinite(num) && num > 0) ? `${Math.round(num).toLocaleString('pl-PL')} szt` : '—';
-    } else if (isFinite(num) && num > 0 && isFinite(bagKg) && bagKg > 0) {
-      pcsText = `= ${Math.round(num / bagKg).toLocaleString('pl-PL')} szt`;
-    }
-    return `
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:12px; font-weight:800; color:#94a3b8; width:62px; flex-shrink:0;">Rolka #${idx + 1}</span>
-        <input type="text" inputmode="decimal" class="scanner-tape-roll-kg" data-idx="${idx}"
-               value="${String(val || '').replace(/"/g, '&quot;')}" placeholder="${isSzt ? 'szt...' : 'kg...'}"
-               style="flex:1; min-width:0; padding:9px 10px; font-size:16px; font-weight:800; background:#0f172a; border:2px solid #475569; border-radius:8px; color:#fff; outline:none;">
-        <span class="scanner-tape-roll-pcs" style="font-size:13px; font-weight:800; color:#34d399; min-width:86px; text-align:right;">${pcsText}</span>
-        ${_scannerTapeRolls.length > 2 ? `<button type="button" class="scanner-tape-remove-roll" data-idx="${idx}" style="background:#7f1d1d; color:#fecaca; border:none; border-radius:8px; width:30px; height:34px; font-weight:900; cursor:pointer; flex-shrink:0;">&times;</button>` : ''}
-      </div>
-    `;
-  }).join('');
-
-  listEl.querySelectorAll('.scanner-tape-roll-kg').forEach((inp) => {
-    inp.addEventListener('input', () => {
-      const idx = parseInt(inp.dataset.idx, 10);
-      _scannerTapeRolls[idx] = inp.value;
-      const num = _parseScannerTapeDecimal(inp.value);
-      const pcsEl = inp.parentElement && inp.parentElement.querySelector('.scanner-tape-roll-pcs');
-      if (pcsEl) {
-        if (_scannerTapeSplitMode === 'szt') {
-          pcsEl.textContent = (isFinite(num) && num > 0) ? `${Math.round(num).toLocaleString('pl-PL')} szt` : '—';
-        } else {
-          const bKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
-          pcsEl.textContent = (isFinite(num) && num > 0 && isFinite(bKg) && bKg > 0)
-            ? `= ${Math.round(num / bKg).toLocaleString('pl-PL')} szt`
-            : '—';
-        }
-      }
+  if (bagInp && !bagInp.dataset.boundTapeSplit) {
+    bagInp.dataset.boundTapeSplit = '1';
+    bagInp.addEventListener('input', () => {
+      _refreshSingleSubrollBadge();
       _updateScannerTapeSummary();
     });
-    inp.addEventListener('keydown', (e) => {
+  }
+
+  if (rollInp && !rollInp.dataset.boundSingleSubroll) {
+    rollInp.dataset.boundSingleSubroll = '1';
+    rollInp.addEventListener('input', () => {
+      _refreshSingleSubrollBadge();
+      _updateScannerTapeSummary();
+    });
+    rollInp.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        const idx = parseInt(inp.dataset.idx, 10);
-        const next = listEl.querySelector(`.scanner-tape-roll-kg[data-idx="${idx + 1}"]`);
-        if (next) next.focus();
+        const btn = document.getElementById('btnConfirmScannerTapeSplit');
+        if (btn && !btn.disabled) submitScannerTapeSplit();
       }
     });
-  });
-
-  listEl.querySelectorAll('.scanner-tape-remove-roll').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.idx, 10);
-      if (_scannerTapeRolls.length > 2) {
-        _scannerTapeRolls.splice(idx, 1);
-        _renderScannerTapeRolls();
-        _updateScannerTapeSummary();
-      }
-    });
-  });
-}
-
-function addScannerTapeRoll() {
-  _scannerTapeRolls.push('');
-  _renderScannerTapeRolls();
-  _updateScannerTapeSummary();
-  const inputs = document.querySelectorAll('#scannerTapeRollsList .scanner-tape-roll-kg');
-  if (inputs.length) inputs[inputs.length - 1].focus();
+  }
 }
 
 function openScannerTapeSplitModal() {
@@ -483,33 +490,39 @@ function openScannerTapeSplitModal() {
   const overlay = document.getElementById('scannerTapeSplitOverlay');
   if (!overlay) return;
 
-  _scannerTapeRolls = ['', ''];
   const nameEl = document.getElementById('tapeSplitPalletName');
   const ssccEl = document.getElementById('tapeSplitPalletSSCC');
   const locEl = document.getElementById('tapeSplitPalletLoc');
   const qtyEl = document.getElementById('tapeSplitPalletQty');
+  const extraInfoEl = document.getElementById('tapeSplitPalletExtra');
   const bagInp = document.getElementById('tapeSplitBagWeightKg');
+  const rollInp = document.getElementById('scannerSingleSubrollInput');
+
+  const availPcs = _getScannerTapeSourceQty();
+  const totalStock = Math.round(parseFloat(currentPallet.stan_magazynowy || 0));
+  const subCount = Number(currentPallet.subrolls_count || 0);
+  const subTotal = Number(currentPallet.subrolls_total_szt || 0);
 
   if (nameEl) nameEl.textContent = currentPallet.nazwa || '—';
   if (ssccEl) ssccEl.textContent = currentPallet.nr_palety || ('OPK-' + currentPallet.id);
   if (locEl) locEl.textContent = currentPallet.lokalizacja || '—';
-  if (qtyEl) qtyEl.textContent = Math.round(parseFloat(currentPallet.stan_magazynowy || 0));
-  if (bagInp) {
-    bagInp.value = '';
-    if (!bagInp.dataset.boundTapeSplit) {
-      bagInp.dataset.boundTapeSplit = '1';
-      bagInp.addEventListener('input', () => {
-        _renderScannerTapeRolls();
-        _updateScannerTapeSummary();
-      });
+  if (qtyEl) qtyEl.textContent = availPcs.toLocaleString('pl-PL');
+  if (extraInfoEl) {
+    if (subCount > 0) {
+      extraInfoEl.textContent = `Stan całkowity palety: ${totalStock.toLocaleString('pl-PL')} szt | Przypisane podrolki (${subCount}): ${subTotal.toLocaleString('pl-PL')} szt`;
+      extraInfoEl.classList.remove('is-hidden');
+    } else {
+      extraInfoEl.textContent = '';
+      extraInfoEl.classList.add('is-hidden');
     }
   }
 
-  _renderScannerTapeRolls();
-  _updateScannerTapeSummary();
-  overlay.style.display = 'flex';
+  if (bagInp) bagInp.value = '';
+  if (rollInp) rollInp.value = '';
+  _bindSingleSubrollInputs();
+  setScannerTapeSplitMode(_scannerTapeSplitMode);
+  overlay.classList.add('is-open');
 
-  // Fetch saved bag weight for this tape
   fetch('/magazyn/inwentaryzacja/api/tasmy-przeliczniki', { credentials: 'same-origin' })
     .then((r) => r.json())
     .then((d) => {
@@ -517,11 +530,10 @@ function openScannerTapeSplitModal() {
         const key = String(currentPallet.nazwa).trim().toLowerCase();
         if (d.map[key]) {
           bagInp.value = String(d.map[key]);
-          _renderScannerTapeRolls();
+          _refreshSingleSubrollBadge();
           _updateScannerTapeSummary();
-          const firstRoll = document.querySelector('#scannerTapeRollsList .scanner-tape-roll-kg');
-          if (firstRoll) firstRoll.focus();
-        } else {
+          if (rollInp) rollInp.focus();
+        } else if (_scannerTapeSplitMode === 'kg') {
           bagInp.focus();
         }
       }
@@ -531,7 +543,7 @@ function openScannerTapeSplitModal() {
 
 function closeScannerTapeSplitModal() {
   const overlay = document.getElementById('scannerTapeSplitOverlay');
-  if (overlay) overlay.style.display = 'none';
+  if (overlay) overlay.classList.remove('is-open');
   const scanInput = document.getElementById('scanInput');
   if (scanInput) {
     scanInput.value = '';
@@ -558,7 +570,7 @@ function saveScannerTapeBagWeight() {
     .then((d) => {
       if (d.success) {
         showToast(`✅ Zapisano ${bagKg} kg/worek dla ${currentPallet.nazwa}`, 'success');
-        _renderScannerTapeRolls();
+        _refreshSingleSubrollBadge();
         _updateScannerTapeSummary();
       } else {
         showToast(d.message || 'Błąd zapisu wagi worka', 'danger');
@@ -571,32 +583,35 @@ function submitScannerTapeSplit() {
   if (!currentPallet) return;
   const isSzt = _scannerTapeSplitMode === 'szt';
   const bagInp = document.getElementById('tapeSplitBagWeightKg');
+  const rollInp = document.getElementById('scannerSingleSubrollInput');
   const bagKg = bagInp ? _parseScannerTapeDecimal(bagInp.value) : NaN;
+
   if (!isSzt && (!isFinite(bagKg) || bagKg <= 0)) {
     showToast('Najpierw wpisz wagę 1 worka w kg (np. 0.150)!', 'warn');
     if (bagInp) bagInp.focus();
     return;
   }
 
-  const rollsSzt = [];
-  for (let i = 0; i < _scannerTapeRolls.length; i += 1) {
-    const raw = String(_scannerTapeRolls[i] || '').trim();
-    if (!raw) continue;
-    const num = _parseScannerTapeDecimal(raw);
-    if (!isFinite(num) || num <= 0) {
-      showToast(`Podaj poprawną wartość > 0 ${isSzt ? 'szt' : 'kg'} dla rolki #${i + 1}`, 'warn');
-      return;
-    }
-    const pcs = isSzt ? Math.round(num) : Math.round(num / bagKg);
-    if (pcs <= 0) {
-      showToast(`Rolka #${i + 1} ma 0 szt po przeliczeniu`, 'warn');
-      return;
-    }
-    rollsSzt.push(pcs);
+  const rawVal = rollInp ? _parseScannerTapeDecimal(rollInp.value) : NaN;
+  if (!isFinite(rawVal) || rawVal <= 0) {
+    showToast(`Podaj poprawną wartość > 0 ${isSzt ? 'szt' : 'kg'} dla dodawanej podrolki!`, 'warn');
+    if (rollInp) rollInp.focus();
+    return;
   }
 
-  if (rollsSzt.length < 2) {
-    showToast(`Wpisz ${isSzt ? 'sztuki' : 'wagę (kg)'} dla co najmniej 2 rolek!`, 'warn');
+  const pcs = isSzt ? Math.round(rawVal) : Math.round(rawVal / bagKg);
+  if (pcs <= 0) {
+    showToast('Podrolka ma 0 szt po przeliczeniu!', 'warn');
+    return;
+  }
+
+  const maxPcs = _getScannerTapeSourceQty();
+  if (pcs > maxPcs) {
+    showToast(
+      `⛔ Ilość podrolki (${pcs.toLocaleString('pl-PL')} szt) przekracza wolną pulę palety (${maxPcs.toLocaleString('pl-PL')} szt)!`,
+      'danger'
+    );
+    _updateScannerTapeSummary();
     return;
   }
 
@@ -604,7 +619,7 @@ function submitScannerTapeSplit() {
   const btn = document.getElementById('btnConfirmScannerTapeSplit');
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<span class="material-icons" style="animation:spin 1s linear infinite;">refresh</span> Rozbijanie...';
+    btn.innerHTML = '<span class="material-icons">hourglass_top</span> Dodawanie...';
   }
 
   const targetCode = currentPallet.nr_palety || ('OPK-' + currentPallet.id);
@@ -615,7 +630,7 @@ function submitScannerTapeSplit() {
     body: JSON.stringify({
       pallet_id: currentPallet.id,
       nr_palety: currentPallet.nr_palety,
-      rolls_szt: rollsSzt,
+      rolls_szt: [pcs],
       bag_weight_kg: !isSzt ? bagKg : null,
       save_bag_weight: !isSzt,
       print_labels: printChecked
@@ -629,14 +644,14 @@ function submitScannerTapeSplit() {
         showToast(`✅ ${d.message}${extraMsg}`, 'success');
         if (targetCode) lookupPallet(targetCode);
       } else {
-        showToast(d.error || d.message || 'Błąd rozbijania taśmy', 'danger');
+        showToast(d.error || d.message || 'Błąd dodawania podrolki', 'danger');
       }
     })
     .catch((e) => showToast('Błąd połączenia z serwerem: ' + e, 'danger'))
     .finally(() => {
       if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '<span class="material-icons" style="font-size:18px;">call_split</span> Rozbij na rolki';
+        btn.innerHTML = '<span class="material-icons">add_circle</span> Dodaj podrolkę';
       }
+      _updateScannerTapeSummary();
     });
 }

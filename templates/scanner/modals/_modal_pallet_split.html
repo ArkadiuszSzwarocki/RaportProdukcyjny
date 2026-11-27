@@ -1,0 +1,43 @@
+<div class="modal-overlay scn-overlay-dark" id="scannerSplitOverlay">
+  <div class="scn-dark-dialog">
+    <div class="scn-dark-header">
+      <h3 class="scn-dark-title scn-dark-title--sky">
+        <span class="material-icons">call_split</span>
+        Podział palety (nowa etykieta)
+      </h3>
+      <button type="button" class="scn-close-x" onclick="closeScannerSplitModal()">&times;</button>
+    </div>
+
+    <div class="scn-info-callout-sky">
+      Odcięta ilość trafi na <strong>nową paletę z nowym SSCC</strong> i automatycznym otwarciem nowej etykiety do druku.
+    </div>
+
+    <div class="scn-field-block">
+      <label class="scn-dark-label" for="scannerSplitTargetLoc">Lokalizacja docelowa odciętej części:</label>
+      <div class="scn-input-wrap">
+        <input type="text" id="scannerSplitTargetLoc" class="scn-dark-input scn-dark-input--upper"
+          placeholder="np. MS01, MP01, Regał...">
+        <button type="button" onclick="clearScannerInputById('scannerSplitTargetLoc')" title="Wyczyść pole"
+          class="input-clear-btn scn-clear-btn scn-clear-btn--dark">
+          <span class="material-icons scn-clear-icon">close</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="scn-field-block">
+      <div class="scn-dark-label-row">
+        <label class="scn-dark-label" for="scannerSplitQty">Ilość do odcięcia (kg):</label>
+        <span class="scn-avail-hint">Dostępne: <strong id="scannerSplitAvailableQty" class="scn-text-sky">0.0</strong> kg</span>
+      </div>
+      <input type="number" id="scannerSplitQty" class="scn-dark-input scn-dark-input--sky" step="0.1" placeholder="0.0">
+    </div>
+
+    <div class="scn-dark-actions">
+      <button type="button" class="scn-dark-btn-cancel" onclick="closeScannerSplitModal()">Anuluj</button>
+      <button type="button" id="btnConfirmScannerSplit" class="scn-dark-btn-sky" onclick="submitScannerSplit()">
+        <span class="material-icons scn-icon-18">print</span>
+        Podziel i drukuj etykietę
+      </button>
+    </div>
+  </div>
+</div>

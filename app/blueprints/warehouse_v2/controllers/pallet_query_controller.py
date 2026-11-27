@@ -255,6 +255,17 @@ class PalletQueryController:
                 'packaging_type': pkg_formatted,
                 'raw_packaging_type': row.get('typ_opakowania') or 'Karton'
             }
+            if t_type == 'Opakowanie' and p_real_id:
+                try:
+                    from app.services.scanner.packaging_subroll_queries import PackagingSubrollQueries
+                    sub_summary = PackagingSubrollQueries.get_subrolls_summary_with_cursor(
+                        cur,
+                        int(p_real_id),
+                        float(row.get('amount') or 0),
+                    )
+                    details.update(sub_summary)
+                except Exception:
+                    pass
             return jsonify({'success': True, 'pallet': details})
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500

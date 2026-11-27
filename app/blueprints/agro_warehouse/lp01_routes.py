@@ -131,6 +131,20 @@ def api_lp01_return():
     if _assigned_roll(item_id, item_type):
         return jsonify(success=False, message='Najpierw rozlicz lub zwolnij rolkę w sekcji Folia zlecenia.'), 400
 
+    clean_target = str(target_loc).strip().upper()
+    if item_type == 'Opakowanie' and clean_target.startswith('OPK'):
+        from app.dto.packaging_subroll_dto import SubrollReturnCommand
+        from app.services.scanner.packaging_subroll_commands import PackagingSubrollCommands
+        ok_ret, msg_ret, extra_ret = PackagingSubrollCommands.return_lp01_roll_to_mother(
+            SubrollReturnCommand(
+                lp01_item_id=int(item_id),
+                mother_identifier=clean_target,
+                user_login=user,
+                amount=float(amount) if amount not in (None, '') else None,
+            )
+        )
+        return jsonify({'success': ok_ret, 'message': msg_ret, 'error': None if ok_ret else msg_ret, 'data': extra_ret}), (200 if ok_ret else 400)
+
     is_valid, err_msg = validate_warehouse_location(target_loc, allow_empty=False)
     if not is_valid:
         return jsonify({'success': False, 'error': err_msg}), 400
@@ -167,6 +181,21 @@ def api_lp01_film_roll():
     data = request.get_json(silent=True) or {}
     if str(data.get('linia', 'AGRO')).upper() != 'AGRO' or data.get('type', 'Opakowanie') != 'Opakowanie':
         return jsonify(success=False, message='Do zlecenia można przypisać folię z magazynu opakowań AGRO.'), 400
+    subroll_id = data.get('subroll_id')
+    if subroll_id and str(subroll_id).isdigit():
+        from app.dto.packaging_subroll_dto import SubrollDispatchCommand
+        from app.services.scanner.packaging_subroll_commands import PackagingSubrollCommands
+        ok, message, _ = PackagingSubrollCommands.dispatch_subroll_to_lp01(
+            SubrollDispatchCommand(
+                subroll_id=int(subroll_id),
+                user_login=session.get('login', 'System'),
+                plan_id=int(data['plan_id']) if data.get('plan_id') else None,
+                roll_role=data.get('roll_role', 'prepared'),
+                request_key=data.get('request_key'),
+                previous_remaining=data.get('previous_remaining'),
+            )
+        )
+        return jsonify(success=ok, message=message), 200 if ok else 400
     ok, message = FolioAssignmentService.assign(data.get('id'), data.get('plan_id'), data.get('amount'),
         session.get('login', 'System'), role=data.get('roll_role','prepared'), request_key=data.get('request_key'), previous_remaining=data.get('previous_remaining'))
     return jsonify(success=ok, message=message), 200 if ok else 400

@@ -1,0 +1,43 @@
+<div class="modal-overlay scn-overlay-dark" id="wgAcceptOverlay">
+  <div class="scn-dark-dialog">
+    <div class="scn-dark-header">
+      <h3 class="scn-dark-title scn-dark-title--blue">
+        <span class="material-icons">inventory_2</span>
+        Przyjęcie Wyrobu z Produkcji
+      </h3>
+      <button type="button" class="scn-close-x" onclick="closeWgAcceptModal()">&times;</button>
+    </div>
+
+    <div class="scn-wg-pallet-box">
+      <div class="scn-wg-tag">Zeskanowana Paleta</div>
+      <div id="wgPalletNo" class="scn-wg-no">—</div>
+      <div id="wgPalletName" class="scn-wg-name">—</div>
+    </div>
+
+    <div id="wgStepWeight">
+      <label class="scn-dark-label" for="wgWeightInput">1. Potwierdź wagę netto (kg):</label>
+      <input type="number" id="wgWeightInput" class="scn-dark-input" step="0.1" placeholder="Waga w kg..."
+        onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); goToWgStep2();}">
+    </div>
+
+    <div id="wgStepLocation" class="scn-init-hidden">
+      <label class="scn-dark-label" for="wgLocInput">2. Zeskanuj lokalizację docelową:</label>
+      <div class="scn-input-wrap">
+        <input type="text" id="wgLocInput" class="scn-dark-input scn-dark-input--blue"
+          placeholder="np. R010101, MGW01...">
+        <button type="button" onclick="clearScannerInputById('wgLocInput')" title="Wyczyść pole"
+          class="input-clear-btn scn-clear-btn scn-clear-btn--dark">
+          <span class="material-icons scn-clear-icon">close</span>
+        </button>
+      </div>
+      <p class="scn-wg-hint">Zeskanowanie kodu lokalizacji automatycznie zatwierdzi paletę na stan.</p>
+    </div>
+
+    <div class="scn-dark-actions">
+      <button type="button" id="wgBackBtn" class="scn-dark-btn-ghost scn-init-hidden" onclick="backToWgStep1()">Wstecz</button>
+      <button type="button" class="scn-dark-btn-ghost" onclick="closeWgAcceptModal()">Anuluj</button>
+      <button type="button" id="wgNextBtn" class="scn-dark-btn-blue" onclick="goToWgStep2()">Dalej</button>
+      <button type="button" id="wgConfirmBtn" class="scn-dark-btn-green scn-init-hidden" onclick="submitWgAccept()">Zatwierdź</button>
+    </div>
+  </div>
+</div>

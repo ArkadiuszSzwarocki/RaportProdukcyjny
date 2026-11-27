@@ -1,0 +1,22 @@
+<div class="modal-overlay scn-overlay-base" id="dispatchOverlay">
+  <div class="modal-box scn-modal-box-sm">
+    <h2 class="m-0 row items-center gap-8 mb-10 scn-modal-heading--amber">
+      <span class="material-icons text-primary">local_shipping</span>
+      Przekaż na produkcję
+    </h2>
+    <div class="scn-dispatch-target">
+      Lokalizacja docelowa: <strong id="dispatchModalLoc" class="scn-dispatch-target-loc"></strong>
+    </div>
+
+    <label class="form-label small mb-4" for="dispatchModalQty">Ilość do przesunięcia (kg)</label>
+    <input type="number" id="dispatchModalQty" class="form-control scn-dispatch-qty-input" step="0.1" placeholder="0.0">
+
+    <label class="form-label small mb-4" for="dispatchModalPlanId">Nr zlecenia (opcjonalnie)</label>
+    <input type="number" id="dispatchModalPlanId" class="form-control scn-dispatch-plan-input" placeholder="ID planu">
+
+    <div class="row justify-between mt-20 scn-modal-footer-between">
+      <button type="button" class="btn btn-outline scn-btn-pad" onclick="closeDispatchModal()">Anuluj</button>
+      <button type="button" class="btn btn-primary scn-btn-amber" onclick="doFinalDispatch()">Zatwierdź</button>
+    </div>
+  </div>
+</div>

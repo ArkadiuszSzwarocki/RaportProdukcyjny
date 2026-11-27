@@ -1,0 +1,54 @@
+<div class="scan-card scn-init-hidden" id="stationCard">
+  <div class="scan-title scn-card-header">
+    <div class="scn-card-title-group">
+      <span class="material-icons scn-title-icon-orange">warehouse</span>
+      <span>Stacja produkcyjna: <strong id="stationCode"></strong></span>
+    </div>
+    <button type="button" onclick="resetScanner()" title="Zeskanuj inną stację" class="station-refresh-btn">
+      <span class="material-icons scn-icon-14">refresh</span>
+      <span>Inny skan</span>
+    </button>
+  </div>
+
+  <div id="stationAssignedMaterialCard" class="station-assigned-card scn-init-hidden">
+    <div class="station-assigned-header">
+      <span class="station-assigned-tag">Aktualnie przypisany surowiec</span>
+    </div>
+    <div class="station-assigned-name" id="stationAssignedName">—</div>
+    <div class="station-assigned-details">
+      <span id="stationAssignedSSCCWrap">SSCC: <strong id="stationAssignedSSCC">—</strong></span>
+      <span id="stationAssignedDateWrap">Wstawiono: <strong id="stationAssignedDate">—</strong></span>
+    </div>
+    <div class="station-assigned-qty-badge">
+      <span id="stationAssignedQty">0.0</span> kg
+    </div>
+    <div id="stationReturnBtnContainer" class="scn-action-slot--mt12 scn-init-hidden">
+      <button type="button" class="btn btn-green scn-full-width" onclick="openStationReturnModal()">
+        <span class="material-icons">keyboard_return</span> Zwróć na magazyn
+      </button>
+    </div>
+  </div>
+
+  <div id="stationItemsList" class="station-items-list"></div>
+  <div id="nostationMsg" class="text-muted small italic scn-init-hidden">Lokalizacja jest pusta.</div>
+
+  <div id="stationWarehouseStockWrap" class="station-wh-stock-wrap scn-init-hidden">
+    <button type="button" id="stationWarehouseStockToggleBtn" class="station-wh-stock-toggle"
+      onclick="toggleStationWarehouseStock()">
+      <div class="station-wh-stock-toggle-left">
+        <span class="material-icons station-wh-icon">inventory</span>
+        <span class="station-wh-title">Dostępne: MP01, regały, BFMP01, MDO01</span>
+        <span id="stationWarehouseStockBadge" class="station-wh-badge">0 palet</span>
+      </div>
+      <span id="stationWarehouseStockChevron" class="material-icons station-wh-chevron">expand_more</span>
+    </button>
+
+    <div id="stationWarehouseStockContent" class="station-wh-stock-content scn-init-hidden">
+      <div id="stationWarehouseStockTargetInfo" class="station-wh-target-info"></div>
+      <div id="stationWarehouseStockList" class="station-wh-stock-list"></div>
+      <div id="stationWarehouseStockEmpty" class="station-wh-stock-empty scn-init-hidden">
+        Brak dostępnych palet na magazynie dla surowców tej stacji.
+      </div>
+    </div>
+  </div>
+</div>

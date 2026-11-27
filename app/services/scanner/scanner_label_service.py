@@ -20,6 +20,9 @@ class ScannerLabelService:
 
         clean_id_str = str(identifier).strip()
         sscc_code = ScannerCodeNormalizer.normalize_scanned_code(clean_id_str)
+        if sscc_code.upper().startswith('ROL') and len(sscc_code) >= 6:
+            from app.services.scanner.packaging_subroll_queries import PackagingSubrollQueries
+            return PackagingSubrollQueries.get_subroll_label_data(sscc_code, linia=linia)
         is_numeric = clean_id_str.isdigit() and len(clean_id_str) < 10
         numeric_id = int(clean_id_str) if is_numeric else None
 

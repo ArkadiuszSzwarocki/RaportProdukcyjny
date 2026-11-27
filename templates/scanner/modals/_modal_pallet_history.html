@@ -1,0 +1,47 @@
+<div class="modal-overlay scn-overlay-dark scn-overlay-dark--history" id="scannerHistoryOverlay">
+  <div class="scn-history-dialog">
+    <div class="scn-history-header">
+      <div class="scn-history-header-left">
+        <div class="scn-history-icon-box">
+          <span class="material-icons scn-camera-icon">history</span>
+        </div>
+        <div>
+          <h3 class="scn-history-title">Historia Ruchów Palety</h3>
+          <span class="scn-history-subtitle">Rejestr zdarzeń i ścieżka traceability</span>
+        </div>
+      </div>
+      <button type="button" class="scn-light-close" onclick="closeScannerHistoryModal()">&times;</button>
+    </div>
+
+    <div class="scn-history-summary-wrap">
+      <div class="scn-history-summary-card">
+        <div class="scn-history-summary-top">
+          <span id="histModalPalletName" class="scn-history-pallet-name">—</span>
+          <span class="scn-history-id-pill">ID: <span id="histModalId">—</span></span>
+        </div>
+        <div class="scn-history-meta-row">
+          <div><span class="scn-muted-label">SSCC:</span> <strong id="histModalSSCC" class="scn-mono scn-text-dark">—</strong></div>
+          <div><span class="scn-muted-label">Stan:</span> <strong id="histModalQty" class="scn-text-dark">—</strong></div>
+          <div><span class="scn-muted-label">Lokalizacja:</span> <strong id="histModalLoc" class="scn-text-dark">—</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="histModalListContainer" class="scn-history-list-container">
+      <div id="histModalLoading" class="scn-history-state-box">
+        <span class="material-icons scn-history-spin-icon">sync</span>
+        <div class="scn-history-state-text">Pobieranie historii palety...</div>
+      </div>
+      <div id="histModalEmpty" class="scn-history-state-box scn-init-hidden">
+        <span class="material-icons scn-history-empty-icon">history_toggle_off</span>
+        <div class="scn-history-state-text">Brak zarejestrowanych ruchów dla tej palety.</div>
+      </div>
+      <div id="histModalTimeline" class="scn-history-timeline"></div>
+    </div>
+
+    <div class="scn-history-footer">
+      <span id="histModalCount" class="scn-history-count">Wpisów: 0</span>
+      <button type="button" class="scn-history-close-btn" onclick="closeScannerHistoryModal()">Zamknij</button>
+    </div>
+  </div>
+</div>

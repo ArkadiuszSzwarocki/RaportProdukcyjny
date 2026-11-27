@@ -253,6 +253,7 @@ function generateTableRow(item, index) {
         </td>
         <td data-label="Opakowanie" class="packaging-cell">
             ${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia, item.raw_packaging_type || item.typ_opakowania)}
+            ${Number(item.subrolls_count) > 0 ? `<span class="wh-subrolls-pill">📦 ${Number(item.subrolls_count)} ${Number(item.subrolls_count) === 1 ? 'podrolka' : (Number(item.subrolls_count) < 5 ? 'podrolki' : 'podrolek')}</span>` : ''}
         </td>
         <td data-label="Ilość" class="amount-cell">
             <div class="amount-box-inner">
@@ -338,7 +339,7 @@ function generateGridCard(item) {
         </div>
         <div class="card-body">
             <div class="product-name">${displayName}${item.is_depozyt ? ' <span class="badge deposit-tag" style="background: #e0e7ff; color: #3730a3; border: 1px solid #a5b4fc; font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; text-transform: uppercase; vertical-align: middle; margin-left: 4px;"><span class="material-icons" style="font-size: 11px;">inventory</span> DEPOZYT</span>' : ''}</div>
-            <div style="margin: 4px 0;">${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia, item.raw_packaging_type || item.typ_opakowania)}</div>
+            <div style="margin: 4px 0;">${formatPackagingBadge(item.packaging_type, item.id, item.type, item.linia, item.raw_packaging_type || item.typ_opakowania)}${Number(item.subrolls_count) > 0 ? `<span class="wh-subrolls-pill">📦 ${Number(item.subrolls_count)}</span>` : ''}</div>
             ${batchSubtitle}
             <div class="amount-row">
                 <span class="val">${item.amount}</span>

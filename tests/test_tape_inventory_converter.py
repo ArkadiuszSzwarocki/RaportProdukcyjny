@@ -169,7 +169,7 @@ def test_api_zapisz_wpis_delegates_split_rolls(client):
     mock_split.assert_called_once()
 
 
-def test_scanner_split_tape_rolls_direct_endpoint(client):
+def test_scanner_split_tape_rolls_adds_single_subroll(client):
     with client.session_transaction() as sess:
         sess['zalogowany'] = True
         sess['rola'] = 'magazynier'
@@ -178,18 +178,70 @@ def test_scanner_split_tape_rolls_direct_endpoint(client):
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
-    mock_cursor.fetchone.return_value = {
-        'id': 42,
-        'nr_palety': 'OPK080520268220711005',
-        'nazwa': 'Fiolet',
-        'stan_magazynowy': 5277.0,
-        'lokalizacja': 'R060405',
-        'nr_partii': 'BRAK',
-        'data_produkcji': None,
-        'data_przydatnosci': None,
-        'typ_opakowania': 'Taśma',
-        'linia': 'PSD',
-    }
+    mock_cursor.fetchone.side_effect = [
+        {
+            'id': 55,
+            'nr_palety': 'OPK000001780002923549',
+            'nazwa': 'Biała',
+            'stan_magazynowy': 1949.0,
+            'lokalizacja': 'R060403',
+            'nr_partii': 'BRAK',
+            'typ_opakowania': 'Taśma',
+            'linia': 'AGRO',
+        },
+        {'max_nr': 0},
+    ]
+    mock_cursor.fetchall.return_value = []
+    mock_cursor.lastrowid = 601
+
+    with patch('app.db.get_db_connection', return_value=mock_conn), \
+         patch('app.services.warehouse_history.movement_recorder.MovementRecorder.record_movement', return_value=True):
+        resp = client.post(
+            '/agro/scanner/split-tape-rolls',
+            json={
+                'pallet_id': 55,
+                'nr_palety': 'OPK000001780002923549',
+                'rolls_szt': [500],
+                'print_labels': False,
+            },
+            content_type='application/json',
+        )
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data['success'] is True
+    assert data['remaining_szt'] == 1449
+    assert len(data['rolls']) == 1
+    assert data['rolls'][0]['nr_rolki'] == 1
+    assert data['rolls'][0]['ilosc_szt'] == 500
+    assert 'Dodano podrolkę #1 (500 szt)' in data['message']
+
+
+def test_scanner_split_tape_rolls_registers_subrolls_on_single_master_pallet(client):
+    with client.session_transaction() as sess:
+        sess['zalogowany'] = True
+        sess['rola'] = 'magazynier'
+        sess['login'] = 'szwarark'
+
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchone.side_effect = [
+        {
+            'id': 42,
+            'nr_palety': 'OPK080520268220711005',
+            'nazwa': 'Fiolet',
+            'stan_magazynowy': 5277.0,
+            'lokalizacja': 'R060405',
+            'nr_partii': 'BRAK',
+            'data_produkcji': None,
+            'data_przydatnosci': None,
+            'typ_opakowania': 'Taśma',
+            'linia': 'PSD',
+        },
+        {'max_nr': 0},
+    ]
+    mock_cursor.fetchall.return_value = []
     mock_cursor.lastrowid = 501
 
     with patch('app.db.get_db_connection', return_value=mock_conn), \
@@ -211,13 +263,193 @@ def test_scanner_split_tape_rolls_direct_endpoint(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data['success'] is True
+    assert data['remaining_szt'] == 1944
     assert len(data['rolls']) == 3
-    assert data['rolls'][0]['stan_magazynowy'] == 1200
-    assert data['rolls'][0]['is_source'] is True
-    assert data['rolls'][1]['nr_palety'].startswith('OPK000')
-    assert data['rolls'][2]['nr_palety'].startswith('OPK000')
+    assert all(r['is_subroll'] is True and r['kod_rolki'].startswith('ROL000') for r in data['rolls'])
+    assert [r['ilosc_szt'] for r in data['rolls']] == [1200, 1133, 1000]
+    extra_pallets = [
+        c.args for c in mock_cursor.execute.call_args_list
+        if 'INSERT INTO magazyn_opakowania ' in str(c.args[0])
+    ]
+    assert extra_pallets == []
+    subroll_inserts = [
+        c.args for c in mock_cursor.execute.call_args_list
+        if 'INSERT INTO magazyn_opakowania_rolki' in str(c.args[0])
+    ]
+    assert len(subroll_inserts) == 3
     assert mock_conn.commit.called
-    assert mock_rec.call_count == 3
+    assert mock_rec.call_count == 1
+
+
+def test_scanner_split_tape_rolls_respects_existing_subrolls_pool(client):
+    with client.session_transaction() as sess:
+        sess['zalogowany'] = True
+        sess['rola'] = 'magazynier'
+        sess['login'] = 'szwarark'
+
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchone.return_value = {
+        'id': 42,
+        'nr_palety': 'OPK080520268220678004',
+        'nazwa': 'Fiolet',
+        'stan_magazynowy': 4463.0,
+        'lokalizacja': 'R060405',
+        'nr_partii': 'BRAK',
+        'typ_opakowania': 'Taśma',
+        'linia': 'AGRO',
+    }
+    mock_cursor.fetchall.return_value = [
+        {'id': 1, 'nr_rolki': 1, 'ilosc_szt': 500, 'status': 'NA_PALECIE'},
+        {'id': 2, 'nr_rolki': 2, 'ilosc_szt': 500, 'status': 'NA_PALECIE'},
+    ]
+
+    with patch('app.db.get_db_connection', return_value=mock_conn):
+        resp = client.post(
+            '/agro/scanner/split-tape-rolls',
+            json={
+                'pallet_id': 42,
+                'nr_palety': 'OPK080520268220678004',
+                'rolls_szt': [3500],
+                'print_labels': False,
+            },
+            content_type='application/json',
+        )
+
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data['success'] is False
+    assert '3463 szt' in data['error']
+    assert '37 szt' in data['error']
+    assert mock_conn.rollback.called
+    assert not mock_conn.commit.called
+
+
+def test_scanner_split_tape_rolls_rejects_sum_exceeding_pallet_stock(client):
+    with client.session_transaction() as sess:
+        sess['zalogowany'] = True
+        sess['rola'] = 'magazynier'
+        sess['login'] = 'szwarark'
+
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchone.return_value = {
+        'id': 99,
+        'nr_palety': 'OPK080520268220678004',
+        'nazwa': 'Fiolet',
+        'stan_magazynowy': 4463.0,
+        'lokalizacja': 'MS01',
+        'typ_opakowania': 'Taśma',
+        'linia': 'PSD',
+    }
+    mock_cursor.fetchall.return_value = []
+
+    with patch('app.db.get_db_connection', return_value=mock_conn):
+        resp = client.post(
+            '/agro/scanner/split-tape-rolls',
+            json={
+                'pallet_id': 99,
+                'nr_palety': 'OPK080520268220678004',
+                'rolls_szt': [320, 320, 1500, 1600, 3560],
+                'print_labels': False,
+            },
+            content_type='application/json',
+        )
+
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data['success'] is False
+    assert 'przekracza nierozpisaną pulę' in data['error']
+    assert '2837 szt' in data['error']
+    assert mock_conn.rollback.called
+    assert not mock_conn.commit.called
+
+
+def test_scanner_subroll_dispatch_and_return_to_mother_pallet(client):
+    with client.session_transaction() as sess:
+        sess['zalogowany'] = True
+        sess['rola'] = 'magazynier'
+        sess['login'] = 'szwarark'
+
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchone.side_effect = [
+        {
+            'id': 11,
+            'parent_opakowanie_id': 99,
+            'kod_rolki': 'ROL000123456789012345',
+            'nr_rolki': 1,
+            'ilosc_szt': 500,
+            'status': 'NA_PALECIE',
+        },
+        {
+            'id': 99,
+            'nr_palety': 'OPK080520268220678004',
+            'nazwa': 'Fiolet',
+            'stan_magazynowy': 4463.0,
+            'lokalizacja': 'R060405',
+            'typ_opakowania': 'Taśma',
+            'is_blocked': 0,
+        },
+    ]
+    mock_cursor.lastrowid = 777
+
+    with patch('app.db.get_db_connection', return_value=mock_conn):
+        resp = client.post(
+            '/agro/scanner/subroll/dispatch-lp01',
+            json={'subroll_id': 11},
+            content_type='application/json',
+        )
+
+    assert resp.status_code == 200
+    dispatch_data = resp.get_json()
+    assert dispatch_data['success'] is True
+    assert dispatch_data['lp01_id'] == 777
+    assert mock_conn.commit.called
+
+    mock_conn_ret = MagicMock()
+    mock_cur_ret = MagicMock()
+    mock_conn_ret.cursor.return_value = mock_cur_ret
+    mock_cur_ret.fetchone.side_effect = [
+        None,
+        {
+            'id': 777,
+            'nr_palety': 'OPK08052026999999001',
+            'nazwa': 'Fiolet',
+            'stan_magazynowy': 180.0,
+            'lokalizacja': 'LP01',
+        },
+        {
+            'id': 99,
+            'nr_palety': 'OPK080520268220678004',
+            'nazwa': 'Fiolet',
+            'stan_magazynowy': 3963.0,
+            'lokalizacja': 'R060405',
+        },
+        {'max_nr': 2},
+    ]
+    mock_cur_ret.lastrowid = 12
+
+    with patch('app.db.get_db_connection', return_value=mock_conn_ret):
+        ret_resp = client.post(
+            '/agro/scanner/subroll/return-to-pallet',
+            json={
+                'lp01_item_id': 777,
+                'mother_pallet': 'OPK080520268220678004',
+                'amount': 180,
+            },
+            content_type='application/json',
+        )
+
+    assert ret_resp.status_code == 200
+    ret_data = ret_resp.get_json()
+    assert ret_data['success'] is True
+    assert ret_data['subroll_id'] == 12
+    assert ret_data['kod_rolki'].startswith('ROL000')
+    assert mock_conn_ret.commit.called
 
 
 

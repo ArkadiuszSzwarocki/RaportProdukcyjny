@@ -533,163 +533,111 @@ def get_printers():
 @scanner_bp.route('/split-tape-rolls', methods=['POST'])
 def split_tape_rolls():
     """Rozbija paletę taśmy w magazyn_opakowania bezpośrednio na pojedyncze rolki (bez inwentaryzacji)."""
-    import random
-    import time
-    from app.db import get_db_connection
-    from app.services.inwentaryzacja_service import InwentaryzacjaService
-    from app.services.warehouse_history.movement_recorder import MovementRecorder
+    from app.services.scanner.tape_roll_split_service import TapeRollSplitService
 
     data = request.get_json(silent=True) or {}
-    pallet_id = data.get('pallet_id') or data.get('surowiec_id') or data.get('id')
-    nr_palety = str(data.get('nr_palety') or data.get('sscc') or '').strip()
-    rolls_szt = data.get('rolls_szt')
-    bag_weight_kg = data.get('bag_weight_kg')
-    save_bag_weight = bool(data.get('save_bag_weight', False))
-    print_labels = bool(data.get('print_labels', True))
-    printer_ip = data.get('printer_ip') or data.get('override_ip')
-    printer_name = data.get('printer_name') or data.get('override_name')
-    copies = int(data.get('copies') or 2)
-    worker = _worker()
+    command, validation_error = TapeRollSplitService.parse_command(data)
+    if validation_error:
+        return jsonify({'success': False, 'error': validation_error}), 400
 
-    if not pallet_id and not nr_palety:
-        return jsonify({'success': False, 'error': 'Brak identyfikatora palety taśmy.'}), 400
-    if not isinstance(rolls_szt, list) or len(rolls_szt) < 2:
-        return jsonify({'success': False, 'error': 'Podaj co najmniej 2 rolki do rozbicia.'}), 400
+    body, status_code = TapeRollSplitService.execute(
+        command=command,
+        worker_login=_worker(),
+        default_linia=_linia(),
+    )
+    return jsonify(body), status_code
 
-    cleaned_rolls = []
-    for idx, raw_val in enumerate(rolls_szt, start=1):
-        try:
-            qty = int(round(float(str(raw_val).replace(',', '.'))))
-        except (TypeError, ValueError):
-            return jsonify({'success': False, 'error': f'Nieprawidłowa ilość dla rolki #{idx}.'}), 400
-        if qty <= 0:
-            return jsonify({'success': False, 'error': f'Ilość dla rolki #{idx} musi być większa od 0.'}), 400
-        cleaned_rolls.append(qty)
 
-    conn = get_db_connection()
-    try:
-        cur = conn.cursor(dictionary=True)
-        if pallet_id:
-            cur.execute("SELECT * FROM magazyn_opakowania WHERE id = %s LIMIT 1 FOR UPDATE", (pallet_id,))
-        else:
-            cur.execute("SELECT * FROM magazyn_opakowania WHERE UPPER(nr_palety) = %s LIMIT 1 FOR UPDATE", (nr_palety.upper(),))
-        pal = cur.fetchone()
-        if not pal:
-            conn.rollback()
-            return jsonify({'success': False, 'error': 'Nie znaleziono palety taśmy w magazynie opakowań.'}), 404
+@scanner_bp.route('/subroll/dispatch-lp01', methods=['POST'])
+def dispatch_subroll_lp01():
+    """Odrywa wskazaną podrolkę z palety głównej i wydaje ją na stanowisko LP01."""
+    from app.dto.packaging_subroll_dto import SubrollDispatchCommand
+    from app.services.scanner.packaging_subroll_commands import PackagingSubrollCommands
 
-        old_qty = float(pal.get('stan_magazynowy') or 0)
-        if old_qty <= 0:
-            conn.rollback()
-            return jsonify({'success': False, 'error': 'Paleta ma zerowy stan magazynowy.'}), 400
+    data = request.get_json(silent=True) or {}
+    subroll_id = data.get('subroll_id')
+    if not subroll_id or not str(subroll_id).isdigit():
+        return jsonify({'success': False, 'error': 'Brak identyfikatora podrolki.'}), 400
 
-        pal_linia = pal.get('linia') or _linia()
-        pal_loc = pal.get('lokalizacja') or 'MOP01'
-        pal_pkg = pal.get('typ_opakowania') or 'Taśma'
-        src_sscc = pal.get('nr_palety') or f"OPK-{pal['id']}"
-
-        # 1. Roll #1 updates original pallet
-        first_qty = cleaned_rolls[0]
-        cur.execute(
-            "UPDATE magazyn_opakowania SET stan_magazynowy = %s WHERE id = %s",
-            (first_qty, pal['id']),
+    plan_raw = data.get('plan_id')
+    plan_id = int(plan_raw) if plan_raw not in (None, '', 'None') and str(plan_raw).isdigit() else None
+    ok, msg, extra = PackagingSubrollCommands.dispatch_subroll_to_lp01(
+        SubrollDispatchCommand(
+            subroll_id=int(subroll_id),
+            user_login=_worker(),
+            plan_id=plan_id,
+            roll_role=str(data.get('roll_role') or 'prepared'),
+            request_key=data.get('request_key'),
+            previous_remaining=data.get('previous_remaining'),
         )
-        MovementRecorder.record_movement(
-            pal['id'], pal_linia, 'opakowanie', 'ROZBICIE_ROLEK',
-            pal_loc, pal_loc,
-            f"Rozbicie palety taśmy na {len(cleaned_rolls)} rolek (Rolka #1: {old_qty:g} -> {first_qty} szt)",
-            worker, src_sscc,
-            cursor=cur, connection=conn,
-            quantity_before=old_qty, quantity_after=first_qty,
-        )
-
-        result_rolls = [{
-            'id': pal['id'],
-            'nr_palety': src_sscc,
-            'stan_magazynowy': first_qty,
-            'is_source': True,
-        }]
-
-        # 2. Rolls #2..#N inserted as separate pallets in magazyn_opakowania
-        base_ts = int(time.time() * 1000)
-        for idx, roll_qty in enumerate(cleaned_rolls[1:], start=2):
-            suffix = f"{(base_ts + idx) % 10000000000000:013d}{random.randint(10, 99)}"
-            new_sscc = f"OPK000{suffix}"
-            cur.execute(
-                """
-                INSERT INTO magazyn_opakowania
-                    (nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci,
-                     typ_opakowania, is_blocked, linia, is_loaded, is_depozyt)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, %s, 0, 0)
-                """,
-                (
-                    new_sscc, pal['nazwa'], roll_qty, pal_loc,
-                    pal.get('nr_partii'), pal.get('data_produkcji'), pal.get('data_przydatnosci'),
-                    pal_pkg, pal_linia,
-                ),
-            )
-            new_id = cur.lastrowid
-            MovementRecorder.record_movement(
-                new_id, pal_linia, 'opakowanie', 'ROZBICIE_ROLEK',
-                pal_loc, pal_loc,
-                f"Rolka #{idx} z rozbicia palety {src_sscc} ({roll_qty} szt)",
-                worker, new_sscc,
-                cursor=cur, connection=conn,
-                quantity_before=0, quantity_after=roll_qty,
-            )
-            result_rolls.append({
-                'id': new_id,
-                'nr_palety': new_sscc,
-                'stan_magazynowy': roll_qty,
-                'is_source': False,
-            })
-
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        return jsonify({'success': False, 'error': f'Błąd rozbijania palety: {e}'}), 500
-    finally:
-        conn.close()
-
-    if save_bag_weight and bag_weight_kg not in (None, ''):
-        try:
-            InwentaryzacjaService.save_tape_conversions_bulk(
-                [{'nazwa': pal['nazwa'], 'waga_worka_kg': bag_weight_kg}],
-                user_login=worker,
-            )
-        except Exception:
-            pass
-
-    printed_count = 0
-    print_errors = []
-    if print_labels:
-        printer = get_printer()
-        for r_item in result_rolls:
-            try:
-                lbl_data = ScannerService.get_label_data(r_item['nr_palety'], linia=pal_linia, pallet_type='opakowanie')
-                if lbl_data:
-                    ok, msg = printer.print_pallet_label(
-                        lbl_data,
-                        override_ip=printer_ip,
-                        override_name=printer_name,
-                        copies=copies,
-                    )
-                    if ok:
-                        printed_count += 1
-                    else:
-                        print_errors.append(f"{r_item['nr_palety']}: {msg}")
-            except Exception as pe:
-                print_errors.append(f"{r_item['nr_palety']}: {pe}")
-
-    total_szt = sum(cleaned_rolls)
+    )
     return jsonify({
-        'success': True,
-        'message': f"Rozbito na {len(cleaned_rolls)} rolek (razem {total_szt} szt)",
-        'source_sscc': src_sscc,
-        'rolls': result_rolls,
-        'printed_count': printed_count,
-        'print_errors': print_errors,
-    })
+        'success': ok,
+        'message': msg,
+        'error': None if ok else msg,
+        **(extra or {}),
+        'data': extra,
+    }), (200 if ok else 400)
+
+
+@scanner_bp.route('/subroll/return-to-pallet', methods=['POST'])
+def return_roll_to_mother_pallet():
+    """Dopina zwracaną końcówkę rolki z LP01 jako podrolkę do wskazanej palety-matki."""
+    from app.dto.packaging_subroll_dto import SubrollReturnCommand
+    from app.services.scanner.packaging_subroll_commands import PackagingSubrollCommands
+
+    data = request.get_json(silent=True) or {}
+    lp01_id = data.get('lp01_item_id') or data.get('id')
+    mother_ref = (
+        data.get('mother_code')
+        or data.get('mother_pallet')
+        or data.get('mother_id')
+        or data.get('target_pallet')
+    )
+    if not lp01_id or not mother_ref:
+        return jsonify({'success': False, 'error': 'Podaj ID rolki LP01 oraz kod palety-matki.'}), 400
+
+    raw_amount = data.get('amount')
+    amount = float(raw_amount) if raw_amount not in (None, '') else None
+    ok, msg, extra = PackagingSubrollCommands.return_lp01_roll_to_mother(
+        SubrollReturnCommand(
+            lp01_item_id=int(lp01_id),
+            mother_identifier=mother_ref,
+            user_login=_worker(),
+            amount=amount,
+        )
+    )
+    return jsonify({
+        'success': ok,
+        'message': msg,
+        'error': None if ok else msg,
+        **(extra or {}),
+        'data': extra,
+    }), (200 if ok else 400)
+
+
+@scanner_bp.route('/subroll/print-label', methods=['POST'])
+def print_subroll_label():
+    """Drukuje etykietę ZPL dla pojedynczej podrolki (ROL000...)."""
+    from app.services.scanner.packaging_subroll_queries import PackagingSubrollQueries
+
+    data = request.get_json(silent=True) or {}
+    kod_rolki = str(data.get('kod_rolki') or '').strip()
+    copies = max(1, min(10, int(data.get('copies') or 2)))
+    if not kod_rolki:
+        return jsonify({'success': False, 'error': 'Brak kodu podrolki.'}), 400
+
+    lbl_data = PackagingSubrollQueries.get_subroll_label_data(kod_rolki, linia=_linia())
+    if not lbl_data:
+        return jsonify({'success': False, 'error': f'Nie znaleziono podrolki {kod_rolki}.'}), 404
+
+    ok, msg = get_printer().print_pallet_label(
+        lbl_data,
+        override_ip=data.get('printer_ip'),
+        override_name=data.get('printer_name'),
+        copies=copies,
+    )
+    return jsonify({'success': ok, 'message': msg, 'error': None if ok else msg}), (200 if ok else 500)
 
 
 @scanner_bp.route('/ui')

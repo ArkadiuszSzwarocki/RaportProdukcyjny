@@ -1,5 +1,62 @@
 // cspell:words naważanie
-/* ─── Scanner UI Card Views (Pallet Card & Station Card) ─────── */
+function renderPalletSubrollsPanel(p, locUpper, isBlocked, isUsedUp) {
+  const container = document.getElementById('palletSubrollsContainer');
+  if (!container) return;
+  const subrolls = Array.isArray(p.subrolls) ? p.subrolls : [];
+  const isLp01Roll = ['LP01', 'MASZYNA'].includes(locUpper) && (p.inventory_type === 'Opakowanie' || p.is_pkg);
+
+  if (isLp01Roll && !isUsedUp) {
+    container.classList.remove('is-hidden');
+    container.innerHTML = '<div class="subrolls-lp01-hint">💡 <strong>Zwrot końcówki:</strong> zeskanuj etykietę palety-matki (<code>OPK...</code>), aby dopiąć tę rolkę jako podrolkę, albo zeskanuj strefę (np. <code>MOP01</code>), aby odłożyć ją luzem.</div>';
+    return;
+  }
+
+  if (!subrolls.length) {
+    container.innerHTML = '';
+    container.classList.add('is-hidden');
+    return;
+  }
+
+  const selectedId = p.selected_subroll ? Number(p.selected_subroll.id) : null;
+  const rowsHtml = subrolls.map((r) => {
+    const selCls = selectedId === Number(r.id) ? ' subroll-row--selected' : '';
+    const retBadge = r.zrodlo === 'ZWROT_LP01' ? '<span class="subroll-return-tag">Zwrot LP01</span>' : '';
+    const dispatchBtn = !isBlocked
+      ? `<button type="button" class="subroll-btn-lp01" onclick="openSubrollLP01Modal(${Number(r.id)})">Wydaj na LP01</button>`
+      : '';
+    return `
+      <div class="subroll-row${selCls}">
+        <div class="subroll-info">
+          <div class="subroll-label-line">Rolka #${Number(r.nr_rolki)} ${retBadge}</div>
+          <div class="subroll-code">${scannerEscapeHtml(r.kod_rolki)}</div>
+        </div>
+        <div class="subroll-actions">
+          <span class="subroll-qty">${Number(r.ilosc_szt).toLocaleString('pl-PL')} szt</span>
+          ${dispatchBtn}
+          <button type="button" class="subroll-btn-print" title="Drukuj etykietę podrolki" onclick="printSubrollZpl('${scannerEscapeHtml(r.kod_rolki)}')">🖨️</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const unassigned = Number(p.unassigned_szt || 0);
+  const assigned = Number(p.subrolls_total_szt || 0);
+  container.classList.remove('is-hidden');
+  container.innerHTML = `
+    <div class="subrolls-header">
+      <span class="subrolls-title">Podrolki na palecie (${subrolls.length})</span>
+      <span class="subrolls-meta">W rolkach: ${assigned.toLocaleString('pl-PL')} szt · Luzem: ${unassigned.toLocaleString('pl-PL')} szt</span>
+    </div>
+    <div class="subrolls-list">${rowsHtml}</div>
+  `;
+
+  if (p.selected_subroll && typeof showToast === 'function') {
+    showToast(
+      `🎯 Wybrano Podrolkę #${p.selected_subroll.nr_rolki} (${p.selected_subroll.ilosc_szt} szt) — kliknij "Wydaj na LP01" lub zeskanuj LP01`,
+      'info'
+    );
+  }
+}
 let currentStationReturnPallet = null;
 
 function scannerEscapeHtml(value) {
@@ -97,7 +154,7 @@ function toggleStationWarehouseStock() {
   const btn = document.getElementById('stationWarehouseStockToggleBtn');
   const content = document.getElementById('stationWarehouseStockContent');
   if (!content) return;
-  const isHidden = content.style.display === 'none';
+  const isHidden = window.getComputedStyle(content).display === 'none';
   content.style.display = isHidden ? 'block' : 'none';
   if (btn) {
     if (isHidden) {
@@ -373,9 +430,12 @@ function showPallet(p) {
   if (tapeSplitBtn) {
     const pkgTypeLower = String(p.typ_opakowania || '').toLowerCase();
     const isTapePkg = pkgTypeLower.includes('taśm') || pkgTypeLower.includes('tasm') || p.inventory_type === 'Opakowanie' || Boolean(p.is_pkg);
-    const canTapeSplit = !isTransferOrder && !isUsedUp && !isBlocked && !p.is_bucket && parseFloat(p.stan_magazynowy || 0) > 0 && isTapePkg;
+    const availUnassigned = p.unassigned_szt !== undefined ? Number(p.unassigned_szt) : parseFloat(p.stan_magazynowy || 0);
+    const canTapeSplit = !isTransferOrder && !isUsedUp && !isBlocked && !p.is_bucket && availUnassigned > 0 && isTapePkg && !['LP01', 'MASZYNA'].includes(locUpper);
     tapeSplitBtn.style.display = canTapeSplit ? 'block' : 'none';
   }
+
+  renderPalletSubrollsPanel(p, locUpper, isBlocked, isUsedUp);
 
   const palletCard = document.getElementById('palletCard');
   if (palletCard) palletCard.classList.add('visible');
@@ -482,7 +542,7 @@ function hidePallet() {
   if (palletCard) palletCard.classList.remove('visible');
 
   const nopalletMsg = document.getElementById('nopalletMsg');
-  if (nopalletMsg) nopalletMsg.style.display = '';
+  if (nopalletMsg) nopalletMsg.style.display = 'block';
 
   const idVal = document.getElementById('palletIdVal');
   if (idVal) idVal.textContent = '—';
@@ -496,6 +556,12 @@ function hidePallet() {
 
   const restoreBtn = document.getElementById('scannerRestoreBtnContainer');
   if (restoreBtn) restoreBtn.style.display = 'none';
+
+  const subrollsBox = document.getElementById('palletSubrollsContainer');
+  if (subrollsBox) {
+    subrollsBox.innerHTML = '';
+    subrollsBox.classList.add('is-hidden');
+  }
 
   const barContainer = document.getElementById('palletTimeoutBarContainer');
   if (barContainer) barContainer.style.display = 'none';
@@ -518,4 +584,28 @@ function hidePallet() {
   }
   const iconEl = document.querySelector('.input-icon');
   if (iconEl) iconEl.style.color = '';
+}
+
+function copyScannerPalletSSCC(btnEl) {
+  const ssccNode = document.getElementById('palletSSCC');
+  const txt = ssccNode ? ssccNode.innerText.trim() : '';
+  if (!txt || txt === '—' || !navigator.clipboard) return;
+  navigator.clipboard.writeText(txt).then(() => {
+    const icon = btnEl && btnEl.querySelector('.material-icons');
+    if (!icon) return;
+    icon.textContent = 'check';
+    btnEl.classList.add('is-copied');
+    setTimeout(() => {
+      icon.textContent = 'content_copy';
+      btnEl.classList.remove('is-copied');
+    }, 1500);
+  });
+}
+
+function clearScannerInputById(inputId) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.value = '';
+  inp.focus();
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
 }

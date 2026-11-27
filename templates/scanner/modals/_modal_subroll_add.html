@@ -1,0 +1,63 @@
+<div class="modal-overlay subroll-modal-overlay" id="scannerTapeSplitOverlay">
+  <div class="subroll-modal-card">
+    <div class="subroll-modal-header">
+      <h3 class="subroll-modal-title">
+        <span class="material-icons">add_circle</span>
+        Dodaj podrolkę do palety (kg → szt)
+      </h3>
+      <button type="button" class="subroll-modal-close" onclick="closeScannerTapeSplitModal()">&times;</button>
+    </div>
+
+    <div class="subroll-modal-pallet-box">
+      <div class="subroll-modal-pallet-name" id="tapeSplitPalletName">—</div>
+      <div class="subroll-modal-pallet-meta">
+        SSCC: <strong id="tapeSplitPalletSSCC" class="subroll-text-light">—</strong> |
+        Lok: <strong id="tapeSplitPalletLoc" class="subroll-text-sky">—</strong> |
+        Wolna pula: <strong id="tapeSplitPalletQty" class="subroll-text-emerald">0</strong> szt
+      </div>
+      <div class="subroll-modal-pallet-extra is-hidden" id="tapeSplitPalletExtra"></div>
+    </div>
+
+    <div class="subroll-mode-switch">
+      <button type="button" id="tapeSplitModeKgBtn" class="subroll-mode-btn is-active" onclick="setScannerTapeSplitMode('kg')">
+        Wpisuję w kg (→ szt)
+      </button>
+      <button type="button" id="tapeSplitModeSztBtn" class="subroll-mode-btn" onclick="setScannerTapeSplitMode('szt')">
+        Wpisuję w szt
+      </button>
+    </div>
+
+    <div id="tapeSplitBagWeightRow" class="subroll-field-group">
+      <label class="subroll-field-label" for="tapeSplitBagWeightKg">Waga 1 worka dla tej taśmy (kg):</label>
+      <div class="subroll-input-row">
+        <input type="text" inputmode="decimal" id="tapeSplitBagWeightKg" class="subroll-num-input" placeholder="np. 0.150">
+        <button type="button" class="subroll-save-bag-btn" onclick="saveScannerTapeBagWeight()" title="Zapisz wagę 1 worka dla tej taśmy">
+          <span class="material-icons">save</span> Zapisz
+        </button>
+      </div>
+    </div>
+
+    <div class="subroll-field-group">
+      <label id="scannerTapeRollsLabel" class="subroll-field-label" for="scannerSingleSubrollInput">Waga dodawanej podrolki (kg):</label>
+      <div class="subroll-input-row">
+        <input type="text" inputmode="decimal" id="scannerSingleSubrollInput" class="subroll-num-input" placeholder="kg...">
+        <span id="scannerSingleSubrollPcs" class="subroll-converted-badge">—</span>
+      </div>
+    </div>
+
+    <div id="scannerTapeSplitSummary" class="subroll-summary-box"></div>
+
+    <label class="subroll-print-check-label">
+      <input type="checkbox" id="tapeSplitPrintLabels" class="subroll-print-checkbox" checked>
+      <span>Drukuj etykietę ZPL dla dodawanej podrolki</span>
+    </label>
+
+    <div class="subroll-modal-actions">
+      <button type="button" class="subroll-btn-cancel" onclick="closeScannerTapeSplitModal()">Anuluj</button>
+      <button type="button" id="btnConfirmScannerTapeSplit" class="subroll-btn-submit" onclick="submitScannerTapeSplit()">
+        <span class="material-icons">add_circle</span>
+        Dodaj podrolkę
+      </button>
+    </div>
+  </div>
+</div>

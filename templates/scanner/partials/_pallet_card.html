@@ -1,0 +1,89 @@
+<div class="scan-card scn-init-hidden" id="palletInfoCard">
+  <div class="scan-title scn-card-header">
+    <div class="scn-card-title-group">
+      <span class="material-icons scn-title-icon-green">inventory_2</span>
+      <span>Znaleziona paleta</span>
+    </div>
+    <button type="button" class="scn-other-pallet-btn" onclick="resetScanner()" title="Zeskanuj inną paletę">
+      <span class="material-icons scn-icon-14">refresh</span>
+      <span>Inna paleta</span>
+    </button>
+  </div>
+
+  <div class="pallet-card" id="palletCard">
+    <div class="row justify-between items-start scn-full-width">
+      <div class="scn-flex-fill">
+        <div class="scn-pallet-top-row">
+          <div class="pallet-loc" id="palletLoc">R030101</div>
+          <div id="palletIdBadge" class="scn-pallet-id-badge">
+            <span class="scn-pallet-id-prefix">ID:</span> <span id="palletIdVal">—</span>
+            <button type="button" id="palletHistoryBtn" class="scn-pallet-history-btn"
+              onclick="openScannerHistoryModal()" title="Pokaż historię palety">
+              <span class="material-icons scn-pallet-history-icon">history</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="pallet-name" id="palletName">Mąka Pszenna</div>
+        <div class="row gap-8 mb-8 wrap">
+          <span class="pill scn-init-hidden" id="palletTypePill"></span>
+        </div>
+        <div class="pallet-qty"><span id="palletQty">1600.0</span> <span id="palletUnit">kg</span></div>
+
+        <div id="palletDetails" class="scn-pallet-details">
+          <div class="scn-sscc-row">
+            <strong>Nr/SSCC:</strong> <span id="palletSSCC" class="scn-mono">—</span>
+            <button type="button" class="scn-copy-sscc-btn" onclick="copyScannerPalletSSCC(this)"
+              title="Kopiuj numer palety">
+              <span class="material-icons scn-icon-16">content_copy</span>
+            </button>
+          </div>
+          <div><strong>Partia:</strong> <span id="palletPartia">—</span></div>
+          <div><strong>Data produkcji:</strong> <span id="palletDataProd">—</span></div>
+          <div><strong>Data przydatności:</strong> <span id="palletDataWaz">—</span></div>
+        </div>
+
+        <div id="palletSubrollsContainer" class="subrolls-panel is-hidden"></div>
+      </div>
+
+      <div id="scannerReturnBtnContainer" class="scn-action-slot--mt16 scn-init-hidden">
+        <button type="button" class="btn btn-outline btn-sm row items-center justify-center gap-4 scn-btn-return-wh"
+          onclick="openScannerReturnModal()">
+          <span class="material-icons scn-icon-22">keyboard_return</span> Zwróć na magazyn
+        </button>
+      </div>
+
+      <div id="scannerRestoreBtnContainer" class="scn-action-slot--mt12 scn-init-hidden">
+        <button type="button" class="btn btn-outline btn-sm row items-center justify-center gap-4 scn-btn-restore-pallet"
+          onclick="openScannerRestoreModal()">
+          <span class="material-icons scn-icon-22">restore</span> Przywróć paletę ze stanu zużycia
+        </button>
+      </div>
+
+      {% if navigation_group_allowed('entry_split') %}
+      <div id="scannerSplitBtnContainer" class="scn-action-slot scn-init-hidden">
+        <button type="button" class="btn btn-outline btn-sm row items-center justify-center gap-4 scn-btn-split-pallet"
+          onclick="openScannerSplitModal()">
+          <span class="material-icons scn-icon-22">call_split</span> Podziel paletę (odcięcie z nową etykietą)
+        </button>
+      </div>
+      {% endif %}
+
+      <div id="scannerTapeSplitBtnContainer" class="scn-action-slot scn-init-hidden">
+        <button type="button" class="btn btn-outline btn-sm row items-center justify-center gap-4 subroll-trigger-btn"
+          onclick="openScannerTapeSplitModal()">
+          <span class="material-icons">add_circle</span> Dodaj podrolkę do palety (kg → szt)
+        </button>
+      </div>
+
+      <div class="scn-action-slot">
+        <button type="button" class="btn btn-outline btn-sm row items-center justify-center gap-4 scn-btn-print-zpl"
+          onclick="printLabel('pallet')">
+          <span class="material-icons scn-icon-22">print</span> Drukuj etykietę ZPL
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="nopalletMsg" class="text-muted small italic scn-init-hidden">Zeskanuj kod żeby zobaczyć dane.</div>
+</div>

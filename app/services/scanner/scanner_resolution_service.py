@@ -84,6 +84,9 @@ class ScannerResolutionService:
     @staticmethod
     def lookup_by_location(location_code: str, linia: str = 'Agro', try_all_lines: bool = True) -> dict | None:
         scan = str(location_code or '').strip().upper()
+        if scan.startswith('ROL') and len(scan) >= 6:
+            from app.services.scanner.packaging_subroll_queries import PackagingSubrollQueries
+            return PackagingSubrollQueries.lookup_by_subroll_code(location_code, linia=linia)
         if scan.startswith('MAL') or re.fullmatch(r'(?:WIADRO|W|V)[-_\s]*\d{1,2}', scan):
             return ScannerResolutionService._check_bucket(location_code, linia)
         normalized_scan_code = ScannerCodeNormalizer.normalize_scanned_code(location_code) or str(location_code or '').strip()
@@ -208,7 +211,8 @@ class ScannerResolutionService:
                     final_res['data_produkcji'] = it_details.get('data_produkcji')
                 if it_details.get('data_przydatnosci'):
                     final_res['data_przydatnosci'] = it_details.get('data_przydatnosci')
-            return final_res
+            from app.services.scanner.packaging_subroll_queries import PackagingSubrollQueries
+            return PackagingSubrollQueries.enrich_scanner_pallet(final_res)
 
         elif transfer_info:
             it = transfer_info.get('item_details') or {}

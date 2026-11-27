@@ -56,7 +56,20 @@ class WarehouseIndexController:
             try:
                 cursor.execute(f"SELECT id, nr_palety, nazwa as productName, lokalizacja as location, stan_magazynowy as amount, 'Opakowanie' as type, data_produkcji, data_przydatnosci, nr_partii, is_blocked, is_depozyt, created_at, typ_opakowania FROM {table_opakowania} WHERE stan_magazynowy > 0")
                 opakowania = cursor.fetchall()
+                subroll_counts = {}
+                if opakowania:
+                    try:
+                        from app.repositories.packaging_subroll_repository import PackagingSubrollRepository
+                        subroll_counts = PackagingSubrollRepository.count_active_by_parents(
+                            cursor,
+                            [int(r['id']) for r in opakowania if r.get('id')],
+                        )
+                    except Exception:
+                        subroll_counts = {}
                 for row in opakowania:
+                    sub_meta = subroll_counts.get(int(row['id'])) or {}
+                    row['subrolls_count'] = int(sub_meta.get('count') or 0)
+                    row['subrolls_total_szt'] = int(sub_meta.get('total_szt') or 0)
                     row['displayId'] = row['nr_palety'] if row['nr_palety'] else f"OPK-{row['id']}"
                     row['linia'] = shared_linia
                     row['date_prod'] = format_date_val(row.get('data_produkcji'))

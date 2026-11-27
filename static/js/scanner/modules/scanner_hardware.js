@@ -88,7 +88,7 @@ function isPalletCode(code) {
   if (!code) return false;
   const s = String(code).trim().toUpperCase();
   if (/^(?:WIADRO|W|V)[-_\s]*\d{1,2}$/.test(s) || s.startsWith('MAL')) return true;
-  const palletPrefixes = ['SUR', 'OPA', 'DOD', 'AGR', 'PSD', 'QA', 'PAL', 'SSCC', 'WYR'];
+  const palletPrefixes = ['SUR', 'OPK', 'OPA', 'ROL', 'DOD', 'AGR', 'PSD', 'QA', 'PAL', 'SSCC', 'WYR'];
   if (palletPrefixes.some(p => s.startsWith(p))) return true;
   if (/^\d{10,24}$/.test(s)) return true;
   if (/^PAL-?\d+/i.test(s) || /^SUR-?\d+/i.test(s) || /^OPA-?\d+/i.test(s) || /^DOD-?\d+/i.test(s)) return true;

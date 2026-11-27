@@ -1,0 +1,64 @@
+<div class="modal-overlay scn-overlay-dark" id="lp01ModalOverlay">
+  <div class="scn-light-dialog">
+    <div class="scn-light-header">
+      <h3 class="scn-light-title">
+        <span class="material-icons scn-icon-blue-24">precision_manufacturing</span>
+        Wydanie na maszynę LP01
+      </h3>
+      <button type="button" class="scn-light-close" onclick="closeLP01Modal()">&times;</button>
+    </div>
+
+    <div class="scn-light-info-card">
+      <div class="scn-light-info-tag">Materiał eksploatacyjny</div>
+      <div id="lp01ModalMatName" class="scn-light-info-name">-</div>
+      <div class="scn-light-info-meta">
+        <span>Lokalizacja źródłowa: <strong id="lp01ModalSourceLoc" class="scn-text-dark">-</strong></span>
+        <span>Dostępny stan: <strong id="lp01ModalMaxQty" class="scn-text-sky-dark">-</strong></span>
+      </div>
+    </div>
+
+    <div class="scn-field-block">
+      <label class="scn-light-label" for="lp01ModalQty">Ilość do wydania na maszynę LP01:</label>
+      <div class="scn-lp01-qty-row">
+        <input type="number" id="lp01ModalQty" step="0.1" min="0.01" class="form-control scn-lp01-qty-input"
+          onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault(); submitLP01Modal();}">
+        <span id="lp01ModalUnit" class="scn-lp01-unit">szt.</span>
+      </div>
+      <div class="scn-lp01-presets">
+        <button type="button" class="scn-lp01-preset-btn" onclick="setLP01Qty(1)">1 szt.</button>
+        <button type="button" class="scn-lp01-preset-btn" onclick="setLP01Qty(2)">2 szt.</button>
+        <button type="button" class="scn-lp01-preset-btn scn-lp01-preset-btn--max" onclick="setLP01Qty('max')">Całość</button>
+      </div>
+    </div>
+
+    <div id="lp01FilmFields" hidden class="scn-lp01-film-box">
+      <label for="lp01FilmPlan" class="scn-lp01-film-label">Przypisz rolkę folii do zlecenia</label>
+      <select id="lp01FilmPlan" class="form-control scn-lp01-select">
+        <option value="">Bez przypisania do zlecenia</option>
+      </select>
+      <label for="lp01FilmRole">Przeznaczenie rolki</label>
+      <select id="lp01FilmRole" class="form-control scn-lp01-select">
+        <option value="active">Aktualnie używana</option>
+        <option value="prepared" selected>Przygotowana do wymiany / rozpoczęcia</option>
+        <option value="replace">Zmiana rolki — zamknij poprzednią i załóż nową</option>
+      </select>
+      <div id="lp01PreviousWrap" hidden class="scn-lp01-prev-wrap">
+        <label for="lp01PreviousRemaining">Pozostało na poprzedniej rolce (szt.)</label>
+        <input id="lp01PreviousRemaining" type="number" min="0" step="1" placeholder="Wpisz również 0"
+          class="scn-lp01-prev-input">
+        <small>Poprzednia rolka zostanie automatycznie rozliczona i zamknięta.</small>
+      </div>
+      <small>Wpisz ilość na pobieranej rolce. Każde pobranie zapisuje się osobno; maksymalnie dwie rolki na zlecenie.</small>
+      <div data-film-status role="status" class="scn-lp01-status"></div>
+      <div data-film-error class="scn-lp01-error"></div>
+      <button type="button" data-film-retry hidden class="btn btn-outline scn-lp01-retry">Ponów pobieranie</button>
+    </div>
+
+    <div class="scn-light-actions">
+      <button type="button" class="btn btn-outline scn-light-btn-cancel" onclick="closeLP01Modal()">Anuluj</button>
+      <button type="button" id="btnConfirmLP01" class="scn-light-btn-primary" onclick="submitLP01Modal()">
+        <span class="material-icons scn-icon-18">check</span> Wydaj na LP01
+      </button>
+    </div>
+  </div>
+</div>

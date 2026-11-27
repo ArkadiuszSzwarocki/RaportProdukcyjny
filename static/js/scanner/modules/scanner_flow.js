@@ -144,6 +144,20 @@ function triggerScan() {
 
   const isRack = /^R[0-9]{6}$/i.test(code);
   if (currentPallet) {
+    const curLocUpper = String(currentPallet.lokalizacja || '').trim().toUpperCase();
+    const curSsccUpper = String(currentPallet.nr_palety || currentPallet.sscc || '').trim().toUpperCase();
+    const scanUpper = code.toUpperCase();
+    const isLp01PkgReturn = ['LP01', 'MASZYNA'].includes(curLocUpper)
+      && typeof isLP01Packaging === 'function'
+      && isLP01Packaging(currentPallet)
+      && scanUpper.startsWith('OPK')
+      && scanUpper !== curSsccUpper;
+    if (isLp01PkgReturn && typeof returnRollToMotherPallet === 'function') {
+      const scanInput = getScanInput();
+      if (scanInput) scanInput.value = '';
+      returnRollToMotherPallet(scanUpper);
+      return;
+    }
     if (!isRack && isPalletCode(code)) {
       lookupPallet(code);
     } else {
@@ -389,7 +403,7 @@ async function doMoveFromMainInput(loc) {
     const isLP01 = (loc === 'LP01' || loc === 'MASZYNA');
     if (isLP01) {
       setProcessingState(false);
-      openLP01Modal(loc);
+      openLP01Modal(loc, currentPallet && currentPallet.selected_subroll ? currentPallet.selected_subroll : null);
       return;
     }
 
