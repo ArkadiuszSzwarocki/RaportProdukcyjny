@@ -14,9 +14,9 @@ function openWgAcceptModal(p) {
   if (palletNameEl) palletNameEl.textContent = p.nazwa || '';
   if (weightInput) weightInput.value = parseFloat(p.stan_magazynowy || 0).toFixed(1);
   if (locInput) locInput.value = '';
-  
+
   backToWgStep1();
-  
+
   if (overlay) {
     overlay.style.display = 'flex';
     setTimeout(() => {
@@ -57,7 +57,7 @@ function goToWgStep2() {
   if (backBtn) backBtn.style.display = 'inline-block';
   if (nextBtn) nextBtn.style.display = 'none';
   if (confirmBtn) confirmBtn.style.display = 'inline-block';
-  
+
   setTimeout(() => {
     const locInp = document.getElementById('wgLocInput');
     if (locInp) {
@@ -79,7 +79,7 @@ function backToWgStep1() {
   if (backBtn) backBtn.style.display = 'none';
   if (nextBtn) nextBtn.style.display = 'inline-block';
   if (confirmBtn) confirmBtn.style.display = 'none';
-  
+
   setTimeout(() => {
     const wInp = document.getElementById('wgWeightInput');
     if (wInp) {
@@ -93,7 +93,7 @@ function submitWgAccept() {
   if (!wgPalletObj) return;
   const wVal = parseFloat(document.getElementById('wgWeightInput').value);
   const loc = document.getElementById('wgLocInput').value.trim().toUpperCase();
-  
+
   if (!wVal || wVal <= 0) {
     showToast('Wprowadź prawidłową wagę', 'warn');
     return;
@@ -102,10 +102,10 @@ function submitWgAccept() {
     showToast('Podaj lub zeskanuj lokalizację docelową', 'warn');
     return;
   }
-  
+
   fetch('/magazyn-dostawy/api/przyjmij-wg', {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       id: wgPalletObj.id,
       nr_palety: wgPalletObj.nr_palety,
@@ -114,23 +114,23 @@ function submitWgAccept() {
       waga: wVal
     })
   })
-  .then(r => r.json())
-  .then(d => {
-    if (d.success) {
-      showToast('✅ Paleta przyjęta pomyślnie na ' + loc, 'success');
-      closeWgAcceptModal();
-      hidePallet();
-      if (d.open_report_url) {
-        var win = window.open(d.open_report_url, '_blank');
-        if (!win || win.closed || typeof win.closed === 'undefined') {
-          window.location.href = d.open_report_url;
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        showToast('✅ Paleta przyjęta pomyślnie na ' + loc, 'success');
+        closeWgAcceptModal();
+        hidePallet();
+        if (d.open_report_url) {
+          var win = window.open(d.open_report_url, '_blank');
+          if (!win || win.closed || typeof win.closed === 'undefined') {
+            window.location.href = d.open_report_url;
+          }
         }
+      } else {
+        showToast('❌ ' + (d.error || d.message || 'Błąd zapisu'), 'danger');
       }
-    } else {
-      showToast('❌ ' + (d.error || d.message || 'Błąd zapisu'), 'danger');
-    }
-  })
-  .catch(e => showToast('Błąd: ' + e, 'danger'));
+    })
+    .catch(e => showToast('Błąd: ' + e, 'danger'));
 }
 
 /* ─── Scanner Return to Warehouse Modal ───────────────────── */
@@ -140,11 +140,11 @@ function openScannerReturnModal(pallet = currentPallet) {
   scannerReturnPallet = { ...pallet };
   const loc = pallet.lokalizacja || 'Nieznana stacja';
   const maxQty = parseFloat(pallet.stan_magazynowy) || 0;
-  
+
   document.getElementById('scannerReturnLoc').textContent = loc;
   document.getElementById('scannerReturnQty').value = maxQty > 0 ? maxQty : '';
   document.getElementById('scannerReturnMaxQty').textContent = maxQty > 0 ? `Max: ${maxQty.toFixed(1)} kg` : '';
-  
+
   document.getElementById('scannerReturnOverlay').style.display = 'flex';
   setTimeout(() => document.getElementById('scannerReturnQty').focus(), 100);
 }
@@ -165,7 +165,7 @@ function submitScannerReturn() {
   const qtyInput = document.getElementById('scannerReturnQty');
   const qty = parseFloat(qtyInput.value);
   const maxQty = parseFloat(pallet.stan_magazynowy) || 0;
-  
+
   if (isNaN(qty) || qty <= 0) {
     showToast('Podaj prawidłową ilość większą od 0', 'warn');
     return;
@@ -174,7 +174,7 @@ function submitScannerReturn() {
     showToast(`Ilość nie może być większa niż ${maxQty.toFixed(1)} kg`, 'danger');
     return;
   }
-  
+
   fetch('/agro/api/return', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -188,22 +188,22 @@ function submitScannerReturn() {
       lokalizacja: 'ZWROT'
     })
   })
-  .then(r => r.json())
-  .then(d => {
-    if (d.success) {
-      const ssccMsg = d.new_sscc ? ` (Nowy SSCC: ${d.new_sscc})` : '';
-      showToast(`Pomyślnie zwrócono ${qty} kg${ssccMsg}. Paleta trafiła do Oczekujących.`, 'success');
-      closeScannerReturnModal();
-      hidePallet();
-      hideStation();
-    } else {
-      showToast('Błąd: ' + (d.error || 'Nieznany błąd'), 'danger');
-    }
-  })
-  .catch(e => {
-    console.error('Błąd zwrotu:', e);
-    showToast('Błąd połączenia z serwerem', 'danger');
-  });
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        const ssccMsg = d.new_sscc ? ` (Nowy SSCC: ${d.new_sscc})` : '';
+        showToast(`Pomyślnie zwrócono ${qty} kg${ssccMsg}. Paleta trafiła do Oczekujących.`, 'success');
+        closeScannerReturnModal();
+        hidePallet();
+        hideStation();
+      } else {
+        showToast('Błąd: ' + (d.error || 'Nieznany błąd'), 'danger');
+      }
+    })
+    .catch(e => {
+      console.error('Błąd zwrotu:', e);
+      showToast('Błąd połączenia z serwerem', 'danger');
+    });
 }
 
 /* ─── Scanner Pallet Split (Odcięcie z nową etykietą) ──────── */
@@ -274,47 +274,47 @@ function submitScannerSplit() {
       amount_to_move: qty
     })
   })
-  .then(r => r.json())
-  .then(d => {
-    if (d.success) {
-      closeScannerSplitModal();
-      const isPkg = Boolean(
-        currentPallet && (
-          currentPallet.inventory_type === 'Opakowanie' ||
-          currentPallet.is_pkg ||
-          currentPallet.unit === 'szt.' ||
-          currentPallet.unit === 'szt' ||
-          currentPallet.jednostka === 'szt.' ||
-          currentPallet.jednostka === 'szt'
-        )
-      );
-      const targetPalletCode = currentPallet ? (currentPallet.nr_palety || 'SUR-' + currentPallet.id) : null;
-      if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
-        if (!isPkg) {
-          showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Drukowanie etykiety...`, 'success');
-          if (typeof window.printSplitPalletLabel === 'function') {
-            window.printSplitPalletLabel(d.split_info.new_sscc, typeof LINIA !== 'undefined' ? LINIA : 'AGRO');
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        closeScannerSplitModal();
+        const isPkg = Boolean(
+          currentPallet && (
+            currentPallet.inventory_type === 'Opakowanie' ||
+            currentPallet.is_pkg ||
+            currentPallet.unit === 'szt.' ||
+            currentPallet.unit === 'szt' ||
+            currentPallet.jednostka === 'szt.' ||
+            currentPallet.jednostka === 'szt'
+          )
+        );
+        const targetPalletCode = currentPallet ? (currentPallet.nr_palety || 'SUR-' + currentPallet.id) : null;
+        if (d.split_info && d.split_info.is_split && d.split_info.new_sscc) {
+          if (!isPkg) {
+            showToast(`✅ Odcięto ${d.split_info.moved_qty} kg na nową paletę (${d.split_info.new_sscc}). Drukowanie etykiety...`, 'success');
+            if (typeof window.printSplitPalletLabel === 'function') {
+              window.printSplitPalletLabel(d.split_info.new_sscc, typeof LINIA !== 'undefined' ? LINIA : 'AGRO');
+            }
+          } else {
+            showToast(`✅ Pomyślnie odcięto ${d.split_info.moved_qty} szt. opakowania (${d.split_info.new_sscc}).`, 'success');
           }
-        } else {
-          showToast(`✅ Pomyślnie odcięto ${d.split_info.moved_qty} szt. opakowania (${d.split_info.new_sscc}).`, 'success');
         }
+        if (targetPalletCode) {
+          lookupPallet(targetPalletCode);
+        }
+      } else {
+        showToast(d.message || d.error || 'Błąd podziału palety', 'danger');
       }
-      if (targetPalletCode) {
-        lookupPallet(targetPalletCode);
+    })
+    .catch(e => {
+      showToast('Błąd połączenia z serwerem: ' + e, 'danger');
+    })
+    .finally(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span> Podziel i drukuj etykietę';
       }
-    } else {
-      showToast(d.message || d.error || 'Błąd podziału palety', 'danger');
-    }
-  })
-  .catch(e => {
-    showToast('Błąd połączenia z serwerem: ' + e, 'danger');
-  })
-  .finally(() => {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<span class="material-icons" style="font-size:18px;">print</span> Podziel i drukuj etykietę';
-    }
-  });
+    });
 }
 
 /* ─── Direct Tape Split into Individual Rolls (kg -> szt) ─────── */
@@ -471,7 +471,7 @@ function openScannerTapeSplitModal() {
         }
       }
     })
-    .catch(() => {});
+    .catch(() => { });
 }
 
 function closeScannerTapeSplitModal() {
