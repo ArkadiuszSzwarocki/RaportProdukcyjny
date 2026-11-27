@@ -203,8 +203,25 @@ function handleBlindSSCCScan(sscc) {
                 if (wSysEl) wSysEl.style.display = 'none'; // Ukryj wagę systemową w trybie ślepym
                 
                 const weightInp = document.getElementById('blindWeightInput');
+                const weightLbl = document.getElementById('blindWeightLabel');
+                const tapeSlot = document.getElementById('blindTapeConverterSlot');
+                const isTape = typeof isTapePallet === 'function' && isTapePallet(pal);
+
                 weightInp.value = prefillWeight !== undefined && prefillWeight !== null ? prefillWeight : '';
-                weightInp.placeholder = 'Wpisz wagę...';
+                weightInp.placeholder = isTape ? 'Ilość (szt)...' : 'Wpisz wagę...';
+                if (weightLbl) {
+                    const unitLbl = isTape ? 'szt' : (pal.jednostka || 'kg');
+                    weightLbl.textContent = isTape ? 'Ilość po przeliczeniu (szt):' : `Zważono (${unitLbl}):`;
+                }
+                let tapeWidget = null;
+                if (tapeSlot) {
+                    tapeSlot.innerHTML = '';
+                    if (isTape) {
+                        tapeWidget = mountTapeConverterWidget(tapeSlot, pal, weightInp, null, {
+                            onEnter: submitBlindWeight
+                        });
+                    }
+                }
                 
                 if (!weightInp.dataset.enterBound) {
                     weightInp.dataset.enterBound = 'true';
@@ -218,8 +235,12 @@ function handleBlindSSCCScan(sscc) {
                 
                 document.getElementById('blindWeightModal').style.display = 'flex';
                 setTimeout(() => {
-                    weightInp.focus();
-                    if (weightInp.value) weightInp.select();
+                    if (tapeWidget && tapeWidget.rollInput) {
+                        tapeWidget.rollInput.focus();
+                    } else {
+                        weightInp.focus();
+                        if (weightInp.value) weightInp.select();
+                    }
                 }, 100);
             }
 
@@ -302,8 +323,8 @@ function submitBlindWeight() {
             data_produkcji: paleta.data_produkcji || '',
             data_przydatnosci: paleta.data_przydatnosci || '',
             linia: paleta.linia || 'PSD',
-            typ_opakowania: '',
-            jednostka: paleta.jednostka || 'kg'
+            typ_opakowania: paleta.typ_opakowania || '',
+            jednostka: (typeof isTapePallet === 'function' && isTapePallet(paleta)) ? 'szt' : (paleta.jednostka || 'kg')
         })
     }).then(r => r.json()).then(saveData => {
         isSubmittingBlind = false;

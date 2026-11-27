@@ -10,7 +10,10 @@
             <p style="margin: 5px 0 0 0; color: #64748b; font-size: 15px;">Zarządzanie sesjami liczenia stanów magazynowych.</p>
         </div>
         
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button type="button" onclick="openTapeConverterModal()" class="btn-outline" style="padding: 12px 20px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; border: 2px solid #bfdbfe; color: #1d4ed8; background: #eff6ff; cursor: pointer;">
+                <span class="material-icons">calculate</span> PRZELICZNIK TAŚM
+            </button>
             <a href="{{ url_for('inwentaryzacja.podsumowanie_dnia') }}" class="btn-outline" style="padding: 12px 24px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-decoration: none; border: 2px solid #e2e8f0; color: #475569; background: white;">
                 <span class="material-icons">event_note</span> RAPORT DZIENNY
             </a>
@@ -557,6 +560,7 @@ document.getElementById('printAllDateTo')?.addEventListener('change', fetchPrint
         display: inline-block;
     }
 </style>
+{% include 'inwentaryzacja/partials/_tape_converter_modal.html' %}
 {% endblock %}
 
 

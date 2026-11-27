@@ -324,21 +324,21 @@ class InwentaryzacjaService:
 
             # 1. Surowce
             cursor.execute(
-                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka FROM magazyn_surowce WHERE {like_clause} AND stan_magazynowy > 0", 
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'surowiec' as typ_palety, linia, jednostka, typ_opakowania FROM magazyn_surowce WHERE {like_clause} AND stan_magazynowy > 0", 
                 params
             )
             add_to_map(cursor.fetchall(), source_table='magazyn_surowce')
             
             # 2. Opakowania
             cursor.execute(
-                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka FROM magazyn_opakowania WHERE {like_clause} AND stan_magazynowy > 0", 
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'opakowanie' as typ_palety, linia, 'szt' as jednostka, typ_opakowania FROM magazyn_opakowania WHERE {like_clause} AND stan_magazynowy > 0", 
                 params
             )
             add_to_map(cursor.fetchall(), source_table='magazyn_opakowania')
 
             # 2.5 Dodatki
             cursor.execute(
-                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka FROM magazyn_dodatki WHERE {like_clause} AND stan_magazynowy > 0", 
+                f"SELECT id, nr_palety, nazwa, nr_partii, stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'dodatek' as typ_palety, linia, 'kg' as jednostka, typ_opakowania FROM magazyn_dodatki WHERE {like_clause} AND stan_magazynowy > 0", 
                 params
             )
             add_to_map(cursor.fetchall(), source_table='magazyn_dodatki')
@@ -347,7 +347,7 @@ class InwentaryzacjaService:
             for hall in hall_contexts:
                 table = get_table_name('magazyn_palety', hall)
                 cursor.execute(
-                    f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka FROM {table} WHERE {like_clause} AND waga_netto > 0", 
+                    f"SELECT id, nr_palety, produkt as nazwa, nr_partii, waga_netto as stan_magazynowy, lokalizacja, data_produkcji, data_przydatnosci, 'wyrób gotowy' as typ_palety, linia, 'kg' as jednostka, typ_opakowania FROM {table} WHERE {like_clause} AND waga_netto > 0", 
                     params
                 )
                 add_to_map(cursor.fetchall(), source_table=table)
@@ -370,6 +370,7 @@ class InwentaryzacjaService:
                     "data_produkcji": new_p['data_produkcji'].strftime('%Y-%m-%d') if hasattr(new_p['data_produkcji'], 'strftime') else new_p['data_produkcji'],
                     "data_przydatnosci": new_p['data_przydatnosci'].strftime('%Y-%m-%d') if hasattr(new_p['data_przydatnosci'], 'strftime') else new_p['data_przydatnosci'],
                     "typ_palety": new_p['typ_palety'],
+                    "typ_opakowania": new_p.get('typ_opakowania'),
                     "linia": new_p['linia'],
                     "displayId": new_p['nr_palety'] if new_p['nr_palety'] else f"NEW-{new_p['id']}",
                     "counted": True,
@@ -393,6 +394,7 @@ class InwentaryzacjaService:
                         "data_produkcji": row['data_produkcji'].strftime('%Y-%m-%d') if hasattr(row['data_produkcji'], 'strftime') else row['data_produkcji'],
                         "data_przydatnosci": row['data_przydatnosci'].strftime('%Y-%m-%d') if hasattr(row['data_przydatnosci'], 'strftime') else row['data_przydatnosci'],
                         "typ_palety": row['typ_palety'],
+                        "typ_opakowania": row.get('typ_opakowania'),
                         "linia": row['linia'],
                         "displayId": InwentaryzacjaService._build_display_id(row.get('typ_palety'), row.get('paleta_id'), row.get('nr_palety')),
                         "counted": True,
@@ -586,6 +588,7 @@ class InwentaryzacjaService:
                         "data_produkcji": row['data_produkcji'].strftime('%Y-%m-%d') if hasattr(row['data_produkcji'], 'strftime') else row['data_produkcji'],
                         "data_przydatnosci": row['data_przydatnosci'].strftime('%Y-%m-%d') if hasattr(row['data_przydatnosci'], 'strftime') else row['data_przydatnosci'],
                         "typ_palety": row['typ_palety'],
+                        "typ_opakowania": row.get('typ_opakowania'),
                         "linia": row['linia'],
                         "displayId": row['nr_palety'] if row['nr_palety'] else f"NEW-{row['id']}",
                         "counted": True,
@@ -1223,3 +1226,157 @@ class InwentaryzacjaService:
         finally:
             if 'conn' in locals() and conn:
                 conn.close()
+
+    @staticmethod
+    def _ensure_tape_conversion_table(cursor):
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS magazyn_tasmy_przeliczniki (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                nazwa VARCHAR(255) NOT NULL,
+                waga_worka_kg DECIMAL(10, 4) NOT NULL,
+                updated_by VARCHAR(100) NULL,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_mag_tasmy_przeliczniki_nazwa (nazwa)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """
+        )
+
+    @staticmethod
+    def calculate_tape_pieces(roll_weight_kg, bag_weight_kg):
+        """Calculate number of bags/pieces on a roll/pallet: round(roll_weight_kg / bag_weight_kg)."""
+        roll_kg = float(str(roll_weight_kg).replace(',', '.'))
+        bag_kg = float(str(bag_weight_kg).replace(',', '.'))
+        if bag_kg <= 0:
+            raise ValueError('Waga pojedynczego worka musi być większa od 0.')
+        if roll_kg < 0:
+            raise ValueError('Waga rolki/palety nie może być ujemna.')
+        if roll_kg == 0:
+            return 0
+        return int(round(roll_kg / bag_kg))
+
+    @staticmethod
+    def get_tape_conversions():
+        """Return list of all tapes with their configured single-bag weight (kg)."""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor(dictionary=True)
+            InwentaryzacjaService._ensure_tape_conversion_table(cursor)
+
+            cursor.execute(
+                """
+                SELECT nazwa, waga_worka_kg, updated_by, updated_at
+                FROM magazyn_tasmy_przeliczniki
+                ORDER BY nazwa ASC
+                """
+            )
+            saved_rows = cursor.fetchall()
+            by_key = {}
+            for row in saved_rows:
+                name = str(row.get('nazwa') or '').strip()
+                if not name:
+                    continue
+                by_key[name.lower()] = {
+                    'nazwa': name,
+                    'waga_worka_kg': float(row['waga_worka_kg']) if row.get('waga_worka_kg') is not None else None,
+                    'updated_by': row.get('updated_by') or '',
+                    'updated_at': row['updated_at'].strftime('%Y-%m-%d %H:%M') if hasattr(row.get('updated_at'), 'strftime') else (str(row.get('updated_at')) if row.get('updated_at') else ''),
+                }
+
+            cursor.execute(
+                """
+                SELECT DISTINCT TRIM(nazwa) AS nazwa
+                FROM magazyn_opakowania
+                WHERE TRIM(COALESCE(nazwa, '')) <> ''
+                  AND (
+                      LOWER(COALESCE(typ_opakowania, '')) LIKE '%tasm%'
+                      OR LOWER(COALESCE(typ_opakowania, '')) LIKE '%taśm%'
+                  )
+                ORDER BY TRIM(nazwa) ASC
+                """
+            )
+            for row in cursor.fetchall():
+                name = str(row.get('nazwa') or '').strip()
+                if not name:
+                    continue
+                key = name.lower()
+                if key not in by_key:
+                    by_key[key] = {
+                        'nazwa': name,
+                        'waga_worka_kg': None,
+                        'updated_by': '',
+                        'updated_at': '',
+                    }
+
+            items = sorted(by_key.values(), key=lambda x: x['nazwa'].lower())
+            return items
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_tape_conversions_map():
+        """Return dict mapping lower-cased tape name -> single-bag weight in kg."""
+        items = InwentaryzacjaService.get_tape_conversions()
+        return {
+            it['nazwa'].strip().lower(): float(it['waga_worka_kg'])
+            for it in items
+            if it.get('waga_worka_kg') is not None and float(it['waga_worka_kg']) > 0
+        }
+
+    @staticmethod
+    def save_tape_conversions_bulk(items, user_login='system'):
+        """Upsert or delete single-bag weights (kg) for one or more tapes."""
+        if not isinstance(items, list) or not items:
+            return False, 'Brak danych do zapisania.'
+
+        normalized = []
+        for entry in items:
+            if not isinstance(entry, dict):
+                continue
+            nazwa = str(entry.get('nazwa') or '').strip()
+            if not nazwa:
+                continue
+            raw_val = entry.get('waga_worka_kg')
+            if raw_val is None or str(raw_val).strip() == '':
+                normalized.append((nazwa, None))
+                continue
+            try:
+                val = float(str(raw_val).strip().replace(',', '.'))
+            except (TypeError, ValueError):
+                return False, f'Nieprawidłowa waga worka dla taśmy "{nazwa}".'
+            if val <= 0:
+                return False, f'Waga pojedynczego worka dla taśmy "{nazwa}" musi być większa od 0.'
+            normalized.append((nazwa, round(val, 4)))
+
+        if not normalized:
+            return False, 'Brak poprawnych pozycji do zapisania.'
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            InwentaryzacjaService._ensure_tape_conversion_table(cursor)
+            for nazwa, val in normalized:
+                if val is None:
+                    cursor.execute(
+                        "DELETE FROM magazyn_tasmy_przeliczniki WHERE LOWER(TRIM(nazwa)) = LOWER(%s)",
+                        (nazwa,)
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO magazyn_tasmy_przeliczniki (nazwa, waga_worka_kg, updated_by)
+                        VALUES (%s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                            waga_worka_kg = VALUES(waga_worka_kg),
+                            updated_by = VALUES(updated_by),
+                            updated_at = CURRENT_TIMESTAMP
+                        """,
+                        (nazwa, val, user_login)
+                    )
+            conn.commit()
+            return True, f'Zapisano przeliczniki dla {len(normalized)} taśm.'
+        except Exception as e:
+            conn.rollback()
+            return False, f'Błąd zapisu przeliczników: {e}'
+        finally:
+            conn.close()

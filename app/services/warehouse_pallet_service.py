@@ -487,12 +487,13 @@ class WarehousePalletService:
         return PalletManagementService.usun_palete(id, linia, user_login, is_ajax, safe_return_url, conn=conn)
 
     @staticmethod
-    def edytuj_palete(paleta_id, linia, waga_palety, user_login, update_paleta_workowanie, is_ajax, safe_return_url):
+    def edytuj_palete(paleta_id, linia, waga_palety, user_login, update_paleta_workowanie, is_ajax, safe_return_url, source=None):
         """Edit paleta weight (netto) in buffer or warehouse."""
         linia_input = str(linia or 'PSD').upper()
         lines_to_try = [linia_input]
         other_line = 'AGRO' if linia_input == 'PSD' else 'PSD'
         lines_to_try.append(other_line)
+        prefer_workowanie = str(source or '').strip().lower() in ('workowanie', 'buffer', 'palety_workowanie', 'palety_agro')
 
         conn = None
         try:
@@ -513,12 +514,16 @@ class WarehousePalletService:
                 table_pal = get_table_name('palety_workowanie', line)
                 table_plan = get_table_name('plan_produkcji', line)
 
-                # 1. Check if paleta_id matches magazyn_palety by primary key ID (e.g. from warehouse table)
-                cursor.execute(
-                    f"SELECT id, paleta_workowanie_id, plan_id, waga_netto, nr_palety, tara, linia FROM {table_mag} WHERE id=%s LIMIT 1",
-                    (paleta_id,)
-                )
-                mag_row = cursor.fetchone()
+                # 1. Check if paleta_id matches magazyn_palety by primary key ID (e.g. from warehouse table).
+                # Skip when editing explicitly from Workowanie, where paleta_id is palety_agro/palety_workowanie.id
+                # and can collide with an unrelated magazyn_palety.id row.
+                mag_row = None
+                if not prefer_workowanie:
+                    cursor.execute(
+                        f"SELECT id, paleta_workowanie_id, plan_id, waga_netto, nr_palety, tara, linia FROM {table_mag} WHERE id=%s LIMIT 1",
+                        (paleta_id,)
+                    )
+                    mag_row = cursor.fetchone()
                 if mag_row:
                     mag_id, work_id, plan_id, old_netto, nr_palety, tara, stored_line = mag_row
                     line = str(stored_line or line).upper()
@@ -594,10 +599,16 @@ class WarehousePalletService:
                         # Also sync linked magazyn_palety if exists
                         tara_val = float(p_tara or 0.0)
                         new_brutto = float(waga) + tara_val
-                        cursor.execute(
-                            f"UPDATE {table_mag} SET waga_netto=%s, waga_brutto=%s WHERE paleta_workowanie_id=%s AND linia=%s AND nr_palety=%s",
-                            (waga, new_brutto, p_id, line, nr_palety)
-                        )
+                        if nr_palety:
+                            cursor.execute(
+                                f"UPDATE {table_mag} SET waga_netto=%s, waga_brutto=%s WHERE paleta_workowanie_id=%s AND linia=%s AND nr_palety=%s",
+                                (waga, new_brutto, p_id, line, nr_palety)
+                            )
+                        else:
+                            cursor.execute(
+                                f"UPDATE {table_mag} SET waga_netto=%s, waga_brutto=%s WHERE paleta_workowanie_id=%s AND linia=%s",
+                                (waga, new_brutto, p_id, line)
+                            )
                     else:
                         cursor.execute(
                             f"UPDATE {table_pal} SET waga=%s WHERE id=%s",
@@ -657,8 +668,8 @@ class WarehousePalletService:
             nr_pal_str = updated_info.get('nr_palety') or f"ID={paleta_id}"
             try:
                 cursor.execute(
-                    "INSERT INTO palety_historia (paleta_id, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, 'wyrob_gotowy', 'EDYCJA_WAGI', %s, %s)",
-                    (hist_pal_id, effective_line, f"Zmieniono wagę palety {nr_pal_str}: {old_waga} kg → {waga} kg", user_login)
+                    "INSERT INTO palety_historia (paleta_id, nr_palety, linia, typ_palety, akcja, komentarz, user_login) VALUES (%s, %s, %s, 'wyrob_gotowy', 'EDYCJA_WAGI', %s, %s)",
+                    (hist_pal_id, updated_info.get('nr_palety'), effective_line, f"Zmieniono wagę palety {nr_pal_str}: {old_waga} kg → {waga} kg", user_login)
                 )
             except Exception as hist_err:
                 current_app.logger.warning('Failed to log history for edited paleta %s: %s', paleta_id, hist_err)

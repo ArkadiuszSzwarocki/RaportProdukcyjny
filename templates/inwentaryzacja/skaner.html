@@ -96,6 +96,9 @@ Inwentaryzacja Magazynu
     <div style="text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
         <div id="connectionStatus" style="font-size: 10px; color: #10b981; font-weight: 700;">● ONLINE</div>
     </div>
+    <button onclick="openTapeConverterModal()" style="border: none; background: #eff6ff; color: #1d4ed8; height: 32px; padding: 0 10px; border-radius: 16px; display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 11px; font-weight: 800; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);" title="Przelicznik taśm (kg -> szt)">
+        <span class="material-icons" style="font-size: 16px;">calculate</span> Taśmy
+    </button>
     <button onclick="openInstructionsModal()" style="border: none; background: #eff6ff; color: #2563eb; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.1);" title="Instrukcja Obsługi">
         <span class="material-icons" style="font-size: 18px;">info</span>
     </button>
@@ -203,6 +206,7 @@ Inwentaryzacja Magazynu
 
 {% block scanner_modals %}
     {% include 'inwentaryzacja/partials/_modals.html' %}
+    {% include 'inwentaryzacja/partials/_tape_converter_modal.html' %}
 {% endblock %}
 
 {% block scanner_scripts %}
@@ -221,16 +225,18 @@ Inwentaryzacja Magazynu
         url_zakoncz_sesje: '{{ url_for("inwentaryzacja.zamknij_sesje") }}',
         url_print_pallet_label: '{{ url_for("warehouse_v2.print_pallet_label") }}',
         url_podpowiedzi_nazw: '{{ url_for("inwentaryzacja.podpowiedzi_nazw") }}',
-        url_raport: '{{ url_for("inwentaryzacja.raport", sesja_id=sesja_id) }}'
+        url_raport: '{{ url_for("inwentaryzacja.raport", sesja_id=sesja_id) }}',
+        url_tape_conversions: {{ url_for("inwentaryzacja.api_tasmy_przeliczniki")|tojson }},
+        tapeWeights: {{ (tape_weights or {})|tojson }}
     };
 </script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/globals.js') }}?v={{ static_version }}&v2=26"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/utils.js') }}?v={{ static_version }}&v2=27"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/utils.js') }}?v={{ static_version }}&v2=28"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/api.js') }}?v={{ static_version }}&v2=26"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/rack_mode.js') }}?v={{ static_version }}&v2=28&multi_pallet=3&warehouse_live=2"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/slot_mode.js') }}?v={{ static_version }}&v2=26&multi_pallet=4&warehouse_live=1&inventory_move_role=2"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/blind_mode_v2.js') }}?v={{ static_version }}&v2=26"></script>
-<script src="{{ url_for('static', filename='js/inwentaryzacja/pallet_manager.js') }}?v={{ static_version }}&v2=26&multi_pallet=3&inventory_move_role=2"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/slot_mode.js') }}?v={{ static_version }}&v2=27&multi_pallet=4&warehouse_live=1&inventory_move_role=2"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/blind_mode_v2.js') }}?v={{ static_version }}&v2=27"></script>
+<script src="{{ url_for('static', filename='js/inwentaryzacja/pallet_manager.js') }}?v={{ static_version }}&v2=27&multi_pallet=3&inventory_move_role=2"></script>
 <script src="{{ url_for('static', filename='js/inwentaryzacja/main.js') }}?v={{ static_version }}&v2=29&warehouse_live=1"></script>
 
 
