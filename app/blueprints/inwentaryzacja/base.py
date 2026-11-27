@@ -299,6 +299,27 @@ def get_lokalizacje():
 @inwentaryzacja_bp.route('/api/zapisz-wpis', methods=['POST'])
 def zapisz_wpis():
     data = request.json
+    rolls_szt = data.get('rolls_szt')
+    if isinstance(rolls_szt, list) and len(rolls_szt) >= 2:
+        success, msg, created_ssccs = InwentaryzacjaService.save_split_tape_rolls(
+            data['sesja_id'],
+            data.get('paleta_id'),
+            data.get('typ_palety'),
+            data.get('nazwa'),
+            data.get('lokalizacja'),
+            data.get('nr_partii'),
+            data.get('waga_systemowa', 0),
+            rolls_szt,
+            session.get('login', 'system'),
+            data.get('linia', 'PSD'),
+            data.get('nr_palety'),
+            data.get('data_produkcji'),
+            data.get('data_przydatnosci'),
+            data.get('typ_opakowania', 'Taśma'),
+            data.get('jednostka', 'szt')
+        )
+        return jsonify({"success": success, "message": msg, "created_ssccs": created_ssccs})
+
     success, msg = InwentaryzacjaService.add_entry(
         data['sesja_id'],
         data.get('paleta_id'),

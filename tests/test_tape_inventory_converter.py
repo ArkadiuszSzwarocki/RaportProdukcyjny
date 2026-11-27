@@ -101,3 +101,71 @@ def test_api_tasmy_przeliczniki_get_and_post(client):
     assert resp2.get_json()['success'] is True
     mock_save.assert_called_once_with([{'nazwa': 'Fiolet', 'waga_worka_kg': 0.15}], user_login='szwarark')
 
+
+def test_save_split_tape_rolls_creates_separate_roll_entries():
+    mock_conn = MagicMock()
+    mock_cursor = MagicMock()
+    mock_conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchone.return_value = None
+
+    with patch('app.services.inwentaryzacja_service.get_db_connection', return_value=mock_conn):
+        ok, msg, created_ssccs = InwentaryzacjaService.save_split_tape_rolls(
+            sesja_id=170,
+            paleta_id=42,
+            typ_palety='opakowanie',
+            nazwa='Fiolet',
+            lokalizacja='R060405',
+            nr_partii='BRAK',
+            waga_systemowa=5000,
+            rolls_szt=[1200, 1133, 1000],
+            user_login='szwarark',
+            linia='PSD',
+            nr_palety='OPK080520268220711005',
+        )
+
+    assert ok is True
+    assert '3 rolek' in msg
+    assert '3333 szt' in msg
+    assert len(created_ssccs) == 2
+    assert all(code.startswith('OPK000') for code in created_ssccs)
+    assert len(set(created_ssccs)) == 2
+    assert mock_conn.commit.called
+    inserts = [c for c in mock_cursor.execute.call_args_list if 'INSERT INTO magazyn_inwentaryzacja_wpisy' in str(c[0][0])]
+    assert len(inserts) == 3
+
+
+def test_api_zapisz_wpis_delegates_split_rolls(client):
+    with client.session_transaction() as sess:
+        sess['zalogowany'] = True
+        sess['rola'] = 'magazynier'
+        sess['login'] = 'szwarark'
+
+    with patch.object(
+        InwentaryzacjaService,
+        'save_split_tape_rolls',
+        return_value=(True, 'Zapisano 2 rolek (razem 3333 szt)', ['OPK000001']),
+    ) as mock_split:
+        resp = client.post(
+            '/magazyn/inwentaryzacja/api/zapisz-wpis',
+            json={
+                'sesja_id': 170,
+                'paleta_id': 42,
+                'nr_palety': 'OPK080520268220711005',
+                'typ_palety': 'opakowanie',
+                'nazwa': 'Fiolet',
+                'lokalizacja': 'R060405',
+                'waga_systemowa': 5000,
+                'waga_faktyczna': 1667,
+                'rolls_szt': [1667, 1666],
+                'jednostka': 'szt',
+            },
+            content_type='application/json',
+        )
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data['success'] is True
+    assert data['created_ssccs'] == ['OPK000001']
+    mock_split.assert_called_once()
+
+

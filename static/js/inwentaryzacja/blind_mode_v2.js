@@ -284,8 +284,21 @@ let isSubmittingBlind = false;
 function submitBlindWeight() {
     if (isSubmittingBlind) return;
 
+    const tapeSlotEl = document.getElementById('blindTapeConverterSlot');
+    let splitRollsSzt = null;
+    if (tapeSlotEl && tapeSlotEl._tapeWidget && typeof tapeSlotEl._tapeWidget.getSplitRollsSzt === 'function') {
+        const splitRes = tapeSlotEl._tapeWidget.getSplitRollsSzt();
+        if (splitRes && splitRes.error) {
+            safeToast(splitRes.error, 'error');
+            return;
+        }
+        if (Array.isArray(splitRes) && splitRes.length >= 2) {
+            splitRollsSzt = splitRes;
+        }
+    }
+
     const weightVal = document.getElementById('blindWeightInput').value;
-    if (weightVal === '') {
+    if (!splitRollsSzt && weightVal === '') {
         safeToast('Podaj wagę!', 'error');
         return;
     }
@@ -293,7 +306,7 @@ function submitBlindWeight() {
     if (!currentBlindPallet) return;
     
     isSubmittingBlind = true;
-    const waga_faktyczna = parseFloat(weightVal);
+    const waga_faktyczna = splitRollsSzt ? splitRollsSzt[0] : parseFloat(weightVal);
     const targetLoc = lastLocation;
     const paleta = currentBlindPallet;
     
@@ -304,32 +317,35 @@ function submitBlindWeight() {
     else if(t.includes('got') || t.includes('wyróbgotowy') || t.includes('pal')) mapTyp = 'wyrób gotowy';
     else if(t.includes('surowiec')) mapTyp = 'surowiec';
 
-    safeToast('Zapisywanie...', 'info');
+    safeToast(splitRollsSzt ? 'Zapisywanie rolek...' : 'Zapisywanie...', 'info');
     document.getElementById('blindWeightModal').style.display = 'none';
+
+    const blindPayload = {
+        sesja_id: window.INVENTORY_CONFIG.sesjaId,
+        paleta_id: paleta.id,
+        nr_palety: paleta.nr_palety,
+        typ_palety: mapTyp,
+        nazwa: paleta.nazwa,
+        lokalizacja: targetLoc,
+        nr_partii: paleta.nr_partii || 'BRAK',
+        waga_systemowa: paleta.waga || 0,
+        waga_faktyczna: waga_faktyczna,
+        data_produkcji: paleta.data_produkcji || '',
+        data_przydatnosci: paleta.data_przydatnosci || '',
+        linia: paleta.linia || 'PSD',
+        typ_opakowania: paleta.typ_opakowania || '',
+        jednostka: (splitRollsSzt || (typeof isTapePallet === 'function' && isTapePallet(paleta))) ? 'szt' : (paleta.jednostka || 'kg')
+    };
+    if (splitRollsSzt) blindPayload.rolls_szt = splitRollsSzt;
 
     fetch(window.INVENTORY_CONFIG.url_zapisz_wpis, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            sesja_id: window.INVENTORY_CONFIG.sesjaId,
-            paleta_id: paleta.id,
-            nr_palety: paleta.nr_palety,
-            typ_palety: mapTyp,
-            nazwa: paleta.nazwa,
-            lokalizacja: targetLoc,
-            nr_partii: paleta.nr_partii || 'BRAK',
-            waga_systemowa: paleta.waga || 0,
-            waga_faktyczna: waga_faktyczna,
-            data_produkcji: paleta.data_produkcji || '',
-            data_przydatnosci: paleta.data_przydatnosci || '',
-            linia: paleta.linia || 'PSD',
-            typ_opakowania: paleta.typ_opakowania || '',
-            jednostka: (typeof isTapePallet === 'function' && isTapePallet(paleta)) ? 'szt' : (paleta.jednostka || 'kg')
-        })
+        body: JSON.stringify(blindPayload)
     }).then(r => r.json()).then(saveData => {
         isSubmittingBlind = false;
         if (saveData.success) {
-            safeToast('✅ Zapisano pomyślnie!', 'success');
+            safeToast(splitRollsSzt ? ('✅ ' + (saveData.message || 'Zapisano rolki!')) : '✅ Zapisano pomyślnie!', 'success');
             loadCountedBlindItems(targetLoc);
             currentBlindPallet = null;
             setTimeout(() => {

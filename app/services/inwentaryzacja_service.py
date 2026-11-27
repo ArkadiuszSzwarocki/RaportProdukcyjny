@@ -1045,9 +1045,9 @@ class InwentaryzacjaService:
                         
                         if e['typ_palety'] in ['surowiec', 'opakowanie']:
                             cursor.execute(f"""
-                                INSERT INTO {table} (nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania) 
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (e['nr_palety'], e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania']))
+                                INSERT INTO {table} (nr_palety, nazwa, stan_magazynowy, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, linia) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (e['nr_palety'], e['nazwa'], e['waga_faktyczna'], e['lokalizacja'], e['nr_partii'], d_prod, d_przyd, e['typ_opakowania'], linia_e))
                         else: # Wyrób gotowy
                             cursor.execute(f"""
                                 INSERT INTO {table} (nr_palety, produkt, waga_netto, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, typ_opakowania, user_login, linia)
@@ -1378,5 +1378,106 @@ class InwentaryzacjaService:
         except Exception as e:
             conn.rollback()
             return False, f'Błąd zapisu przeliczników: {e}'
+        finally:
+            conn.close()
+
+    @staticmethod
+    def save_split_tape_rolls(
+        sesja_id,
+        paleta_id,
+        typ_palety,
+        nazwa,
+        lokalizacja,
+        nr_partii,
+        waga_systemowa,
+        rolls_szt,
+        user_login,
+        linia='PSD',
+        nr_palety=None,
+        data_produkcji=None,
+        data_przydatnosci=None,
+        typ_opakowania='Taśma',
+        jednostka='szt',
+    ):
+        """Split a tape pallet into multiple individual rolls in inventory (and warehouse upon apply)."""
+        import time
+        import random
+
+        if not isinstance(rolls_szt, list) or len(rolls_szt) < 2:
+            return False, 'Podaj co najmniej 2 rolki do rozbicia.', []
+
+        cleaned_rolls = []
+        for idx, raw_qty in enumerate(rolls_szt, start=1):
+            try:
+                qty = int(round(float(str(raw_qty).replace(',', '.'))))
+            except (TypeError, ValueError):
+                return False, f'Nieprawidłowa ilość dla rolki #{idx}.', []
+            if qty <= 0:
+                return False, f'Ilość dla rolki #{idx} musi być większa od 0.', []
+            cleaned_rolls.append(qty)
+
+        d_prod = InwentaryzacjaService._clean_date(data_produkcji)
+        d_przyd = InwentaryzacjaService._clean_date(data_przydatnosci)
+        pkg_type = typ_opakowania if (typ_opakowania and typ_opakowania != 'brak') else 'Taśma'
+        unit = jednostka or 'szt'
+
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+
+            if (not nr_palety or not str(nr_palety).strip()) and paleta_id:
+                try:
+                    cursor.execute("SELECT nr_palety FROM magazyn_opakowania WHERE id = %s", (paleta_id,))
+                    _nr_row = cursor.fetchone()
+                    if _nr_row and _nr_row[0]:
+                        nr_palety = str(_nr_row[0]).strip()
+                except Exception:
+                    pass
+
+            # 1. Save / update Roll #1 under the original pallet entry
+            existing = None
+            if nr_palety and str(nr_palety).strip():
+                cursor.execute(
+                    "SELECT id FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND UPPER(nr_palety) = %s",
+                    (sesja_id, str(nr_palety).strip().upper()),
+                )
+                existing = cursor.fetchone()
+            if not existing and paleta_id is not None:
+                cursor.execute(
+                    "SELECT id FROM magazyn_inwentaryzacja_wpisy WHERE sesja_id = %s AND paleta_id = %s AND typ_palety = 'opakowanie'",
+                    (sesja_id, paleta_id),
+                )
+                existing = cursor.fetchone()
+
+            first_qty = cleaned_rolls[0]
+            if existing:
+                cursor.execute(
+                    "UPDATE magazyn_inwentaryzacja_wpisy SET nr_palety = COALESCE(nr_palety, %s), waga_faktyczna = %s, lokalizacja = %s, data_produkcji = %s, data_przydatnosci = %s, typ_opakowania = %s, data_wpisu = NOW(), user_login = %s, jednostka = %s WHERE id = %s",
+                    (nr_palety, first_qty, lokalizacja, d_prod, d_przyd, pkg_type, user_login, unit, existing[0]),
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO magazyn_inwentaryzacja_wpisy (sesja_id, paleta_id, nr_palety, typ_palety, nazwa, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, waga_systemowa, waga_faktyczna, typ_opakowania, user_login, linia, jednostka) VALUES (%s, %s, %s, 'opakowanie', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    (sesja_id, paleta_id, nr_palety, nazwa, lokalizacja, nr_partii, d_prod, d_przyd, waga_systemowa, first_qty, pkg_type, user_login, linia, unit),
+                )
+
+            # 2. Insert Roll #2..#N as new separate pallets (paleta_id=None -> inserted into magazyn_opakowania on apply)
+            created_ssccs = []
+            base_ts = int(time.time() * 1000)
+            for idx, roll_qty in enumerate(cleaned_rolls[1:], start=2):
+                suffix = f"{(base_ts + idx) % 10000000000000:013d}{random.randint(10, 99)}"
+                new_sscc = f"OPK000{suffix}"
+                cursor.execute(
+                    "INSERT INTO magazyn_inwentaryzacja_wpisy (sesja_id, paleta_id, nr_palety, typ_palety, nazwa, lokalizacja, nr_partii, data_produkcji, data_przydatnosci, waga_systemowa, waga_faktyczna, typ_opakowania, user_login, linia, jednostka) VALUES (%s, NULL, %s, 'opakowanie', %s, %s, %s, %s, %s, 0, %s, %s, %s, %s, %s)",
+                    (sesja_id, new_sscc, nazwa, lokalizacja, nr_partii, d_prod, d_przyd, roll_qty, pkg_type, user_login, linia, unit),
+                )
+                created_ssccs.append(new_sscc)
+
+            conn.commit()
+            total_szt = sum(cleaned_rolls)
+            return True, f"Zapisano {len(cleaned_rolls)} rolek (razem {total_szt} szt)", created_ssccs
+        except Exception as e:
+            conn.rollback()
+            return False, f"Błąd rozbijania na rolki: {e}", []
         finally:
             conn.close()
